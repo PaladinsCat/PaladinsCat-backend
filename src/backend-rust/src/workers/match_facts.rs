@@ -7,6 +7,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio_postgres::Transaction;
 
 use super::match_lifecycle::MatchPopulation;
+use super::private_identity::persist_and_resolve_private_identities;
 
 const FACT_STAGES: [&str; 3] = ["core", "player_facts", "match_bans"];
 const PRIVATE_ACCOUNT_NAME: &str = "PRIVATEACCOUNT";
@@ -249,6 +250,11 @@ impl MatchFactRepository {
             add_stage(&transaction, payload.match_id, "player_facts").await?;
             stages.insert("player_facts".to_owned());
         }
+        // Private-account observations and their inferred identity links share
+        // the same transaction as canonical player facts. Replays are safe:
+        // the immutable match/slot observation upsert preserves resolved links.
+        persist_and_resolve_private_identities(&transaction, payload, &players, quality.limited)
+            .await?;
         if !stages.contains("match_bans") {
             persist_bans(&transaction, payload.match_id, &bans).await?;
             add_stage(&transaction, payload.match_id, "match_bans").await?;
@@ -624,7 +630,7 @@ async fn persist_player_facts(
               ) / GREATEST(COALESCE(NULLIF(f.p->>'deaths','')::numeric,0),1),2)::double precision,
               COALESCE(NULLIF(f.p->>'time_in_match','')::int,0),
               $2::text::timestamptz,f.fact_source,
-              NULLIF(f.p->>'portal_id','')::smallint,$3,0,
+              NULLIF(f.p->>'portal_id','')::smallint,$3,NULL,
               NULLIF(f.p->>'portal_user_id',''),
               COALESCE(NULLIF(f.p->>'kills_player','')::int,0),now(),
               NULLIF(f.p->>'platform',''),
@@ -1329,5 +1335,116 @@ mod tests {
             assert!(stages.iter().any(|stage| stage == "player_facts"));
             assert!(stages.iter().any(|stage| stage == "match_bans"));
         }
+
+        let private_ranked = |match_id: i64, entry_datetime: &str| {
+            let mut value = complete_match();
+            value["match_id"] = json!(match_id);
+            value["entry_datetime"] = json!(entry_datetime);
+            let players = value["players"].as_array_mut().expect("players");
+            players[0]["party_id"] = json!(77);
+            players[4] = json!({
+                "player_id":0,
+                "player_name":"PRIVATEACCOUNT",
+                "champion_id":2205,
+                "task_force":1,
+                "win_status":"Winner",
+                "source":"direct",
+                "party_id":77,
+                "account_level":320,
+                "mastery_level":42,
+                "league_tier":20,
+                "league_points":65,
+                "portal_id":1,
+                "platform":"steam"
+            });
+            CanonicalMatchPayload::from_relay_value(value).expect("private ranked payload")
+        };
+        let first_private = private_ranked(130, "2026-07-30T13:00:00Z");
+        repository
+            .finalize(&first_private, "direct_lookup")
+            .await
+            .expect("create private identity");
+        let second_private = private_ranked(131, "2026-07-30T14:00:00Z");
+        repository
+            .finalize(&second_private, "ranked_hourly")
+            .await
+            .expect("link private identity");
+        repository
+            .finalize(&second_private, "ranked_hourly_replay")
+            .await
+            .expect("replay linked identity");
+
+        let casual_private = |match_id: i64, entry_datetime: &str| {
+            let mut value = complete_match();
+            value["match_id"] = json!(match_id);
+            value["queue_id"] = json!(424);
+            value["entry_datetime"] = json!(entry_datetime);
+            value["players"].as_array_mut().expect("players")[4] = json!({
+                "player_id":0,
+                "player_name":"PRIVATEACCOUNT",
+                "champion_id":9999,
+                "task_force":1,
+                "win_status":"Winner",
+                "source":"direct",
+                "party_id":909
+            });
+            CanonicalMatchPayload::from_relay_value(value).expect("private casual payload")
+        };
+        let first_casual_private = casual_private(140, "2026-07-30T15:00:00Z");
+        repository
+            .finalize(&first_casual_private, "profile_history")
+            .await
+            .expect("seed casual private identity");
+        let second_casual_private = casual_private(141, "2026-07-30T16:00:00Z");
+        repository
+            .finalize(&second_casual_private, "casual_hourly")
+            .await
+            .expect("retain ambiguous casual observation");
+        repository
+            .finalize(&second_casual_private, "casual_hourly_replay")
+            .await
+            .expect("replay ambiguous casual observation");
+
+        let private_summary = database
+            .query_json(
+                r#"
+                SELECT
+                  (SELECT count(*)::int FROM private_account_observations)
+                    AS observations,
+                  (SELECT count(*)::int FROM players_private) AS identities,
+                  (SELECT count(*)::int FROM players_private_history) AS history,
+                  (SELECT count(*)::int FROM private_player_presence_24h)
+                    AS resolved_presence,
+                  (SELECT count(*)::int FROM unresolved_private_presence)
+                    AS unresolved_presence,
+                  (SELECT count(DISTINCT private_player_id)::int
+                    FROM match_players
+                    WHERE match_id IN (130,131)
+                      AND private_player_id IS NOT NULL) AS ranked_identities,
+                  (SELECT resolution_status
+                    FROM private_account_observations
+                    WHERE match_id=141 AND private_slot=1) AS casual_resolution,
+                  (SELECT private_player_id
+                    FROM match_players
+                    WHERE match_id=141 AND player_id=0 AND private_slot=1)
+                    AS ambiguous_link
+                "#,
+                &[],
+            )
+            .await
+            .expect("private identity summary");
+        assert_eq!(
+            private_summary,
+            vec![json!({
+                "observations":4,
+                "identities":2,
+                "history":3,
+                "resolved_presence":2,
+                "unresolved_presence":1,
+                "ranked_identities":1,
+                "casual_resolution":"ambiguous",
+                "ambiguous_link":null
+            })]
+        );
     }
 }

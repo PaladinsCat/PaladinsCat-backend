@@ -41,9 +41,13 @@ It is intentionally not a production backend yet:
   DB-miss → relay → durable-facts requested-lookup test. Known partial matches
   now execute missing cached-history reads plus `resumeMatchRecovery`; a live
   disposable trace proves this branch never replays match detail or roster
-  operations. It still needs exact TypeScript fact-table comparison,
-  private-account observation parity, and batched discovery/pull lifecycle
-  traces before this branch can be accepted.
+  operations. The canonical finalizer now also owns the Rust candidate's
+  private-account observation, identity scoring/linking, history, and
+  resolved/unresolved presence transaction. The existing 13-case TypeScript
+  score contract, 8 Rust score cases, and a disposable PostgreSQL lifecycle
+  test pass. It still needs an exact TypeScript-versus-Rust full fact-table
+  comparison and batched discovery/pull lifecycle traces before this branch
+  can be accepted.
 - `paladinscat-worker` exits without claiming any scheduler ownership.
 - Compose continues to select the TypeScript backend until compatibility gates
   and the production cutover are explicitly approved.
