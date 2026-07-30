@@ -50,7 +50,7 @@ pub fn candidate_status() -> CandidateStatus {
         status: "migration_candidate",
         admission: "quiesced",
         routes_migrated: 0,
-        routes_implemented: 76,
+        routes_implemented: 139,
         routes_inventoried: INVENTORIED_ROUTES,
         worker_modules_migrated: 0,
         worker_modules_inventoried: INVENTORIED_WORKERS,
@@ -83,11 +83,27 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
         .merge(routes::recovery::router(database.clone()))
         .merge(routes::coplay::router(database.clone()))
         .merge(routes::meta::router(database.clone(), route_cache.clone()))
+        .merge(routes::champions::router(
+            database.clone(),
+            route_cache.clone(),
+        ))
         .merge(routes::stats::router(database.clone(), route_cache.clone()))
         .merge(routes::notifications::router(database.clone(), route_cache))
+        .merge(routes::player_ext::router(database.clone()))
         .merge(routes::esports::router(database.clone()))
         .merge(routes::ratings::router(database.clone()))
+        .merge(routes::search::router(
+            database.clone(),
+            foundation.search.clone(),
+            foundation.config.clone(),
+        ))
+        .merge(routes::live::router(
+            database.clone(),
+            foundation.redis.clone(),
+            foundation.config.clone(),
+        ))
         .merge(routes::reference::router(database.clone(), redis))
+        .merge(routes::raw_api_responses::router(database.clone()))
         .merge(routes::public_operations::router(database))
         .fallback(not_found);
     Router::new()
@@ -239,7 +255,7 @@ mod tests {
         let status = candidate_status();
         assert_eq!(status.admission, "quiesced");
         assert_eq!(status.routes_migrated, 0);
-        assert_eq!(status.routes_implemented, 76);
+        assert_eq!(status.routes_implemented, 139);
         assert_eq!(status.routes_inventoried, 268);
         assert_eq!(status.worker_modules_migrated, 0);
         assert_eq!(status.scheduler_owners_migrated, 0);

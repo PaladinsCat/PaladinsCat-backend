@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::{Client, StatusCode};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::config::BackendConfig;
 
@@ -68,6 +68,50 @@ impl SearchIndex {
                         "MeiliSearch index initialization failed"
                     );
                 }
+            }
+        }
+    }
+
+    /// Search one existing MeiliSearch read model.
+    ///
+    /// This deliberately preserves the TypeScript route contract: an absent
+    /// service, missing index, or transient search failure degrades to an empty
+    /// result set instead of failing the public request.
+    pub async fn search(&self, index: &str, query: &str, limit: usize) -> Vec<Value> {
+        let Some(base_url) = self.base_url.as_deref() else {
+            return Vec::new();
+        };
+        if query.trim().is_empty() {
+            return Vec::new();
+        }
+        let response = self
+            .request(
+                self.client
+                    .post(format!("{base_url}/indexes/{index}/search")),
+            )
+            .json(&json!({
+                "q": query.trim(),
+                "limit": limit.min(100),
+            }))
+            .send()
+            .await;
+        let Ok(response) = response else {
+            tracing::warn!(index, "MeiliSearch request failed");
+            return Vec::new();
+        };
+        if !response.status().is_success() {
+            tracing::warn!(index, status = %response.status(), "MeiliSearch search was rejected");
+            return Vec::new();
+        }
+        match response.json::<Value>().await {
+            Ok(payload) => payload
+                .get("hits")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            Err(error) => {
+                tracing::warn!(index, error = %error, "MeiliSearch response was invalid");
+                Vec::new()
             }
         }
     }

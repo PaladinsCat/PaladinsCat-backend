@@ -100,6 +100,15 @@ impl WorkerRelayClient {
                 operation: operation.to_owned(),
             })
     }
+
+    pub async fn call_value(
+        &self,
+        operation: &str,
+        args: Vec<Value>,
+        consumer: &str,
+    ) -> Result<Value, WorkerRelayError> {
+        self.call(operation, args, consumer).await
+    }
 }
 
 #[async_trait]

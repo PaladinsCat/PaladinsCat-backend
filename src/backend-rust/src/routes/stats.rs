@@ -21,6 +21,12 @@ use crate::{
 
 use super::lobby_tier::{TierBounds, parse_tier_bounds};
 
+mod catalog;
+mod maps;
+mod performance;
+mod presence;
+mod summary;
+
 const DEFAULT_FRESH_TTL_SECONDS: u64 = 300;
 const TIER_POPULATION_FRESH_TTL_SECONDS: u64 = 900;
 const CASUAL_ITEM_SCOPES: &[&str] = &[
@@ -43,13 +49,18 @@ const CHAMPION_ROLE_SQL: &str = r#"CASE
   END"#;
 
 #[derive(Clone)]
-struct StatsState {
-    database: Database,
-    cache: RouteCache,
+pub(super) struct StatsState {
+    pub(super) database: Database,
+    pub(super) cache: RouteCache,
 }
 
 pub fn router(database: Database, cache: RouteCache) -> Router {
     Router::new()
+        .merge(catalog::router())
+        .merge(maps::router())
+        .merge(performance::router())
+        .merge(presence::router())
+        .merge(summary::router())
         .route("/stats/leagues", get(leagues))
         .route("/stats/ranked-leaderboard", get(ranked_leaderboard))
         .route("/stats/leaderboard-log", get(leaderboard_log))
@@ -961,7 +972,7 @@ async fn champion_leaderboard(
     .await
 }
 
-async fn cached_rows(
+pub(super) async fn cached_rows(
     state: StatsState,
     uri: axum::http::Uri,
     request_id: RequestId,
@@ -991,16 +1002,16 @@ async fn cached_rows(
     .await
 }
 
-fn stats_cache_key(uri: &axum::http::Uri) -> String {
+pub(super) fn stats_cache_key(uri: &axum::http::Uri) -> String {
     format!("route:stats:v5:{}", canonical_route_cache_url(uri))
 }
 
-fn valid_tier_bounds(query: &HashMap<String, String>) -> Result<TierBounds, ApiError> {
+pub(super) fn valid_tier_bounds(query: &HashMap<String, String>) -> Result<TierBounds, ApiError> {
     parse_tier_bounds(query)
         .ok_or_else(|| ApiError::validation("Tier bounds must be between 1 and 26."))
 }
 
-fn append_tier_predicates(
+pub(super) fn append_tier_predicates(
     bounds: TierBounds,
     params: &mut Vec<QueryParam>,
     clauses: &mut Vec<String>,
@@ -1016,14 +1027,14 @@ fn append_tier_predicates(
     }
 }
 
-fn legacy_default_integer(raw: Option<&str>, default: i64) -> i64 {
+pub(super) fn legacy_default_integer(raw: Option<&str>, default: i64) -> i64 {
     match raw.and_then(parse_js_integer) {
         None | Some(0) => default,
         Some(value) => value,
     }
 }
 
-fn legacy_limit(raw: Option<&str>, default: i64, maximum: i64) -> i64 {
+pub(super) fn legacy_limit(raw: Option<&str>, default: i64, maximum: i64) -> i64 {
     legacy_default_integer(raw, default).min(maximum)
 }
 
@@ -1044,7 +1055,7 @@ fn parse_javascript_number_integer(raw: Option<&String>) -> Option<i64> {
     Some(parsed as i64)
 }
 
-fn normalize_item_role(raw: &str) -> Option<&'static str> {
+pub(super) fn normalize_item_role(raw: &str) -> Option<&'static str> {
     let key = raw
         .chars()
         .filter(|character| !character.is_whitespace() && *character != '_' && *character != '-')

@@ -22,6 +22,7 @@ thiserror = "2"
 time = { version = "0.3", features = ["parsing"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "sync", "time"] }
 tokio-postgres = { version = "0.7", features = ["with-time-0_3"] }
+tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 url = "2"
@@ -38,6 +39,3 @@ path = "src/bin/worker.rs"
 [[bin]]
 name = "paladinscat-admin"
 path = "src/bin/admin.rs"
-
-[dev-dependencies]
-tower = { version = "0.5", features = ["util"] }

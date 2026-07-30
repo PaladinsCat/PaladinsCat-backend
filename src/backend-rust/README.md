@@ -14,9 +14,8 @@ It is intentionally not a production backend yet:
 - `paladinscat-api` is disabled unless
   `PALADINSCAT_RUST_CANDIDATE_ENABLE=true` is explicitly set.
 - It exposes `/health`, `/deployment/status`, `/migration/status`, all 46
-  Package A foundation-read routes, and the 28 implemented Package B routes
-  (`coplay`, `meta`, and the first 11 `stats` routes) on its private candidate
-  port.
+  Package A foundation-read routes, and all 65 Package B analytical routes on
+  its private candidate port.
 - All 46 routes pass 117 full-application TypeScript-versus-Rust HTTP fixtures
   and their configured durable-table snapshots using the shared production
   middleware/security boundary.
@@ -26,13 +25,13 @@ It is intentionally not a production backend yet:
   `dev/compat/backend-rust/package-a-shadow-summary.json`.
 - The candidate still reports zero production-migrated routes. Cutover remains
   a separate explicitly authorized gate.
-- The candidate currently reports 76 implemented route IDs and zero migrated
-  route IDs. The two additional system routes still require full-stack
-  dependency and shadow parity; `coplay` passes 26/26 exact HTTP fixtures and
-  `meta` passes 38/38 exact HTTP fixtures plus read-only production-data
-  comparison. The first 11 `stats` routes pass 61/61 exact HTTP/cache fixtures,
-  their configured durable-table snapshots, and 61/61 read-only
-  production-data shadow fixtures.
+- The candidate currently has source implementations for 113 route IDs and
+  reports zero production-migrated route IDs. Package B's original 29 routes
+  retain disposable fixture parity. All 65 Package B routes now have
+  read-only production-data shadow parity; the final 36 pass 38/38 fixtures
+  with isolated Redis and the database forced read-only. Those 36 still need
+  disposable seeded-database parity before Package B's fixture count can move
+  from 29/65 to 65/65.
 - `paladinscat-worker` exits without claiming any scheduler ownership.
 - Compose continues to select the TypeScript backend until compatibility gates
   and the production cutover are explicitly approved.

@@ -6,6 +6,12 @@ pub(crate) struct TierBounds {
     pub(crate) maximum: Option<i16>,
 }
 
+impl TierBounds {
+    pub(crate) fn active(self) -> bool {
+        self.minimum.is_some() || self.maximum.is_some()
+    }
+}
+
 pub(crate) fn parse_tier_bounds(query: &HashMap<String, String>) -> Option<TierBounds> {
     let minimum = parse_optional_js_number(query.get("tierMin"))?;
     let maximum = parse_optional_js_number(query.get("tierMax"))?;

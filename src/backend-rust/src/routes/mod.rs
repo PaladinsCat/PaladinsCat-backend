@@ -1,10 +1,15 @@
+pub mod champions;
 pub mod coplay;
 pub mod esports;
+pub mod live;
 pub(crate) mod lobby_tier;
 pub mod meta;
 pub mod notifications;
+pub mod player_ext;
 pub mod public_operations;
 pub mod ratings;
+pub mod raw_api_responses;
 pub mod recovery;
 pub mod reference;
+pub mod search;
 pub mod stats;

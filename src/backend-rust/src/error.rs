@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    http::StatusCode,
+    http::{HeaderValue, StatusCode, header::RETRY_AFTER},
     response::{IntoResponse, Response},
 };
 use paladinscat_core::database::DatabaseError;
@@ -15,17 +15,23 @@ pub struct ApiError {
     message: String,
     details: Option<Value>,
     request_id: Option<String>,
+    retry_after: Option<u64>,
 }
 
 impl ApiError {
-    pub fn validation(message: impl Into<String>) -> Self {
+    pub fn coded(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::BAD_REQUEST,
-            code: "VALIDATION",
+            status,
+            code,
             message: message.into(),
             details: None,
             request_id: None,
+            retry_after: None,
         }
+    }
+
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self::coded(StatusCode::BAD_REQUEST, "VALIDATION", message)
     }
 
     pub fn not_found(message: impl Into<String>, details: Value) -> Self {
@@ -35,6 +41,18 @@ impl ApiError {
             message: message.into(),
             details: Some(details),
             request_id: None,
+            retry_after: None,
+        }
+    }
+
+    pub fn not_found_without_details(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
+            code: "NOT_FOUND",
+            message: message.into(),
+            details: None,
+            request_id: None,
+            retry_after: None,
         }
     }
 
@@ -45,6 +63,23 @@ impl ApiError {
             message: "The request could not be completed.".to_owned(),
             details: None,
             request_id: Some(request_id.0.clone()),
+            retry_after: None,
+        }
+    }
+
+    pub fn request_security(
+        status: StatusCode,
+        code: &'static str,
+        message: impl Into<String>,
+        retry_after: u64,
+    ) -> Self {
+        Self {
+            status,
+            code,
+            message: message.into(),
+            details: (retry_after > 0).then(|| json!({ "retry_after_seconds": retry_after })),
+            request_id: None,
+            retry_after: (retry_after > 0).then_some(retry_after),
         }
     }
 }
@@ -74,6 +109,12 @@ impl IntoResponse for ApiError {
                 .expect("error object")
                 .insert("requestId".to_owned(), Value::String(request_id));
         }
-        (self.status, Json(json!({ "error": error }))).into_response()
+        let mut response = (self.status, Json(json!({ "error": error }))).into_response();
+        if let Some(retry_after) = self.retry_after
+            && let Ok(value) = HeaderValue::from_str(&retry_after.to_string())
+        {
+            response.headers_mut().insert(RETRY_AFTER, value);
+        }
+        response
     }
 }
