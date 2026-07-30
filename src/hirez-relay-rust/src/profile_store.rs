@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde_json::{Map, Value, json};
 use thiserror::Error;
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::database::Database;
 
@@ -392,8 +392,8 @@ fn profile_document(profile: &PlayerProfile) -> Value {
     field!("avatar_url", sanitize_optional(&profile.avatar_url));
     field!("title", sanitize(&profile.title));
     field!("loading_frame", sanitize(&profile.loading_frame));
-    field!("created_datetime", profile.created_at);
-    field!("last_login_datetime", profile.last_login);
+    field!("created_datetime", timestamp_text(profile.created_at));
+    field!("last_login_datetime", timestamp_text(profile.last_login));
     field!(
         "personal_status_message",
         sanitize(&profile.personal_status_message)
@@ -443,7 +443,7 @@ fn profile_document(profile: &PlayerProfile) -> Value {
     );
     field!(
         "name_anomaly_detected_at",
-        profile.name_anomaly.then(OffsetDateTime::now_utc)
+        timestamp_text(profile.name_anomaly.then(OffsetDateTime::now_utc))
     );
     Value::Object(document)
 }
@@ -486,6 +486,10 @@ fn sanitize(value: &str) -> String {
 
 fn sanitize_optional(value: &Option<String>) -> Option<String> {
     value.as_deref().map(sanitize)
+}
+
+fn timestamp_text(value: Option<OffsetDateTime>) -> Option<String> {
+    value.and_then(|value| value.format(&Rfc3339).ok())
 }
 
 fn database_error(error: impl std::fmt::Display + std::fmt::Debug) -> ProfileStoreError {
@@ -547,6 +551,22 @@ mod tests {
                 merge_datetime: None,
             }],
         }
+    }
+
+    #[test]
+    fn profile_document_serializes_postgres_timestamps_as_rfc3339_strings() {
+        let mut profile = fixture();
+        profile.created_at = OffsetDateTime::from_unix_timestamp(0).ok();
+        profile.last_login = OffsetDateTime::from_unix_timestamp(1).ok();
+        profile.name_anomaly = true;
+
+        let document = profile_document(&profile);
+
+        assert_eq!(document["created_datetime"], "1970-01-01T00:00:00Z");
+        assert_eq!(document["last_login_datetime"], "1970-01-01T00:00:01Z");
+        assert!(document["name_anomaly_detected_at"].is_string());
+        assert!(!document["created_datetime"].is_array());
+        assert!(!document["last_login_datetime"].is_array());
     }
 
     #[tokio::test]
