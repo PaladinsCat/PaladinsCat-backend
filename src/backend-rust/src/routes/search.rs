@@ -18,8 +18,12 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    error::ApiError, foundation::AuthenticatedDeveloper, request::RequestId,
-    security::client_rate_limit_identity, workers::relay::WorkerRelayClient,
+    error::ApiError,
+    foundation::AuthenticatedDeveloper,
+    raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response},
+    request::RequestId,
+    security::client_rate_limit_identity,
+    workers::relay::WorkerRelayClient,
 };
 
 #[derive(Clone)]
@@ -697,43 +701,19 @@ async fn audit_raw_response(
     params: Value,
     raw: &Value,
 ) -> Result<(), paladinscat_core::database::DatabaseError> {
-    let raw_text = serde_json::to_string(raw).unwrap_or_else(|_| "null".to_owned());
-    let digest = format!("{:x}", Sha256::digest(raw_text.as_bytes()));
-    let shape = match raw {
-        Value::Array(_) => "array",
-        Value::Null => "null",
-        Value::Object(_) => "object",
-        Value::String(_) => "string",
-        Value::Bool(_) => "boolean",
-        Value::Number(_) => "number",
-    };
-    let count = match raw {
-        Value::Array(rows) => Some(i32::try_from(rows.len()).unwrap_or(i32::MAX)),
-        Value::Object(_) => Some(1),
-        _ => None,
-    };
-    database
-        .query_json(
-            "INSERT INTO hirez_raw_api_responses (\
-               endpoint, operation, entity_type, entity_id, params, raw_response, \
-               raw_response_text, response_sha256, response_shape, response_count, \
-               status_code, success, error_message, source\
-             ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,$9,$10,200,true,NULL,\
-                       'universal-search-remote-lookup')",
-            &[
-                &endpoint,
-                &operation,
-                &entity_type,
-                &entity_id,
-                &params,
-                &raw,
-                &raw_text,
-                &digest,
-                &shape,
-                &count,
-            ],
-        )
-        .await?;
+    record_raw_hirez_response(
+        database,
+        RawHirezAudit {
+            endpoint,
+            operation,
+            entity_type,
+            entity_id: entity_id.to_owned(),
+            params,
+            raw_response: raw,
+            source: "universal-search-remote-lookup",
+        },
+    )
+    .await?;
     Ok(())
 }
 

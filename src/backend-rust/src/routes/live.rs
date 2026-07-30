@@ -14,6 +14,7 @@ use paladinscat_core::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::{
     error::ApiError, request::RequestId, security::client_rate_limit_identity,
@@ -155,8 +156,20 @@ async fn player_live_match(
             .into_response());
     }
 
-    let payload = resolve_player_live_match(&state, player_id, &identity, &request_id).await?;
-    let mut response = (StatusCode::OK, Json(payload)).into_response();
+    let resolution = resolve_player_live_match(
+        &state.database,
+        &state.redis,
+        state.relay.as_ref(),
+        player_id,
+        &identity,
+        &request_id,
+        true,
+    )
+    .await?;
+    let mut response = (StatusCode::OK, Json(resolution.payload)).into_response();
+    if let Some(headers) = resolution.vendor_headers {
+        headers.apply(&mut response);
+    }
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
@@ -200,54 +213,54 @@ async fn ended_matches(
     Ok((StatusCode::OK, Json(Value::Array(rows))).into_response())
 }
 
-async fn resolve_player_live_match(
-    state: &LiveState,
+pub(crate) async fn resolve_player_live_match(
+    database: &Database,
+    redis: &RedisCache,
+    relay: Option<&WorkerRelayClient>,
     player_id: i64,
     identity: &str,
     request_id: &RequestId,
-) -> Result<Value, ApiError> {
+    enriched: bool,
+) -> Result<LiveResolution, ApiError> {
     let cache_key = format!("live_match_lookup:{player_id}");
-    if let Some(cached) = state.redis.get::<LiveLookupCache>(&cache_key).await {
+    if let Some(cached) = redis.get::<LiveLookupCache>(&cache_key).await {
         match cached.state.as_str() {
             "not_live" => {
-                return Ok(json!({ "match": null, "players": [], "player_id": player_id }));
+                return Ok(LiveResolution::cached(
+                    json!({ "match": null, "players": [], "player_id": player_id }),
+                ));
             }
             "pending" => {
-                return Ok(json!({
+                return Ok(LiveResolution::cached(json!({
                     "match": null,
                     "players": [],
                     "player_id": player_id,
                     "pending": true,
                     "message": "Live lobby details are not ready yet. Try again shortly."
-                }));
+                })));
             }
             "live" => {
                 if let Some(match_id) = cached.match_id
                     && let Some(payload) = stored_player_live_match(
-                        &state.database,
+                        database,
                         player_id,
                         Some(match_id),
                         request_id,
+                        enriched,
                     )
                     .await?
                 {
-                    return Ok(payload);
+                    return Ok(LiveResolution::cached(payload));
                 }
             }
             _ => {}
         }
     }
-    let Some(relay) = state.relay.as_ref() else {
+    let Some(relay) = relay else {
         return Err(ApiError::internal(request_id));
     };
-    vendor_guard(
-        &state.redis,
-        identity,
-        "live-player-status",
-        player_id,
-        30_000,
-    )
-    .await?;
+    let mut rate_headers =
+        Some(vendor_guard(redis, identity, "live-player-status", player_id, 30_000, 8).await?);
     let statuses = relay
         .call_value(
             "getPlayerStatus",
@@ -273,8 +286,7 @@ async fn resolve_player_live_match(
         .find(|row| text(row, &["ret_msg"]).trim().is_empty())
         .or_else(|| status_rows.first());
     let Some(status) = status.filter(|row| text(row, &["ret_msg"]).trim().is_empty()) else {
-        state
-            .redis
+        redis
             .set(
                 &cache_key,
                 &LiveLookupCache {
@@ -284,7 +296,10 @@ async fn resolve_player_live_match(
                 Some(LIVE_LOOKUP_TTL_SECONDS),
             )
             .await;
-        return Ok(json!({ "match": null, "players": [], "player_id": player_id }));
+        return Ok(LiveResolution {
+            payload: json!({ "match": null, "players": [], "player_id": player_id }),
+            vendor_headers: rate_headers,
+        });
     };
     let status_number = number(status, &["status"]).unwrap_or(0);
     let status_string = clean_text(status, &["status_string"]);
@@ -292,8 +307,7 @@ async fn resolve_player_live_match(
     let queue_id = number(status, &["match_queue_id"]).and_then(|value| i32::try_from(value).ok());
     let privacy = text(status, &["privacy_flag"]).eq_ignore_ascii_case("y");
     let personal = clean_text(status, &["personal_status_message"]);
-    state
-        .database
+    database
         .query_json(
             "INSERT INTO player_status (\
                player_id, status, status_string, current_match_id, queue_id, \
@@ -317,8 +331,7 @@ async fn resolve_player_live_match(
         .await
         .map_err(|error| ApiError::database(error, request_id))?;
     let Some(match_id) = match_id else {
-        state
-            .redis
+        redis
             .set(
                 &cache_key,
                 &LiveLookupCache {
@@ -328,17 +341,14 @@ async fn resolve_player_live_match(
                 Some(LIVE_LOOKUP_TTL_SECONDS),
             )
             .await;
-        return Ok(json!({ "match": null, "players": [], "player_id": player_id }));
+        return Ok(LiveResolution {
+            payload: json!({ "match": null, "players": [], "player_id": player_id }),
+            vendor_headers: rate_headers,
+        });
     };
 
-    vendor_guard(
-        &state.redis,
-        identity,
-        "live-match-players",
-        match_id,
-        10_000,
-    )
-    .await?;
+    rate_headers =
+        Some(vendor_guard(redis, identity, "live-match-players", match_id, 10_000, 8).await?);
     let raw_players = relay
         .call_value(
             "getMatchPlayerDetails",
@@ -356,8 +366,7 @@ async fn resolve_player_live_match(
         .cloned()
         .collect();
     if raw_players.is_empty() {
-        state
-            .redis
+        redis
             .set(
                 &cache_key,
                 &LiveLookupCache {
@@ -367,13 +376,16 @@ async fn resolve_player_live_match(
                 Some(LIVE_PENDING_TTL_SECONDS),
             )
             .await;
-        return Ok(json!({
-            "match": null,
-            "players": [],
-            "player_id": player_id,
-            "pending": true,
-            "message": "Live lobby details are not ready yet. Try again shortly."
-        }));
+        return Ok(LiveResolution {
+            payload: json!({
+                "match": null,
+                "players": [],
+                "player_id": player_id,
+                "pending": true,
+                "message": "Live lobby details are not ready yet. Try again shortly."
+            }),
+            vendor_headers: rate_headers,
+        });
     }
     dump_raw(
         relay,
@@ -384,7 +396,7 @@ async fn resolve_player_live_match(
     )
     .await;
     persist_live_snapshot(
-        &state.database,
+        database,
         match_id,
         player_id,
         queue_id,
@@ -392,8 +404,7 @@ async fn resolve_player_live_match(
         request_id,
     )
     .await?;
-    state
-        .redis
+    redis
         .set(
             &cache_key,
             &LiveLookupCache {
@@ -403,9 +414,14 @@ async fn resolve_player_live_match(
             Some(LIVE_LOOKUP_TTL_SECONDS),
         )
         .await;
-    stored_player_live_match(&state.database, player_id, Some(match_id), request_id)
-        .await
-        .map(|value| value.unwrap_or_else(|| json!({ "match": null, "players": [] })))
+    let payload =
+        stored_player_live_match(database, player_id, Some(match_id), request_id, enriched)
+            .await?
+            .unwrap_or_else(|| json!({ "match": null, "players": [] }));
+    Ok(LiveResolution {
+        payload,
+        vendor_headers: rate_headers,
+    })
 }
 
 async fn stored_player_live_match(
@@ -413,6 +429,7 @@ async fn stored_player_live_match(
     player_id: i64,
     match_id: Option<i64>,
     request_id: &RequestId,
+    enriched: bool,
 ) -> Result<Option<Value>, ApiError> {
     let row = match match_id {
         Some(match_id) => {
@@ -446,7 +463,17 @@ async fn stored_player_live_match(
         .get("match_id")
         .and_then(value_i64)
         .ok_or_else(|| ApiError::internal(request_id))?;
-    let players = enriched_players(database, match_id, request_id).await?;
+    let players = if enriched {
+        enriched_players(database, match_id, request_id).await?
+    } else {
+        database
+            .query_json(
+                "SELECT * FROM live_match_players WHERE match_id=$1 ORDER BY task_force,id",
+                &[&match_id],
+            )
+            .await
+            .map_err(|error| ApiError::database(error, request_id))?
+    };
     Ok(Some(json!({ "match": match_row, "players": players })))
 }
 
@@ -650,17 +677,18 @@ async fn dump_raw(
     }
 }
 
-async fn vendor_guard(
+pub(crate) async fn vendor_guard(
     redis: &RedisCache,
     identity: &str,
     scope: &str,
-    entity: i64,
+    entity: impl ToString,
     entity_window_ms: u64,
-) -> Result<(), ApiError> {
+    client_limit: u64,
+) -> Result<VendorRateLimitHeaders, ApiError> {
     let client = redis
         .check_rate_limit(
             &format!("vendor-fallback:{scope}:{identity}:public"),
-            8,
+            client_limit,
             60_000,
             false,
         )
@@ -700,7 +728,11 @@ async fn vendor_guard(
             retry_after_seconds(global.reset_at_ms),
         ));
     }
-    let entity_key = format!("vendor-fallback:entity:{scope}:{entity}");
+    let entity_digest = format!(
+        "{:x}",
+        Sha256::digest(format!("{scope}:{}", entity.to_string()).as_bytes())
+    );
+    let entity_key = format!("vendor-fallback:entity:{}", &entity_digest[..32]);
     let entity = redis
         .check_rate_limit(&entity_key, 1, entity_window_ms, false)
         .await;
@@ -720,10 +752,49 @@ async fn vendor_guard(
             retry_after_seconds(entity.reset_at_ms),
         ));
     }
-    Ok(())
+    Ok(VendorRateLimitHeaders { client, global })
 }
 
-fn request_identity(headers: &HeaderMap) -> String {
+pub(crate) struct LiveResolution {
+    pub(crate) payload: Value,
+    pub(crate) vendor_headers: Option<VendorRateLimitHeaders>,
+}
+
+impl LiveResolution {
+    fn cached(payload: Value) -> Self {
+        Self {
+            payload,
+            vendor_headers: None,
+        }
+    }
+}
+
+pub(crate) struct VendorRateLimitHeaders {
+    client: paladinscat_core::cache::RateLimitResult,
+    global: paladinscat_core::cache::RateLimitResult,
+}
+
+impl VendorRateLimitHeaders {
+    pub(crate) fn apply(&self, response: &mut Response) {
+        for (name, value) in [
+            ("x-vendor-ratelimit-limit", self.client.total),
+            ("x-vendor-ratelimit-remaining", self.client.remaining),
+            ("x-vendor-ratelimit-reset", self.client.reset_at_ms),
+            ("x-vendor-global-ratelimit-limit", self.global.total),
+            ("x-vendor-global-ratelimit-remaining", self.global.remaining),
+            ("x-vendor-global-ratelimit-reset", self.global.reset_at_ms),
+        ] {
+            if let (Ok(name), Ok(value)) = (
+                name.parse::<axum::http::HeaderName>(),
+                HeaderValue::from_str(&value.to_string()),
+            ) {
+                response.headers_mut().insert(name, value);
+            }
+        }
+    }
+}
+
+pub(crate) fn request_identity(headers: &HeaderMap) -> String {
     let address = headers
         .get("cf-connecting-ip")
         .or_else(|| headers.get("x-forwarded-for"))

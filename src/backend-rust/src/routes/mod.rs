@@ -3,6 +3,7 @@ pub mod coplay;
 pub mod esports;
 pub mod live;
 pub(crate) mod lobby_tier;
+pub mod matches;
 pub mod meta;
 pub mod notifications;
 pub mod player_ext;

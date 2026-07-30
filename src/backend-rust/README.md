@@ -25,13 +25,20 @@ It is intentionally not a production backend yet:
   `dev/compat/backend-rust/package-a-shadow-summary.json`.
 - The candidate still reports zero production-migrated routes. Cutover remains
   a separate explicitly authorized gate.
-- The candidate currently has source implementations for 113 route IDs and
+- The candidate currently has source implementations for 160 route IDs and
   reports zero production-migrated route IDs. Package B's original 29 routes
   retain disposable fixture parity. All 65 Package B routes now have
   read-only production-data shadow parity; the final 36 pass 38/38 fixtures
   with isolated Redis and the database forced read-only. Those 36 still need
   disposable seeded-database parity before Package B's fixture count can move
   from 29/65 to 65/65.
+- All 21 `matches` route IDs now have native candidate handlers and pass the
+  current 25-fixture disposable suite and 21-fixture forced-read-only
+  production-data shadow. The disposable suite also proves exact raw-response
+  audit and live-fallback state across four durable tables. This is
+  route-level evidence, not full branch acceptance: requested-match recovery
+  and manual discovery/pull still need the shared canonical fact finalizer,
+  dummy-relay lifecycle traces, and durable fact-table parity.
 - `paladinscat-worker` exits without claiming any scheduler ownership.
 - Compose continues to select the TypeScript backend until compatibility gates
   and the production cutover are explicitly approved.
@@ -64,6 +71,7 @@ scripts/migration/Test-PaladinsCatRouteCompatibility.ps1 -RouteGroup coplay
 scripts/migration/Test-PaladinsCatRouteCompatibility.ps1 -RouteGroup meta
 scripts/migration/Test-PaladinsCatRouteCompatibility.ps1 -RouteGroup stats-foundation
 scripts/migration/Test-PaladinsCatRouteCompatibility.ps1 -RouteGroup stats-summaries
+scripts/migration/Test-PaladinsCatRouteCompatibility.ps1 -RouteGroup package-c-matches
 scripts/migration/Test-PaladinsCatRouteCompatibility.ps1 -RouteGroup foundation
 ```
 

@@ -19,6 +19,7 @@ use crate::foundation::FoundationState;
 
 pub mod error;
 pub mod foundation;
+mod raw_hirez_audit;
 pub mod request;
 pub mod route_cache;
 pub mod routes;
@@ -50,7 +51,7 @@ pub fn candidate_status() -> CandidateStatus {
         status: "migration_candidate",
         admission: "quiesced",
         routes_migrated: 0,
-        routes_implemented: 139,
+        routes_implemented: 160,
         routes_inventoried: INVENTORIED_ROUTES,
         worker_modules_migrated: 0,
         worker_modules_inventoried: INVENTORIED_WORKERS,
@@ -88,7 +89,16 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             route_cache.clone(),
         ))
         .merge(routes::stats::router(database.clone(), route_cache.clone()))
-        .merge(routes::notifications::router(database.clone(), route_cache))
+        .merge(routes::notifications::router(
+            database.clone(),
+            route_cache.clone(),
+        ))
+        .merge(routes::matches::router(
+            database.clone(),
+            foundation.redis.clone(),
+            route_cache,
+            foundation.config.clone(),
+        ))
         .merge(routes::player_ext::router(database.clone()))
         .merge(routes::esports::router(database.clone()))
         .merge(routes::ratings::router(database.clone()))
@@ -255,7 +265,7 @@ mod tests {
         let status = candidate_status();
         assert_eq!(status.admission, "quiesced");
         assert_eq!(status.routes_migrated, 0);
-        assert_eq!(status.routes_implemented, 139);
+        assert_eq!(status.routes_implemented, 160);
         assert_eq!(status.routes_inventoried, 268);
         assert_eq!(status.worker_modules_migrated, 0);
         assert_eq!(status.scheduler_owners_migrated, 0);
