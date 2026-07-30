@@ -205,8 +205,10 @@ pub(crate) fn history_entry(
         kills: integer(normalized, "kills").and_then(to_i32).unwrap_or(0),
         deaths: integer(normalized, "deaths").and_then(to_i32).unwrap_or(0),
         assists: integer(normalized, "assists").and_then(to_i32).unwrap_or(0),
+        // The historical `damage_done_physical` key stores combined player
+        // damage. Magical damage is an optional breakdown already included in
+        // that total and must not be added again.
         damage: integer(normalized, "damage_done_physical")
-            .saturating_add(integer(normalized, "damage_done_magical"))
             .and_then(to_i32)
             .unwrap_or(0),
         healing: integer(normalized, "healing").and_then(to_i32).unwrap_or(0),
@@ -227,16 +229,6 @@ pub(crate) fn history_entry(
         raw_data: raw.clone(),
         normalized_data,
     })
-}
-
-trait SaturatingOptionAdd {
-    fn saturating_add(self, other: Option<i64>) -> Option<i64>;
-}
-
-impl SaturatingOptionAdd for Option<i64> {
-    fn saturating_add(self, other: Option<i64>) -> Option<i64> {
-        Some(self.unwrap_or(0).saturating_add(other.unwrap_or(0)))
-    }
 }
 
 fn integer(value: &Value, key: &str) -> Option<i64> {
@@ -420,12 +412,15 @@ mod tests {
         let raw = serde_json::json!({
             "Match": 100,
             "playerId": 7,
-            "Map_Game": "LIVE Jaguar Falls"
+            "Map_Game": "LIVE Jaguar Falls",
+            "Damage": 31310,
+            "Damage_Done_Magical": 1039
         });
         let normalized = normalize_match_history_player(&raw);
         let entry = history_entry(7, &raw, &normalized, "getmatchhistory").expect("entry");
         assert_eq!(entry.map.as_deref(), Some("LIVE Jaguar Falls"));
         assert_eq!(entry.normalized_data["map"], "LIVE Jaguar Falls");
+        assert_eq!(entry.damage, 31310);
 
         let raw_without_map = serde_json::json!({"Match": 101, "playerId": 7});
         let normalized_without_map = normalize_match_history_player(&raw_without_map);

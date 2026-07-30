@@ -110,9 +110,9 @@ pub fn normalize_match_player(raw: &Value) -> Value {
     raw_field!(
         "damage_done_physical",
         [
-            "Damage_Done_Physical",
             "Damage_Player",
-            "damage_done_physical"
+            "damage_done_physical",
+            "Damage_Done_Physical"
         ],
         zero()
     );
@@ -510,7 +510,12 @@ pub fn normalize_match_history_player(raw: &Value) -> Value {
     raw_field!("damage_done_in_hand", ["Damage_Done_In_Hand"], zero());
     raw_field!(
         "damage_done_physical",
-        ["Damage_Done_Physical", "Damage"],
+        [
+            "Damage",
+            "damage_done_physical",
+            "Damage_Player",
+            "Damage_Done_Physical"
+        ],
         zero()
     );
     raw_field!("damage_done_magical", ["Damage_Done_Magical"], zero());
@@ -1056,6 +1061,27 @@ mod tests {
         assert_eq!(normalized["source"], "match_history");
         assert_eq!(normalized["merged_players"], Value::Null);
         assert_eq!(normalized["has_ret_msg"], false);
+    }
+
+    #[test]
+    fn damage_normalizers_prefer_combined_player_damage() {
+        let direct = normalize_match_player(&serde_json::json!({
+            "Damage_Player": 31310,
+            "Damage_Done_Physical": 28979,
+            "Damage_Done_Magical": 1039,
+            "Damage_Done_In_Hand": 22162
+        }));
+        assert_eq!(direct["damage_done_physical"], 31310);
+        assert_eq!(direct["damage_done_magical"], 1039);
+        assert_eq!(direct["damage_done_in_hand"], 22162);
+
+        let recovered = normalize_match_history_player(&serde_json::json!({
+            "Damage": 31310,
+            "Damage_Done_Physical": 28979,
+            "Damage_Done_Magical": 1039
+        }));
+        assert_eq!(recovered["damage_done_physical"], 31310);
+        assert_eq!(recovered["damage_done_in_hand"], 0);
     }
 
     #[test]
