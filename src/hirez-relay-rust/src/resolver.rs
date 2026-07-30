@@ -77,6 +77,87 @@ pub async fn get_match_details_batch<P: CompletedMatchProvider>(
     outcomes.into_iter().collect()
 }
 
+/// Resumes a previously anchored broken match without replaying either
+/// getmatchdetails(batch) or getplayerbatchfrommatch.
+///
+/// The backend lifecycle ledger is the authority for deciding that detail and
+/// roster evidence are already durable. Missing player histories are fetched
+/// through the normal cached history operation before this function is called.
+/// The relay then reconstructs the terminal match exclusively from its local
+/// history store plus getdemodetails for the match shell.
+pub async fn resume_match_recovery<P: CompletedMatchProvider>(
+    provider: &P,
+    request: &CompletedMatchRequest,
+) -> Result<CompletedMatchResolution, RelayError> {
+    if request.match_id == 0 {
+        return Err(RelayError::Validation(
+            "matchId must be a positive integer".to_owned(),
+        ));
+    }
+    if request.queue_id == Some(0) {
+        return Err(RelayError::Validation(
+            "queueId must be a positive integer".to_owned(),
+        ));
+    }
+
+    let mut players = usable_players(
+        &provider
+            .get_local_recovery_players(request.match_id)
+            .await?,
+    );
+    let resolved_score = resolve_history_score(&players);
+    if players.len() != 10 || resolved_score.is_none() {
+        return Ok(CompletedMatchResolution {
+            match_id: request.match_id,
+            queue_id: request.queue_id.unwrap_or_default(),
+            status: CompletedMatchResolutionStatus::RecoveryPending,
+            r#match: None,
+            roster: None,
+            reason: Some("local recovery evidence is not yet complete".to_owned()),
+        });
+    }
+
+    let demo = provider
+        .get_demo_details(request.match_id)
+        .await
+        .unwrap_or(Value::Null);
+    let mut shell = shell_from_demo(request, demo).await;
+    if shell.queue_id == 0 {
+        shell.queue_id = request.queue_id.unwrap_or_default();
+    }
+    if shell.queue_id == 0 || shell.entry_datetime.is_empty() || shell.duration_seconds == 0 {
+        return Ok(CompletedMatchResolution {
+            match_id: request.match_id,
+            queue_id: shell.queue_id,
+            status: CompletedMatchResolutionStatus::RecoveryPending,
+            r#match: None,
+            roster: None,
+            reason: Some("demo detail did not provide an authoritative match shell".to_owned()),
+        });
+    }
+
+    sort_players(&mut players);
+    shell.players = players;
+    shell.recovery_source = Some("local_resume".to_owned());
+    shell.recovery_api_calls = Some(1);
+    shell.recovery_attempted = Some(true);
+    shell.recovery_terminal = Some(false);
+    shell.recovery_pending = Some(false);
+    shell.limited = Some(false);
+    if let Some(score) = resolved_score {
+        shell.team1_score = Some(score.team1);
+        shell.team2_score = Some(score.team2);
+        shell.winning_task_force = Some(score.winner);
+    }
+    attach_recovery_bans(&mut shell);
+    Ok(terminalize(
+        request,
+        shell,
+        CompletedMatchResolutionStatus::CompleteRecovered,
+        None,
+    ))
+}
+
 fn validate_requests(requests: &[CompletedMatchRequest]) -> Result<(), RelayError> {
     if requests.is_empty() || requests.len() > 10 {
         return Err(RelayError::Validation(
@@ -810,6 +891,31 @@ mod tests {
         assert_eq!(call_count(&counts, "getplayerbatchfrommatch"), 0);
         assert_eq!(call_count(&counts, "getmatchhistory"), 0);
         assert_eq!(call_count(&counts, "getdemodetails"), 0);
+    }
+
+    #[tokio::test]
+    async fn resume_uses_only_local_histories_and_demo_shell() {
+        let provider = DummyProvider::default();
+        let request = request(906_000_001, 486);
+        provider
+            .set_scenario(request.match_id, DummyScenario::LocalPreflight)
+            .await;
+
+        let outcome = resume_match_recovery(&provider, &request).await.unwrap();
+
+        assert!(matches!(
+            outcome.status,
+            CompletedMatchResolutionStatus::CompleteRecovered
+        ));
+        let r#match = outcome.r#match.expect("resumed match");
+        assert_eq!(r#match.players.len(), 10);
+        assert_eq!(r#match.recovery_source.as_deref(), Some("local_resume"));
+        assert_eq!(r#match.recovery_api_calls, Some(1));
+        let counts = provider.counts();
+        assert_eq!(call_count(&counts, "getmatchdetailsbatch"), 0);
+        assert_eq!(call_count(&counts, "getplayerbatchfrommatch"), 0);
+        assert_eq!(call_count(&counts, "getmatchhistory"), 0);
+        assert_eq!(call_count(&counts, "getdemodetails"), 1);
     }
 
     #[tokio::test]

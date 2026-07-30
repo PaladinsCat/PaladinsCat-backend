@@ -38,10 +38,12 @@ It is intentionally not a production backend yet:
   audit and live-fallback state across four durable tables. This is
   route-level evidence, not full branch acceptance. The next candidate slice
   now has a transactional shared fact finalizer and a disposable
-  DB-miss → relay → durable-facts requested-lookup test. It still needs exact
-  TypeScript fact-table comparison, private-account observation parity,
-  resume-in-place recovery for already-known broken matches, and batched
-  discovery/pull lifecycle traces before this branch can be accepted.
+  DB-miss → relay → durable-facts requested-lookup test. Known partial matches
+  now execute missing cached-history reads plus `resumeMatchRecovery`; a live
+  disposable trace proves this branch never replays match detail or roster
+  operations. It still needs exact TypeScript fact-table comparison,
+  private-account observation parity, and batched discovery/pull lifecycle
+  traces before this branch can be accepted.
 - `paladinscat-worker` exits without claiming any scheduler ownership.
 - Compose continues to select the TypeScript backend until compatibility gates
   and the production cutover are explicitly approved.

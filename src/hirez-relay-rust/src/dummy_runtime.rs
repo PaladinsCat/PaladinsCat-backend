@@ -57,6 +57,18 @@ impl DummyRuntime {
                         .await?,
                 ))
             }
+            "resumeMatchRecovery" => {
+                let requests =
+                    crate::contract::parse_completed_match_requests(args.first().ok_or_else(
+                        || RelayError::Validation("requests are required".to_owned()),
+                    )?)?;
+                let request = requests.first().ok_or_else(|| {
+                    RelayError::Validation("exactly one recovery request is required".to_owned())
+                })?;
+                Ok(RelayDispatchResult::CompletedMatches(vec![
+                    crate::resolver::resume_match_recovery(self.provider.as_ref(), request).await?,
+                ]))
+            }
             "getMatchHistory" if self.history.is_some() => {
                 let history = self.history.as_ref().expect("checked history service");
                 let player_id = number_arg(args, 0)?;

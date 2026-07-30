@@ -121,6 +121,11 @@ pub trait MatchLifecycleRelay: Send + Sync {
     async fn fetch_roster(&self, match_id: i64) -> Result<Vec<Value>, WorkerRelayError>;
     async fn fetch_history(&self, player_id: i64) -> Result<Vec<Value>, WorkerRelayError>;
     async fn fetch_demo(&self, match_id: i64) -> Result<Value, WorkerRelayError>;
+    async fn resume_recovery(
+        &self,
+        match_id: i64,
+        queue_id: Option<i32>,
+    ) -> Result<Value, WorkerRelayError>;
 }
 
 #[async_trait]
@@ -167,6 +172,23 @@ impl MatchLifecycleRelay for WorkerRelayClient {
             "getDemoDetails",
             vec![json!(match_id)],
             "rust_match_recovery",
+        )
+        .await
+    }
+
+    async fn resume_recovery(
+        &self,
+        match_id: i64,
+        queue_id: Option<i32>,
+    ) -> Result<Value, WorkerRelayError> {
+        let request = match queue_id {
+            Some(queue_id) => json!({"matchId": match_id, "queueId": queue_id}),
+            None => json!({"matchId": match_id}),
+        };
+        self.call(
+            "resumeMatchRecovery",
+            vec![Value::Array(vec![request])],
+            "rust_match_recovery_resume",
         )
         .await
     }
@@ -301,6 +323,15 @@ mod tests {
         async fn fetch_demo(&self, match_id: i64) -> Result<Value, WorkerRelayError> {
             self.record(format!("demo:{match_id}"));
             Ok(Value::Null)
+        }
+
+        async fn resume_recovery(
+            &self,
+            match_id: i64,
+            _queue_id: Option<i32>,
+        ) -> Result<Value, WorkerRelayError> {
+            self.record(format!("resume:{match_id}"));
+            Ok(json!([]))
         }
     }
 

@@ -7,8 +7,11 @@ use uuid::Uuid;
 
 use super::{
     match_facts::{CanonicalMatchPayload, MatchFactRepository},
-    match_lifecycle::{MatchDiscovery, MatchDiscoverySource, MatchLifecycleRepository},
-    relay::{MatchLifecycleRelay, WorkerRelayClient},
+    match_lifecycle::{
+        MatchDiscovery, MatchDiscoverySource, MatchLifecycleAction, MatchLifecycleRepository,
+        plan_match_lifecycle,
+    },
+    relay::{MatchLifecycleRelay, WorkerRelayClient, execute_match_lifecycle_fetches},
 };
 
 const COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(200);
@@ -89,11 +92,37 @@ impl RequestedMatchIngestor {
             return ready(match_id);
         }
 
-        // The Rust HirezRelay owns direct lookup and the complete ranked or
-        // non-ranked recovery decision. This backend never signs or sends a
-        // vendor call itself, and only the normalized terminal match crosses
-        // into the canonical fact transaction.
-        let relay_value = match self.relay.fetch_detail(match_id, evidence.queue_id).await {
+        let actions = plan_match_lifecycle(&evidence);
+        // A half-constructed match that already owns durable roster anchors
+        // resumes in the middle. Only missing histories are requested here;
+        // they are DB-first inside HirezRelay. resumeMatchRecovery then builds
+        // the shell from local history plus one demo call, without replaying
+        // match detail or getplayerbatchfrommatch.
+        let relay_value = match if can_resume_without_detail_or_roster(&actions) {
+            let history_actions = actions
+                .iter()
+                .filter(|action| matches!(action, MatchLifecycleAction::FetchHistories(_)))
+                .cloned()
+                .collect::<Vec<_>>();
+            if let Err(error) = execute_match_lifecycle_fetches(
+                &self.relay,
+                match_id,
+                evidence.queue_id,
+                &history_actions,
+            )
+            .await
+            {
+                Err(error)
+            } else {
+                self.relay
+                    .resume_recovery(match_id, evidence.queue_id)
+                    .await
+            }
+        } else {
+            // First observation and pre-roster states remain owned by the
+            // canonical relay resolver. The backend never signs a vendor call.
+            self.relay.fetch_detail(match_id, evidence.queue_id).await
+        } {
             Ok(value) => value,
             Err(error) => {
                 let _ = self.lifecycle.release(match_id, &owner).await;
@@ -197,6 +226,16 @@ impl RequestedMatchIngestor {
     }
 }
 
+fn can_resume_without_detail_or_roster(actions: &[MatchLifecycleAction]) -> bool {
+    !actions.is_empty()
+        && !actions.iter().any(|action| {
+            matches!(
+                action,
+                MatchLifecycleAction::FetchDetail | MatchLifecycleAction::FetchRoster
+            )
+        })
+}
+
 fn terminal_status(value: &Value) -> Option<String> {
     match value {
         Value::Array(values) => values.iter().find_map(terminal_status),
@@ -228,9 +267,10 @@ fn failed(match_id: i64, error: impl ToString) -> RequestedMatchResult {
 mod tests {
     use super::*;
     use crate::workers::match_lifecycle::MatchPopulation;
-    use axum::{Json, Router, routing::post};
+    use axum::{Json, Router, extract::State, routing::post};
     use paladinscat_core::config::BackendConfig;
     use serde_json::json;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn terminal_status_accepts_completed_match_resolution_arrays() {
@@ -252,6 +292,20 @@ mod tests {
             MatchPopulation::Ranked.as_database(),
             MatchPopulation::Casual.as_database()
         );
+    }
+
+    #[test]
+    fn partial_roster_recovery_uses_resume_path() {
+        assert!(can_resume_without_detail_or_roster(&[
+            MatchLifecycleAction::FetchHistories(vec![9, 10]),
+            MatchLifecycleAction::FetchDemo,
+        ]));
+        assert!(!can_resume_without_detail_or_roster(&[
+            MatchLifecycleAction::FetchRoster,
+        ]));
+        assert!(!can_resume_without_detail_or_roster(&[
+            MatchLifecycleAction::FetchDetail,
+        ]));
     }
 
     #[tokio::test]
@@ -365,6 +419,146 @@ mod tests {
                 .expect("count")
                 .expect("count row")["count"],
             10
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "requires PALADINSCAT_TEST_DATABASE_URL and a disposable empty database"]
+    async fn live_partial_recovery_skips_detail_and_roster_operations() {
+        let database_url =
+            std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
+        let operations = Arc::new(Mutex::new(Vec::<String>::new()));
+        let players = (1..=10)
+            .map(|id| {
+                json!({
+                    "player_id":3000+id,
+                    "player_name":format!("Resumed {id}"),
+                    "champion_id":4000+id,
+                    "champion_name":format!("Champion {id}"),
+                    "task_force":if id<=5 {1} else {2},
+                    "win_status":if id<=5 {"Winner"} else {"Loser"},
+                    "source":"recovered",
+                    "damage_done_physical":20_000+id,
+                    "objective_assists":id
+                })
+            })
+            .collect::<Vec<_>>();
+        let relay_players = players.clone();
+        let relay = Router::new()
+            .route(
+                "/v1/call",
+                post(
+                    |State(operations): State<Arc<Mutex<Vec<String>>>>,
+                     Json(request): Json<Value>| async move {
+                        let operation =
+                            request["operation"].as_str().unwrap_or_default().to_owned();
+                        operations
+                            .lock()
+                            .expect("operations")
+                            .push(operation.clone());
+                        let result = if operation == "getMatchHistory" {
+                            json!([])
+                        } else if operation == "resumeMatchRecovery" {
+                            json!([{
+                                "match_id":126,
+                                "queue_id":486,
+                                "status":"complete_recovered",
+                                "match":{
+                                    "match_id":126,
+                                    "entry_datetime":"2026-07-30T15:00:00Z",
+                                    "map":"Resumed Stone Keep",
+                                    "queue_id":486,
+                                    "duration_seconds":600,
+                                    "region":"NA",
+                                    "team1_score":4,
+                                    "team2_score":1,
+                                    "winning_task_force":1,
+                                    "has_replay":false,
+                                    "recovery_source":"local_resume",
+                                    "recovery_api_calls":1,
+                                    "players":relay_players
+                                }
+                            }])
+                        } else {
+                            json!([])
+                        };
+                        Json(json!({"ok":true,"result":result,"error":null}))
+                    },
+                ),
+            )
+            .with_state(operations.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("relay listener");
+        let relay_address = listener.local_addr().expect("relay address");
+        let relay_task = tokio::spawn(async move {
+            axum::serve(listener, relay).await.expect("relay server");
+        });
+        let config = BackendConfig::from_lookup(|name| match name {
+            "DATABASE_URL" => Some(database_url.clone()),
+            "HIREZ_RELAY_URL" => Some(format!("http://{relay_address}")),
+            _ => None,
+        })
+        .expect("backend config");
+        let database = Database::new(&config, "requested-match-resume-test").expect("database");
+        let client = database.connection().await.expect("connection");
+        client
+            .batch_execute(include_str!(
+                "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
+            ))
+            .await
+            .expect("seed schema");
+        client
+            .execute(
+                r#"
+                INSERT INTO match_ingest_status (
+                  match_id,status,source,attempts,queue_id,population,
+                  acquisition_state,detail_attempted_at,roster_resolved_at,
+                  direct_player_count,roster_player_count
+                )
+                VALUES (
+                  126,'partial','nonranked_hourly',1,486,'ranked',
+                  'recovery_pending',now(),now(),2,10
+                )
+                "#,
+                &[],
+            )
+            .await
+            .expect("partial lifecycle");
+        for slot in 1_i16..=10 {
+            client
+                .execute(
+                    r#"
+                    INSERT INTO match_ingest_participants (
+                      match_id,roster_slot,player_id,participant_kind,source
+                    ) VALUES (126,$1,$2,'human','roster')
+                    "#,
+                    &[&slot, &(3_000_i64 + i64::from(slot))],
+                )
+                .await
+                .expect("participant");
+            if slot <= 8 {
+                client
+                    .execute(
+                        "INSERT INTO player_match_history_entries (match_id,player_id) VALUES (126,$1)",
+                        &[&(3_000_i64 + i64::from(slot))],
+                    )
+                    .await
+                    .expect("history");
+            }
+        }
+
+        let ingestor = RequestedMatchIngestor::new(
+            database.clone(),
+            WorkerRelayClient::new(&config).expect("relay"),
+            Duration::from_secs(5),
+        );
+        let result = ingestor.ingest(126).await;
+        relay_task.abort();
+        assert_eq!(result.status, RequestedMatchStatus::Ready, "{result:?}");
+        assert_eq!(
+            operations.lock().expect("operations").as_slice(),
+            ["getMatchHistory", "getMatchHistory", "resumeMatchRecovery"]
         );
     }
 }

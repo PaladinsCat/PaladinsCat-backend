@@ -233,7 +233,7 @@ impl CompletedMatchProvider for DummyProvider {
         if self.scenario(match_id).await != DummyScenario::LocalPreflight {
             return Ok(Vec::new());
         }
-        Ok((7..10)
+        Ok((0..10)
             .map(|index| dummy_history_player(match_id, index))
             .collect())
     }

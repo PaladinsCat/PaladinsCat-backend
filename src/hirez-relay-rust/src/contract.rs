@@ -389,7 +389,7 @@ mod tests {
     fn shared_manifest_has_unique_complete_operation_inventory() {
         verify_manifest().expect("shared manifest must verify");
         assert_eq!(manifest().schema_version, 1);
-        assert_eq!(manifest().operations.len(), 37);
+        assert_eq!(manifest().operations.len(), 38);
         let names = manifest()
             .operations
             .iter()

@@ -15,7 +15,7 @@ use crate::{
     player_lookup::{PlayerBatchLookupService, PostgresPlayerNameLookup},
     provider::RelayError,
     raw_buffer_store::{RawBufferStore, RawPayload},
-    resolver::get_match_details_batch,
+    resolver::{get_match_details_batch, resume_match_recovery},
     usage_probe::DirectUsageProbe,
 };
 
@@ -80,6 +80,19 @@ impl RealRuntime {
                 return Ok(Some(RelayDispatchResult::CompletedMatches(
                     get_match_details_batch(&provider, &requests).await?,
                 )));
+            }
+            "resumeMatchRecovery" => {
+                let requests =
+                    crate::contract::parse_completed_match_requests(args.first().ok_or_else(
+                        || RelayError::Validation("requests are required".to_owned()),
+                    )?)?;
+                let request = requests.first().ok_or_else(|| {
+                    RelayError::Validation("exactly one recovery request is required".to_owned())
+                })?;
+                let provider = self.match_provider.attributed(consumer);
+                return Ok(Some(RelayDispatchResult::CompletedMatches(vec![
+                    resume_match_recovery(&provider, request).await?,
+                ])));
             }
             "getDataUsed" => {
                 let dev_id = text_arg(args, 0)?;
