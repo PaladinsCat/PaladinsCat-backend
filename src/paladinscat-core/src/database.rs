@@ -68,6 +68,10 @@ impl Database {
         client.simple_query("SELECT 1").await.is_ok()
     }
 
+    pub async fn connection(&self) -> Result<deadpool_postgres::Object, DatabaseError> {
+        Ok(self.pool.get().await?)
+    }
+
     pub async fn query_json(
         &self,
         sql: &str,

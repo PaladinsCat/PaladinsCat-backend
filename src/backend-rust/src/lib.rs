@@ -25,6 +25,7 @@ pub mod routes;
 pub mod security;
 pub mod server;
 pub mod sql_compat;
+pub mod workers;
 
 pub const INVENTORIED_ROUTES: usize = 268;
 pub const INVENTORIED_WORKERS: usize = 41;

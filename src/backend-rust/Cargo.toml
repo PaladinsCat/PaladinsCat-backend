@@ -8,7 +8,9 @@ publish = false
 async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"
+deadpool-postgres = "0.14"
 flate2 = "1"
+futures = "0.3"
 paladinscat-core = { path = "../paladinscat-core" }
 regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
@@ -19,6 +21,7 @@ subtle = "2"
 thiserror = "2"
 time = { version = "0.3", features = ["parsing"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "sync", "time"] }
+tokio-postgres = { version = "0.7", features = ["with-time-0_3"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 url = "2"
