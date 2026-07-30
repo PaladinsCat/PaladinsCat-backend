@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use axum::{
     Json, Router,
     extract::{Extension, Query, State},
-    response::Response,
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::get,
 };
 use paladinscat_core::{
@@ -22,6 +23,24 @@ use super::lobby_tier::{TierBounds, parse_tier_bounds};
 
 const DEFAULT_FRESH_TTL_SECONDS: u64 = 300;
 const TIER_POPULATION_FRESH_TTL_SECONDS: u64 = 900;
+const CASUAL_ITEM_SCOPES: &[&str] = &[
+    "casual",
+    "bot",
+    "team_deathmatch",
+    "arcade",
+    "wave_defense",
+    "experiment",
+    "newcomer",
+    "custom",
+    "other",
+];
+const CHAMPION_ROLE_SQL: &str = r#"CASE
+    WHEN c.roles ILIKE '%Frontline%' OR c.roles ILIKE '%Front Line%' OR c.name IN ('Ash', 'Atlas', 'Azaan', 'Barik', 'Fernando', 'Inara', 'Khan', 'Makoa', 'Nyx', 'Raum', 'Ruckus', 'Terminus', 'Torvald', 'Yagorath') THEN 'Frontline'
+    WHEN c.roles ILIKE '%Damage%' OR c.name IN ('Betty La Bomba', 'Betty la Bomba', 'Bomb King', 'Cassie', 'Dredge', 'Drogoz', 'Imani', 'Kinessa', 'Lian', 'Octavia', 'Omen', 'Saati', 'Sha Lin', 'Strix', 'Tiberius', 'Tyra', 'Viktor', 'Vivian', 'Willo') THEN 'Damage'
+    WHEN c.roles ILIKE '%Flank%' OR c.name IN ('Androxus', 'Buck', 'Caspian', 'Evie', 'Kasumi', 'Koga', 'Lex', 'Maeve', 'Skye', 'Talus', 'Vatu', 'VII', 'Vora', 'Zhin') THEN 'Flank'
+    WHEN c.roles ILIKE '%Support%' OR c.name IN ('Corvus', 'Furia', 'Grohk', 'Grover', 'Io', 'Jenos', 'Lillith', 'Mal Damba', 'Mal''Damba', 'Moji', 'Pip', 'Rei', 'Seris', 'Ying') THEN 'Support'
+    ELSE COALESCE(NULLIF(c.roles, ''), 'Unknown')
+  END"#;
 
 #[derive(Clone)]
 struct StatsState {
@@ -40,9 +59,310 @@ pub fn router(database: Database, cache: RouteCache) -> Router {
         .route("/stats/regions", get(regions))
         .route("/stats/platforms", get(platforms))
         .route("/stats/loadouts", get(loadouts))
+        .route("/stats/items", get(items))
         .route("/stats/tiers", get(tiers))
         .route("/stats/tiers/summary", get(tiers_summary))
         .with_state(StatsState { database, cache })
+}
+
+async fn items(
+    State(state): State<StatsState>,
+    Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Response, ApiError> {
+    let mode = query
+        .get("mode")
+        .map_or_else(|| "ranked".to_owned(), |value| value.to_lowercase());
+    if mode != "ranked" && mode != "casual" {
+        return Err(ApiError::validation("Mode must be ranked or casual."));
+    }
+    let limit = legacy_limit(query.get("limit").map(String::as_str), 50, 200);
+
+    if mode == "casual" {
+        for ranked_only_filter in ["tierMin", "tierMax", "tier", "lobby", "championId", "role"] {
+            if query
+                .get(ranked_only_filter)
+                .is_some_and(|value| !value.is_empty())
+            {
+                return Err(ApiError::validation(format!(
+                    "{ranked_only_filter} is available only for ranked item statistics."
+                )));
+            }
+        }
+
+        let mut params = Vec::new();
+        let mut item_where = vec!["1=1".to_owned()];
+        let mut population_where = vec!["1=1".to_owned()];
+        let requested_scope = query
+            .get("scope")
+            .map(|value| value.trim().to_lowercase())
+            .unwrap_or_default();
+        if !requested_scope.is_empty() {
+            if !CASUAL_ITEM_SCOPES.contains(&requested_scope.as_str()) {
+                return Err(ApiError::validation(format!(
+                    "Invalid casual scope. Use {}.",
+                    CASUAL_ITEM_SCOPES.join(", ")
+                )));
+            }
+            params.push(QueryParam::Text(requested_scope));
+            item_where.push(format!("casual.stats_scope = ${}", params.len()));
+            population_where.push(format!("ledger.stats_scope = ${}", params.len()));
+        }
+
+        if query.get("queueId").is_some_and(|value| !value.is_empty()) {
+            let queue_id = parse_javascript_number_integer(query.get("queueId"))
+                .and_then(|value| i32::try_from(value).ok())
+                .filter(|value| *value > 0 && *value != 486)
+                .ok_or_else(|| {
+                    ApiError::validation("queueId must identify a positive non-ranked queue.")
+                })?;
+            params.push(QueryParam::Int32(queue_id));
+            item_where.push(format!("casual.queue_id = ${}", params.len()));
+            population_where.push(format!("ledger.queue_id = ${}", params.len()));
+        }
+
+        params.push(QueryParam::Int64(limit));
+        return cached_rows(
+            state,
+            uri,
+            request_id,
+            DEFAULT_FRESH_TTL_SECONDS,
+            format!(
+                r#"WITH item_rows AS (
+                   SELECT
+                     casual.item_id,
+                     casual.slot,
+                     casual.item_level,
+                     SUM(casual.count)::BIGINT AS uses,
+                     SUM(casual.wins)::BIGINT AS wins,
+                     SUM(casual.losses)::BIGINT AS losses
+                   FROM item_counts_casual casual
+                   WHERE {}
+                   GROUP BY casual.item_id, casual.slot, casual.item_level
+                 ),
+                 player_count AS (
+                   SELECT COALESCE(SUM(ledger.eligible_players), 0)::BIGINT AS total
+                   FROM item_counts_casual_matches ledger
+                   WHERE {}
+                 ),
+                 item_totals AS (
+                   SELECT
+                     item_id,
+                     SUM(uses)::BIGINT AS total_uses,
+                     SUM(wins)::BIGINT AS wins,
+                     SUM(losses)::BIGINT AS losses
+                   FROM item_rows
+                   GROUP BY item_id
+                 ),
+                 slot_rows AS (
+                   SELECT
+                     item_id,
+                     slot,
+                     SUM(uses)::BIGINT AS total_uses,
+                     COALESCE(ROUND(
+                       100.0 * SUM(wins)::NUMERIC
+                       / NULLIF((SUM(wins) + SUM(losses))::NUMERIC, 0),
+                       2
+                     ), 0) AS win_rate
+                   FROM item_rows
+                   GROUP BY item_id, slot
+                 ),
+                 level_rows AS (
+                   SELECT
+                     item_id,
+                     item_level,
+                     SUM(uses)::BIGINT AS total_uses,
+                     COALESCE(ROUND(
+                       100.0 * SUM(wins)::NUMERIC
+                       / NULLIF((SUM(wins) + SUM(losses))::NUMERIC, 0),
+                       2
+                     ), 0) AS win_rate
+                   FROM item_rows
+                   GROUP BY item_id, item_level
+                 ),
+                 breakdown_rows AS (
+                   SELECT
+                     item_id,
+                     slot,
+                     item_level,
+                     uses AS total_uses,
+                     COALESCE(ROUND(
+                       100.0 * wins::NUMERIC
+                       / NULLIF((wins + losses)::NUMERIC, 0),
+                       2
+                     ), 0) AS win_rate,
+                     COALESCE(ROUND(
+                       100.0 * uses::NUMERIC
+                       / NULLIF((SELECT total FROM player_count)::NUMERIC, 0),
+                       2
+                     ), 0) AS pick_rate
+                   FROM item_rows
+                 )
+                 SELECT
+                   totals.item_id,
+                   COALESCE(item.item_name, 'Item ' || totals.item_id::TEXT) AS item_name,
+                   totals.total_uses,
+                   COALESCE(ROUND(
+                     100.0 * totals.wins::NUMERIC
+                     / NULLIF((totals.wins + totals.losses)::NUMERIC, 0),
+                     2
+                   ), 0) AS win_rate,
+                   COALESCE(ROUND(
+                     100.0 * totals.total_uses::NUMERIC
+                     / NULLIF((SELECT total FROM player_count)::NUMERIC, 0),
+                     2
+                   ), 0) AS pick_rate,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'slot', slot,
+                       'total_uses', total_uses,
+                       'win_rate', win_rate
+                     ) ORDER BY slot)
+                     FROM slot_rows slot_row
+                     WHERE slot_row.item_id = totals.item_id
+                   ), '[]'::JSONB) AS slots,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'item_level', item_level,
+                       'total_uses', total_uses,
+                       'win_rate', win_rate
+                     ) ORDER BY item_level)
+                     FROM level_rows level_row
+                     WHERE level_row.item_id = totals.item_id
+                   ), '[]'::JSONB) AS levels,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'slot', slot,
+                       'item_level', item_level,
+                       'total_uses', total_uses,
+                       'win_rate', win_rate,
+                       'pick_rate', pick_rate
+                     ) ORDER BY slot, item_level)
+                     FROM breakdown_rows breakdown
+                     WHERE breakdown.item_id = totals.item_id
+                   ), '[]'::JSONB) AS breakdown
+                 FROM item_totals totals
+                 LEFT JOIN items item ON item.item_id = totals.item_id
+                 ORDER BY totals.total_uses DESC, item_name ASC
+                 LIMIT ${}"#,
+                item_where.join(" AND "),
+                population_where.join(" AND "),
+                params.len(),
+            ),
+            params,
+        )
+        .await;
+    }
+
+    let bounds = valid_tier_bounds(&query)?;
+    let champion_id = if query.contains_key("championId") {
+        match query
+            .get("championId")
+            .and_then(|value| parse_js_integer(value))
+            .and_then(|value| i32::try_from(value).ok())
+            .filter(|value| *value > 0)
+        {
+            Some(value) => Some(value),
+            None => {
+                return Ok((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": "Invalid champion id" })),
+                )
+                    .into_response());
+            }
+        }
+    } else {
+        None
+    };
+    let role_filter = match query.get("role") {
+        Some(value) if !value.is_empty() => Some(normalize_item_role(value).ok_or_else(|| {
+            ApiError::validation("Invalid role. Use Frontline, Damage, Flank, or Support.")
+        })?),
+        _ => None,
+    };
+
+    let mut params = vec![QueryParam::Int32(486)];
+    let mut champion_where = vec!["1=1".to_owned()];
+    if let Some(champion_id) = champion_id {
+        params.push(QueryParam::Int32(champion_id));
+        champion_where.push(format!("c.id = ${}", params.len()));
+    }
+    if let Some(role_filter) = role_filter {
+        params.push(QueryParam::Text(role_filter.to_owned()));
+        champion_where.push(format!("{CHAMPION_ROLE_SQL} = ${}", params.len()));
+    }
+    let mut item_where = vec!["sia.queue_id = $1".to_owned()];
+    let mut player_where = vec!["spa.queue_id = $1".to_owned()];
+    if let Some(minimum) = bounds.minimum {
+        params.push(QueryParam::Int16(minimum));
+        item_where.push(format!("sia.lobby_tier >= ${}", params.len()));
+        player_where.push(format!("spa.lobby_tier >= ${}", params.len()));
+    }
+    if let Some(maximum) = bounds.maximum {
+        params.push(QueryParam::Int16(maximum));
+        item_where.push(format!("sia.lobby_tier <= ${}", params.len()));
+        player_where.push(format!("spa.lobby_tier <= ${}", params.len()));
+    }
+    params.push(QueryParam::Int64(limit));
+
+    cached_rows(
+        state,
+        uri,
+        request_id,
+        DEFAULT_FRESH_TTL_SECONDS,
+        format!(
+            r#"WITH eligible_champions AS (
+                 SELECT c.id FROM champions c WHERE {}
+               ), item_rows AS (
+                 SELECT sia.item_id, sia.slot, sia.item_level,
+                   SUM(sia.uses)::BIGINT AS uses, SUM(sia.wins)::BIGINT AS wins, SUM(sia.losses)::BIGINT AS losses
+                 FROM stats_item_aggregate sia
+                 JOIN eligible_champions ec ON ec.id = sia.champion_id
+                 WHERE {}
+                 GROUP BY sia.item_id, sia.slot, sia.item_level
+               ), player_count AS (
+                 SELECT COALESCE(SUM(spa.plays), 0)::BIGINT AS total
+                 FROM stats_player_aggregate spa
+                 JOIN eligible_champions ec ON ec.id = spa.champion_id
+                 WHERE {}
+               ), item_totals AS (
+                 SELECT item_id, SUM(uses)::BIGINT AS total_uses, SUM(wins)::BIGINT AS wins, SUM(losses)::BIGINT AS losses
+                 FROM item_rows GROUP BY item_id
+               ), slot_rows AS (
+                 SELECT item_id, slot, SUM(uses)::BIGINT AS total_uses,
+                   COALESCE(ROUND(100.0 * SUM(wins)::NUMERIC / NULLIF((SUM(wins)+SUM(losses))::NUMERIC,0),2),0) AS win_rate
+                 FROM item_rows GROUP BY item_id,slot
+               ), level_rows AS (
+                 SELECT item_id,item_level,SUM(uses)::BIGINT AS total_uses,
+                   COALESCE(ROUND(100.0 * SUM(wins)::NUMERIC / NULLIF((SUM(wins)+SUM(losses))::NUMERIC,0),2),0) AS win_rate
+                 FROM item_rows GROUP BY item_id,item_level
+               ), breakdown_rows AS (
+                 SELECT item_id,slot,item_level,uses AS total_uses,
+                   COALESCE(ROUND(100.0*wins::NUMERIC/NULLIF((wins+losses)::NUMERIC,0),2),0) AS win_rate,
+                   COALESCE(ROUND(100.0*uses::NUMERIC/NULLIF((SELECT total FROM player_count)::NUMERIC,0),2),0) AS pick_rate
+                 FROM item_rows
+               )
+               SELECT totals.item_id, COALESCE(i.item_name,'Item '||totals.item_id::TEXT) AS item_name,
+                 totals.total_uses,
+                 COALESCE(ROUND(100.0*totals.wins::NUMERIC/NULLIF((totals.wins+totals.losses)::NUMERIC,0),2),0) AS win_rate,
+                 COALESCE(ROUND(100.0*totals.total_uses::NUMERIC/NULLIF((SELECT total FROM player_count)::NUMERIC,0),2),0) AS pick_rate,
+                 COALESCE((SELECT jsonb_agg(jsonb_build_object('slot',slot,'total_uses',total_uses,'win_rate',win_rate) ORDER BY slot)
+                   FROM slot_rows sr WHERE sr.item_id=totals.item_id),'[]'::JSONB) AS slots,
+                 COALESCE((SELECT jsonb_agg(jsonb_build_object('item_level',item_level,'total_uses',total_uses,'win_rate',win_rate) ORDER BY item_level)
+                   FROM level_rows lr WHERE lr.item_id=totals.item_id),'[]'::JSONB) AS levels,
+                 COALESCE((SELECT jsonb_agg(jsonb_build_object('slot',slot,'item_level',item_level,'total_uses',total_uses,'win_rate',win_rate,'pick_rate',pick_rate) ORDER BY slot,item_level)
+                   FROM breakdown_rows br WHERE br.item_id=totals.item_id),'[]'::JSONB) AS breakdown
+               FROM item_totals totals LEFT JOIN items i ON i.item_id=totals.item_id
+               ORDER BY totals.total_uses DESC,item_name ASC LIMIT ${}"#,
+            champion_where.join(" AND "),
+            item_where.join(" AND "),
+            player_where.join(" AND "),
+            params.len(),
+        ),
+        params,
+    )
+    .await
 }
 
 async fn queues(
@@ -707,6 +1027,38 @@ fn legacy_limit(raw: Option<&str>, default: i64, maximum: i64) -> i64 {
     legacy_default_integer(raw, default).min(maximum)
 }
 
+fn parse_javascript_number_integer(raw: Option<&String>) -> Option<i64> {
+    let raw = raw?.trim();
+    let parsed = if let Some(hex) = raw.strip_prefix("0x").or_else(|| raw.strip_prefix("0X")) {
+        i64::from_str_radix(hex, 16).ok()? as f64
+    } else if let Some(binary) = raw.strip_prefix("0b").or_else(|| raw.strip_prefix("0B")) {
+        i64::from_str_radix(binary, 2).ok()? as f64
+    } else if let Some(octal) = raw.strip_prefix("0o").or_else(|| raw.strip_prefix("0O")) {
+        i64::from_str_radix(octal, 8).ok()? as f64
+    } else {
+        raw.parse::<f64>().ok()?
+    };
+    if !parsed.is_finite() || parsed.fract() != 0.0 {
+        return None;
+    }
+    Some(parsed as i64)
+}
+
+fn normalize_item_role(raw: &str) -> Option<&'static str> {
+    let key = raw
+        .chars()
+        .filter(|character| !character.is_whitespace() && *character != '_' && *character != '-')
+        .flat_map(char::to_lowercase)
+        .collect::<String>();
+    match key.as_str() {
+        "front" | "frontline" => Some("Frontline"),
+        "damage" => Some("Damage"),
+        "flank" => Some("Flank"),
+        "support" => Some("Support"),
+        _ => None,
+    }
+}
+
 fn int32_query_param(value: i64) -> QueryParam {
     i32::try_from(value)
         .map(QueryParam::Int32)
@@ -747,5 +1099,28 @@ mod tests {
             ]
         );
         assert_eq!(params.len(), 3);
+    }
+
+    #[test]
+    fn item_query_parsers_match_typescript_number_and_role_rules() {
+        assert_eq!(
+            parse_javascript_number_integer(Some(&" 424 ".to_owned())),
+            Some(424)
+        );
+        assert_eq!(
+            parse_javascript_number_integer(Some(&"4.24e2".to_owned())),
+            Some(424)
+        );
+        assert_eq!(
+            parse_javascript_number_integer(Some(&"0x1a8".to_owned())),
+            Some(424)
+        );
+        assert_eq!(
+            parse_javascript_number_integer(Some(&"424tail".to_owned())),
+            None
+        );
+        assert_eq!(normalize_item_role("front-line"), Some("Frontline"));
+        assert_eq!(normalize_item_role("DAMAGE"), Some("Damage"));
+        assert_eq!(normalize_item_role("tank"), None);
     }
 }
