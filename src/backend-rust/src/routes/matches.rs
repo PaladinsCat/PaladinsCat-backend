@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{
@@ -22,7 +23,10 @@ use crate::{
     request::RequestId,
     route_cache::RouteCache,
     routes::live::{request_identity, resolve_player_live_match, vendor_guard},
-    workers::relay::WorkerRelayClient,
+    workers::{
+        relay::WorkerRelayClient,
+        requested_match::{RequestedMatchIngestor, RequestedMatchStatus},
+    },
 };
 
 const RANKED_QUEUE_ID: i32 = 486;
@@ -34,6 +38,7 @@ struct MatchesState {
     redis: RedisCache,
     route_cache: RouteCache,
     relay: Option<WorkerRelayClient>,
+    requested_match: Option<RequestedMatchIngestor>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +75,13 @@ pub fn router(
     config: Arc<BackendConfig>,
 ) -> Router {
     let relay = WorkerRelayClient::new(&config).ok();
+    let requested_match = relay.clone().map(|relay| {
+        RequestedMatchIngestor::new(
+            database.clone(),
+            relay,
+            Duration::from_millis(config.hirez_relay_timeout_ms),
+        )
+    });
     Router::new()
         .route("/matches/overview", get(overview))
         .route("/matches/dropped/summary", get(dropped_summary))
@@ -100,6 +112,7 @@ pub fn router(
             redis,
             route_cache,
             relay,
+            requested_match,
         })
 }
 
@@ -107,6 +120,7 @@ async fn match_detail(
     State(state): State<MatchesState>,
     Extension(request_id): Extension<RequestId>,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let match_id =
         positive_i64(Some(&id)).ok_or_else(|| ApiError::validation("Invalid match ID"))?;
@@ -119,10 +133,80 @@ async fn match_detail(
     {
         return Ok((StatusCode::OK, Json(payload)).into_response());
     }
-    Err(ApiError::not_found(
-        format!("Match {match_id} was not found."),
-        json!({ "matchId": match_id }),
-    ))
+    let rate_headers = vendor_guard(
+        &state.redis,
+        &request_identity(&headers),
+        "requested-match",
+        match_id,
+        120_000,
+        8,
+    )
+    .await?;
+    let Some(ingestor) = state.requested_match.as_ref() else {
+        return Err(ApiError::internal(&request_id));
+    };
+    let result = ingestor.ingest(match_id).await;
+    let mut response = match result.status {
+        RequestedMatchStatus::Ready => {
+            let payload = fetch_matches(&state, &[match_id], &request_id).await?;
+            if payload
+                .get("count")
+                .and_then(Value::as_i64)
+                .unwrap_or_default()
+                > 0
+            {
+                (StatusCode::OK, Json(payload)).into_response()
+            } else {
+                match_recovery_error(
+                    StatusCode::BAD_GATEWAY,
+                    "MATCH_RECOVERY_FAILED",
+                    format!(
+                        "Match {match_id} could not be reconstructed from the Hi-Rez relay response."
+                    ),
+                    match_id,
+                )
+            }
+        }
+        RequestedMatchStatus::NotFound => match_recovery_error(
+            StatusCode::NOT_FOUND,
+            "MATCH_NOT_FOUND",
+            format!("Match {match_id} was not found."),
+            match_id,
+        ),
+        RequestedMatchStatus::ProcessingTimeout => match_recovery_error(
+            StatusCode::GATEWAY_TIMEOUT,
+            "MATCH_RECOVERY_TIMEOUT",
+            format!("Match {match_id} recovery did not reach the durable fact boundary in time."),
+            match_id,
+        ),
+        RequestedMatchStatus::RecoveryFailed => match_recovery_error(
+            StatusCode::BAD_GATEWAY,
+            "MATCH_RECOVERY_FAILED",
+            format!("Match {match_id} could not be reconstructed from the Hi-Rez relay response."),
+            match_id,
+        ),
+    };
+    rate_headers.apply(&mut response);
+    Ok(response)
+}
+
+fn match_recovery_error(
+    status: StatusCode,
+    code: &str,
+    message: String,
+    match_id: i64,
+) -> Response {
+    (
+        status,
+        Json(json!({
+            "error": {
+                "code": code,
+                "message": message,
+                "matchId": match_id
+            }
+        })),
+    )
+        .into_response()
 }
 
 async fn batch(
