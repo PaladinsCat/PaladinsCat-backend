@@ -19,6 +19,13 @@ pub struct SchedulerOwnership {
     pub engine: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct SchedulerAssignment {
+    pub scheduler_key: String,
+    pub desired_engine: String,
+    pub generation: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct JobLease {
     pub job_key: String,
@@ -54,10 +61,15 @@ impl WorkerCoordinationRepository {
                   scheduler_key, owner_id, engine, lease_until,
                   acquired_at, heartbeat_at, updated_at
                 )
-                VALUES (
+                SELECT
                   $1, $2, 'rust',
                   now() + ($3::int * interval '1 second'),
                   now(), now(), now()
+                WHERE EXISTS (
+                  SELECT 1
+                  FROM worker_scheduler_assignments assignment
+                  WHERE assignment.scheduler_key = $1
+                    AND assignment.desired_engine = 'rust'
                 )
                 ON CONFLICT (scheduler_key) DO UPDATE SET
                   owner_id = EXCLUDED.owner_id,
@@ -70,8 +82,16 @@ impl WorkerCoordinationRepository {
                   END,
                   heartbeat_at = now(),
                   updated_at = now()
-                WHERE worker_scheduler_ownership.lease_until <= now()
-                   OR worker_scheduler_ownership.owner_id = EXCLUDED.owner_id
+                WHERE (
+                    worker_scheduler_ownership.lease_until <= now()
+                    OR worker_scheduler_ownership.owner_id = EXCLUDED.owner_id
+                  )
+                  AND EXISTS (
+                    SELECT 1
+                    FROM worker_scheduler_assignments assignment
+                    WHERE assignment.scheduler_key = EXCLUDED.scheduler_key
+                      AND assignment.desired_engine = 'rust'
+                  )
                 RETURNING scheduler_key
                 "#,
                 &[&scheduler_key, &owner_id, &lease_seconds],
@@ -102,6 +122,12 @@ impl WorkerCoordinationRepository {
                   AND owner_id = $2
                   AND engine = 'rust'
                   AND lease_until > now()
+                  AND EXISTS (
+                    SELECT 1
+                    FROM worker_scheduler_assignments assignment
+                    WHERE assignment.scheduler_key = $1
+                      AND assignment.desired_engine = 'rust'
+                  )
                 "#,
                 &[&scheduler_key, &owner_id, &lease_seconds],
             )
@@ -151,10 +177,15 @@ impl WorkerCoordinationRepository {
                       scheduler_key, owner_id, engine, lease_until,
                       acquired_at, heartbeat_at, updated_at
                     )
-                    VALUES (
+                    SELECT
                       $1, $2, 'rust',
                       now() + ($3::int * interval '1 second'),
                       now(), now(), now()
+                    WHERE EXISTS (
+                      SELECT 1
+                      FROM worker_scheduler_assignments assignment
+                      WHERE assignment.scheduler_key = $1
+                        AND assignment.desired_engine = 'rust'
                     )
                     ON CONFLICT (scheduler_key) DO UPDATE SET
                       owner_id = EXCLUDED.owner_id,
@@ -167,8 +198,16 @@ impl WorkerCoordinationRepository {
                       END,
                       heartbeat_at = now(),
                       updated_at = now()
-                    WHERE worker_scheduler_ownership.lease_until <= now()
-                       OR worker_scheduler_ownership.owner_id = EXCLUDED.owner_id
+                    WHERE (
+                        worker_scheduler_ownership.lease_until <= now()
+                        OR worker_scheduler_ownership.owner_id = EXCLUDED.owner_id
+                      )
+                      AND EXISTS (
+                        SELECT 1
+                        FROM worker_scheduler_assignments assignment
+                        WHERE assignment.scheduler_key = EXCLUDED.scheduler_key
+                          AND assignment.desired_engine = 'rust'
+                      )
                     RETURNING scheduler_key
                     "#,
                     &[&scheduler_key, &owner_id, &lease_seconds],
@@ -202,6 +241,13 @@ impl WorkerCoordinationRepository {
                   AND engine = 'rust'
                   AND scheduler_key = ANY($3::text[])
                   AND lease_until > now()
+                  AND EXISTS (
+                    SELECT 1
+                    FROM worker_scheduler_assignments assignment
+                    WHERE assignment.scheduler_key =
+                      worker_scheduler_ownership.scheduler_key
+                      AND assignment.desired_engine = 'rust'
+                  )
                 "#,
                 &[&owner_id, &lease_seconds, &SCHEDULER_KEYS.as_slice()],
             )
@@ -244,6 +290,28 @@ impl WorkerCoordinationRepository {
                 scheduler_key: row.get("scheduler_key"),
                 owner_id: row.get("owner_id"),
                 engine: row.get("engine"),
+            })
+            .collect())
+    }
+
+    pub async fn scheduler_assignments(&self) -> Result<Vec<SchedulerAssignment>, DatabaseError> {
+        let client = self.database.connection().await?;
+        let rows = client
+            .query(
+                r#"
+                SELECT scheduler_key, desired_engine, generation
+                FROM worker_scheduler_assignments
+                ORDER BY scheduler_key
+                "#,
+                &[],
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| SchedulerAssignment {
+                scheduler_key: row.get("scheduler_key"),
+                desired_engine: row.get("desired_engine"),
+                generation: row.get("generation"),
             })
             .collect())
     }
@@ -389,7 +457,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires PALADINSCAT_TEST_DATABASE_URL with migration 110"]
+    #[ignore = "requires PALADINSCAT_TEST_DATABASE_URL with migrations 110-111"]
     async fn live_staged_ownership_is_exclusive_and_job_leases_do_not_overlap() {
         let database_url =
             std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
@@ -423,6 +491,33 @@ mod tests {
         let owner_b = format!("coordination-test-b-{suffix}");
         let job_key = format!("coordination-test-job-{suffix}");
         let lease_duration = Duration::from_secs(60);
+
+        assert!(
+            !repository
+                .acquire_scheduler_owner("auto_ingester", &owner_a, lease_duration)
+                .await
+                .expect("Rust cannot acquire a TypeScript-assigned stage")
+        );
+        let client = repository
+            .database
+            .connection()
+            .await
+            .expect("assignment fixture connection");
+        client
+            .execute(
+                r#"
+                UPDATE worker_scheduler_assignments
+                SET desired_engine = 'rust',
+                    generation = generation + 1,
+                    updated_by = 'coordination-integration-test',
+                    updated_at = now()
+                WHERE scheduler_key = ANY($1::text[])
+                "#,
+                &[&vec!["auto_ingester", "ranked_tracker"]],
+            )
+            .await
+            .expect("assign staged Rust domains");
+        drop(client);
 
         assert!(
             repository
@@ -494,6 +589,25 @@ mod tests {
                 .expect("release owner B ranked")
         );
 
+        let client = repository
+            .database
+            .connection()
+            .await
+            .expect("final-wave assignment fixture");
+        client
+            .execute(
+                r#"
+                UPDATE worker_scheduler_assignments
+                SET desired_engine = 'rust',
+                    generation = generation + 1,
+                    updated_by = 'coordination-integration-test',
+                    updated_at = now()
+                "#,
+                &[],
+            )
+            .await
+            .expect("assign final Rust wave");
+        drop(client);
         assert!(
             repository
                 .acquire_all_scheduler_owners(&owner_a, lease_duration)
@@ -513,5 +627,24 @@ mod tests {
                 .expect("release final-wave owner"),
             SCHEDULER_KEYS.len() as u64
         );
+
+        let client = repository
+            .database
+            .connection()
+            .await
+            .expect("assignment cleanup connection");
+        client
+            .execute(
+                r#"
+                UPDATE worker_scheduler_assignments
+                SET desired_engine = 'typescript',
+                    generation = generation + 1,
+                    updated_by = 'coordination-integration-cleanup',
+                    updated_at = now()
+                "#,
+                &[],
+            )
+            .await
+            .expect("restore TypeScript assignments");
     }
 }
