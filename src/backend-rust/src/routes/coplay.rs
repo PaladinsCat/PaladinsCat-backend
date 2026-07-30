@@ -66,7 +66,7 @@ async fn parties(
             ));
         }
         if let Some(stack_size) = stack_size {
-            params.push(QueryParam::Int32(stack_size));
+            params.push(QueryParam::Int16(stack_size as i16));
             clauses.push(format!("pss.stack_size = ${}", params.len()));
         }
         let where_clause = if clauses.is_empty() {
@@ -348,7 +348,8 @@ async fn top_pairs(
          JOIN players p1 ON p1.id = pr.source_player_id \
          JOIN players p2 ON p2.id = pr.target_player_id\
          {where_clause} \
-         ORDER BY pr.count DESC \
+         ORDER BY pr.count DESC, pr.last_seen DESC, \
+                  pr.source_player_id, pr.target_player_id, pr.same_team \
          LIMIT $1"
     );
     rows(&database, &sql, &[QueryParam::Int64(limit)], &request_id).await
