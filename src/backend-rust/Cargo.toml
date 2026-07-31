@@ -6,8 +6,11 @@ publish = false
 
 [dependencies]
 async-trait = "0.1"
+aes-gcm = "0.10"
+anyhow = "1"
 axum = "0.8"
 base64 = "0.22"
+chrono-tz = "0.10"
 deadpool-postgres = "0.14"
 flate2 = "1"
 futures = "0.3"
@@ -19,7 +22,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 subtle = "2"
 thiserror = "2"
-time = { version = "0.3", features = ["parsing"] }
+time = { version = "0.3", features = ["macros", "parsing", "serde"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "sync", "time"] }
 tokio-postgres = { version = "0.7", features = ["with-time-0_3"] }
 tower = { version = "0.5", features = ["util"] }

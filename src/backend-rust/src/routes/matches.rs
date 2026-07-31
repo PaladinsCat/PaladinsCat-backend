@@ -1325,35 +1325,49 @@ async fn fact(
            UNION ALL SELECT 'special',smp.player_id,smp.private_slot,smp.player_name,smp.champion_id, \
              smp.champion_name,smp.task_force,smp.roster_slot,smp.raw_player \
            FROM special_match_players smp WHERE smp.match_id=$1) \
-         SELECT stored.player_id,stored.player_name,stored.champion_id, \
+         SELECT stored.player_id,stored.roster_slot,stored.player_name,stored.champion_id, \
            COALESCE(c.name,stored.stored_champion_name) AS champion_name,stored.raw_player \
          FROM stored_players stored LEFT JOIN champions c ON c.id=stored.champion_id \
          WHERE stored.storage_kind=$2 ORDER BY stored.task_force,stored.roster_slot,stored.player_id,stored.private_slot",
         &[QueryParam::Int64(match_id),QueryParam::Text(storage_kind.to_owned())],
     ).await.map_err(|error| ApiError::database(error,&request_id))?;
     let items = state.database.query_json(
-        "SELECT mpi.player_id,mpi.item_id,mpi.slot,mpi.item_level,i.item_name,i.description, \
-         i.item_type,i.cost,i.icon_url AS db_icon_url FROM match_player_items mpi \
-         LEFT JOIN items i ON i.item_id=mpi.item_id WHERE mpi.match_id=$1 ORDER BY mpi.player_id,mpi.slot",
-        &[&match_id],
+        "WITH facts AS(\
+           SELECT 'ranked'::TEXT storage_kind,mpi.player_id,0::SMALLINT roster_slot,mpi.item_id,mpi.slot,mpi.item_level \
+           FROM match_player_items mpi WHERE mpi.match_id=$1 \
+           UNION ALL SELECT population,n.player_id,n.roster_slot,n.item_id,n.slot,n.item_level \
+           FROM nonranked_match_items n WHERE n.match_id=$1)\
+         SELECT f.player_id,f.roster_slot,f.item_id,f.slot,f.item_level,i.item_name,i.description,\
+           i.item_type,i.cost,i.icon_url db_icon_url FROM facts f LEFT JOIN items i ON i.item_id=f.item_id \
+         WHERE f.storage_kind=$2 ORDER BY f.roster_slot,f.player_id,f.slot",
+        &[&match_id,&storage_kind],
     ).await.map_err(|error| ApiError::database(error,&request_id))?;
     let cards = state.database.query_json(
-        "SELECT mpc.player_id,mpc.card_id,mpc.card_level,COALESCE(c.card_name,i.item_name) AS card_name, \
-         COALESCE(c.champion_id,i.champion_id) AS champion_id,i.description,i.icon_url AS db_icon_url \
-         FROM match_player_cards mpc LEFT JOIN cards c ON c.card_id=mpc.card_id \
-         LEFT JOIN items i ON i.item_id=mpc.card_id WHERE mpc.match_id=$1 ORDER BY mpc.player_id,mpc.card_id",
-        &[&match_id],
+        "WITH facts AS(\
+           SELECT 'ranked'::TEXT storage_kind,mpc.player_id,0::SMALLINT roster_slot,mpc.card_id,mpc.card_level \
+           FROM match_player_cards mpc WHERE mpc.match_id=$1 \
+           UNION ALL SELECT population,n.player_id,n.roster_slot,n.card_id,n.card_level \
+           FROM nonranked_match_cards n WHERE n.match_id=$1)\
+         SELECT f.player_id,f.roster_slot,f.card_id,f.card_level,COALESCE(c.card_name,i.item_name) card_name,\
+           COALESCE(c.champion_id,i.champion_id) champion_id,i.description,i.icon_url db_icon_url \
+         FROM facts f LEFT JOIN cards c ON c.card_id=f.card_id LEFT JOIN items i ON i.item_id=f.card_id \
+         WHERE f.storage_kind=$2 ORDER BY f.roster_slot,f.player_id,f.card_id",
+        &[&match_id,&storage_kind],
     ).await.map_err(|error| ApiError::database(error,&request_id))?;
     let talents = state.database.query_json(
-        "SELECT mpt.player_id,mpt.talent_id,COALESCE(t.talent_name,i.item_name) AS talent_name, \
-         COALESCE(t.champion_id,i.champion_id) AS champion_id,c.name AS champion_name,i.description, \
-         i.icon_url AS db_icon_url FROM match_player_talents mpt \
-         JOIN match_players mp ON mp.match_id=mpt.match_id AND mp.player_id=mpt.player_id \
-         LEFT JOIN talents t ON t.talent_id=mpt.talent_id LEFT JOIN items i ON i.item_id=mpt.talent_id \
-         LEFT JOIN champions c ON c.id=COALESCE(t.champion_id,i.champion_id) WHERE mpt.match_id=$1 \
-         AND COALESCE(t.champion_id,i.champion_id,mp.champion_id)=mp.champion_id \
-         ORDER BY mpt.player_id,mpt.talent_id",
-        &[&match_id],
+        "WITH facts AS(\
+           SELECT 'ranked'::TEXT storage_kind,mpt.player_id,0::SMALLINT roster_slot,mpt.talent_id,mp.champion_id \
+           FROM match_player_talents mpt JOIN match_players mp ON mp.match_id=mpt.match_id AND mp.player_id=mpt.player_id \
+           WHERE mpt.match_id=$1 \
+           UNION ALL SELECT population,n.player_id,n.roster_slot,n.talent_id,n.champion_id \
+           FROM nonranked_match_talents n WHERE n.match_id=$1)\
+         SELECT f.player_id,f.roster_slot,f.talent_id,COALESCE(t.talent_name,i.item_name) talent_name,\
+           COALESCE(t.champion_id,i.champion_id,f.champion_id) champion_id,c.name champion_name,i.description,\
+           i.icon_url db_icon_url FROM facts f LEFT JOIN talents t ON t.talent_id=f.talent_id\
+         LEFT JOIN items i ON i.item_id=f.talent_id LEFT JOIN champions c ON c.id=COALESCE(t.champion_id,i.champion_id,f.champion_id)\
+         WHERE f.storage_kind=$2 AND COALESCE(t.champion_id,i.champion_id,f.champion_id)=f.champion_id\
+         ORDER BY f.roster_slot,f.player_id,f.talent_id",
+        &[&match_id,&storage_kind],
     ).await.map_err(|error| ApiError::database(error,&request_id))?;
     let players = assemble_match_facts(&stored_players, items, cards, talents);
     Ok((
@@ -1374,6 +1388,7 @@ fn assemble_match_facts(
         .map(|stored| {
             json!({
                 "player_id":field(stored,"player_id"),
+                "roster_slot":field(stored,"roster_slot"),
                 "player_name":field(stored,"player_name"),
                 "champion_id":field(stored,"champion_id"),
                 "champion_name":field(stored,"champion_name"),
@@ -1383,10 +1398,10 @@ fn assemble_match_facts(
         .collect::<Vec<_>>();
     let mut by_player = HashMap::new();
     for (index, player) in players.iter().enumerate() {
-        by_player.insert(json_key(player.get("player_id")), index);
+        by_player.insert(fact_player_key(player), index);
     }
     for item in items {
-        let Some(index) = by_player.get(&json_key(item.get("player_id"))).copied() else {
+        let Some(index) = by_player.get(&fact_player_key(&item)).copied() else {
             continue;
         };
         let name = item.get("item_name").and_then(Value::as_str);
@@ -1403,7 +1418,7 @@ fn assemble_match_facts(
         );
     }
     for card in cards {
-        let Some(index) = by_player.get(&json_key(card.get("player_id"))).copied() else {
+        let Some(index) = by_player.get(&fact_player_key(&card)).copied() else {
             continue;
         };
         let name = card.get("card_name").and_then(Value::as_str);
@@ -1419,7 +1434,7 @@ fn assemble_match_facts(
         );
     }
     for talent in talents {
-        let Some(index) = by_player.get(&json_key(talent.get("player_id"))).copied() else {
+        let Some(index) = by_player.get(&fact_player_key(&talent)).copied() else {
             continue;
         };
         let talent_name = talent.get("talent_name").and_then(Value::as_str);
@@ -1540,6 +1555,14 @@ fn field(value: &Value, name: &str) -> Value {
 
 fn json_key(value: Option<&Value>) -> String {
     value.map(json_text).unwrap_or_default()
+}
+
+fn fact_player_key(value: &Value) -> String {
+    format!(
+        "{}:{}",
+        json_key(value.get("player_id")),
+        json_key(value.get("roster_slot"))
+    )
 }
 
 fn push_fact(player: &mut Value, name: &str, fact: Value) {

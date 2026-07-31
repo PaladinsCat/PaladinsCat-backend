@@ -1,8 +1,6 @@
 use paladinscat_backend::workers::{
-    coordination::WorkerCoordinationRepository,
-    match_lifecycle::MatchLifecycleRepository,
-    scheduler_runtime::{SchedulerRuntimeExit, run_tier_stats_scheduler},
-    tier_stats::TierStatsRepository,
+    coordination::SCHEDULER_KEYS, match_lifecycle::MatchLifecycleRepository,
+    scheduler_host::run_scheduler_domain, scheduler_runtime::SchedulerRuntimeExit,
 };
 use paladinscat_core::{config::BackendConfig, database::Database};
 
@@ -14,6 +12,7 @@ async fn main() {
     match arguments.next().as_deref() {
         Some("adopt-nonranked") => run_adoption(arguments).await,
         Some("run-scheduler") => run_scheduler(arguments).await,
+        Some("run-all-schedulers") => run_all_schedulers(arguments).await,
         _ => usage_exit(),
     }
 }
@@ -77,11 +76,8 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
     let Some(scheduler_key) = arguments.next() else {
         usage_exit();
     };
-    if arguments.next().is_some() || scheduler_key != "tier_stats" {
-        eprintln!(
-            "scheduler {scheduler_key} is not an implementation-verified Rust candidate; \
-             only tier_stats is currently runnable"
-        );
+    if arguments.next().is_some() || !SCHEDULER_KEYS.contains(&scheduler_key.as_str()) {
+        eprintln!("unknown scheduler {scheduler_key}");
         std::process::exit(64);
     }
     if !environment_enabled("PALADINSCAT_RUST_WORKER_ENABLE") {
@@ -96,7 +92,7 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
-    let database = worker_database("paladinscat-rust-tier-stats");
+    let (config, database) = worker_context(&format!("paladinscat-rust-{scheduler_key}"));
     let owner_id = format!(
         "rust:{}:{}:{}",
         std::env::var("HOSTNAME")
@@ -105,20 +101,23 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
         std::process::id(),
         uuid::Uuid::new_v4(),
     );
-    let exit = run_tier_stats_scheduler(
-        WorkerCoordinationRepository::new(database.clone()),
-        TierStatsRepository::new(database),
+    let exit = run_scheduler_domain(
+        database,
+        std::sync::Arc::new(config),
+        scheduler_key.clone(),
         owner_id,
     )
     .await
     .unwrap_or_else(|error| {
-        eprintln!("tier_stats scheduler failed: {error}");
+        eprintln!("{scheduler_key} scheduler failed: {error}");
         std::process::exit(1);
     });
     match exit {
         SchedulerRuntimeExit::Shutdown => {}
         SchedulerRuntimeExit::OwnershipUnavailable => {
-            eprintln!("tier_stats is not assigned to Rust or another owner holds its live lease");
+            eprintln!(
+                "{scheduler_key} is not assigned to Rust or another owner holds its live lease"
+            );
             std::process::exit(75);
         }
         SchedulerRuntimeExit::OwnershipLost => {
@@ -128,15 +127,82 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
     }
 }
 
+async fn run_all_schedulers(mut arguments: impl Iterator<Item = String>) {
+    if arguments.next().is_some() {
+        usage_exit();
+    }
+    if !environment_enabled("PALADINSCAT_RUST_WORKER_ENABLE") {
+        eprintln!(
+            "native scheduler execution is disabled; set \
+             PALADINSCAT_RUST_WORKER_ENABLE=true explicitly"
+        );
+        std::process::exit(78);
+    }
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .init();
+    let (config, database) = worker_context("paladinscat-rust-scheduler-host");
+    let config = std::sync::Arc::new(config);
+    let mut tasks = tokio::task::JoinSet::new();
+    for scheduler_key in SCHEDULER_KEYS {
+        let scheduler_key = (*scheduler_key).to_owned();
+        let config = config.clone();
+        let database = database.clone();
+        let owner_id = format!(
+            "rust:{}:{}:{}:{}",
+            std::env::var("HOSTNAME")
+                .or_else(|_| std::env::var("COMPUTERNAME"))
+                .unwrap_or_else(|_| "worker".to_owned()),
+            std::process::id(),
+            scheduler_key,
+            uuid::Uuid::new_v4()
+        );
+        tasks.spawn(async move {
+            let result =
+                run_scheduler_domain(database, config, scheduler_key.clone(), owner_id).await;
+            (scheduler_key, result)
+        });
+    }
+    while let Some(result) = tasks.join_next().await {
+        match result {
+            Ok((scheduler, Ok(SchedulerRuntimeExit::Shutdown))) => {
+                tracing::info!(%scheduler, "scheduler stopped");
+            }
+            Ok((scheduler, Ok(exit))) => {
+                eprintln!("{scheduler} scheduler stopped unexpectedly: {exit:?}");
+                tasks.abort_all();
+                std::process::exit(1);
+            }
+            Ok((scheduler, Err(error))) => {
+                eprintln!("{scheduler} scheduler failed: {error}");
+                tasks.abort_all();
+                std::process::exit(1);
+            }
+            Err(error) => {
+                eprintln!("scheduler task failed: {error}");
+                tasks.abort_all();
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
 fn worker_database(application_name: &str) -> Database {
+    worker_context(application_name).1
+}
+
+fn worker_context(application_name: &str) -> (BackendConfig, Database) {
     let config = BackendConfig::from_environment().unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(78);
     });
-    Database::new(&config, application_name).unwrap_or_else(|error| {
+    let database = Database::new(&config, application_name).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(78);
-    })
+    });
+    (config, database)
 }
 
 fn environment_enabled(name: &str) -> bool {
@@ -146,7 +212,8 @@ fn environment_enabled(name: &str) -> bool {
 fn usage_exit() -> ! {
     eprintln!(
         "usage:\n  paladinscat-worker adopt-nonranked [--limit N] [--apply]\n  \
-         paladinscat-worker run-scheduler tier_stats"
+         paladinscat-worker run-scheduler <ranked_tracker|auto_ingester|baseline_tracker|derived_projection_tracker|hourly_gap_checker|tier_stats>\n  \
+         paladinscat-worker run-all-schedulers"
     );
     std::process::exit(64);
 }

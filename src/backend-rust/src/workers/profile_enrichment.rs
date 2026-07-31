@@ -1,7 +1,13 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-use paladinscat_core::database::{Database, DatabaseError};
+use paladinscat_core::{
+    config::BackendConfig,
+    database::{Database, DatabaseError},
+};
+use serde_json::{Value, json};
+
+use super::relay::{WorkerRelayClient, WorkerRelayError};
 
 pub const PLAYER_PROFILE_BATCH_SIZE: usize = 20;
 
@@ -177,6 +183,23 @@ pub struct ProfileEnrichmentRepository {
     database: Database,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProfileEnrichmentResult {
+    pub calls: usize,
+    pub claimed: usize,
+    pub updated: usize,
+    pub unavailable: usize,
+    pub failed: usize,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProfileEnrichmentError {
+    #[error(transparent)]
+    Database(#[from] DatabaseError),
+    #[error(transparent)]
+    Relay(#[from] WorkerRelayError),
+}
+
 impl ProfileEnrichmentRepository {
     pub fn new(database: Database) -> Self {
         Self { database }
@@ -219,6 +242,132 @@ impl ProfileEnrichmentRepository {
             .map(<[ClaimedPlayerIdentity]>::to_vec)
             .collect())
     }
+
+    pub async fn run(
+        &self,
+        config: &BackendConfig,
+        max_calls: usize,
+        owner: &str,
+    ) -> Result<ProfileEnrichmentResult, ProfileEnrichmentError> {
+        let batches = self
+            .claim_unknown_batches(max_calls, owner, Duration::from_secs(300))
+            .await?;
+        let relay = WorkerRelayClient::new(config)?;
+        let mut result = ProfileEnrichmentResult::default();
+        for batch in batches {
+            result.calls += 1;
+            result.claimed += batch.len();
+            let ids = batch.iter().map(|row| row.player_id).collect::<Vec<_>>();
+            let response = relay
+                .call_value(
+                    "getPlayerBatch",
+                    vec![json!(ids)],
+                    "rust_profile_enrichment",
+                )
+                .await;
+            let payload = match response {
+                Ok(payload) => payload,
+                Err(error) => {
+                    let message = error.to_string();
+                    self.database
+                        .query_json(
+                            "UPDATE player_activity_profile_refresh SET status='failed',attempts=attempts+1,\
+                             error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=now()+INTERVAL '30 minutes',updated_at=now() \
+                             WHERE player_id=ANY($1::BIGINT[])",
+                            &[&ids, &message],
+                        )
+                        .await?;
+                    result.failed += ids.len();
+                    continue;
+                }
+            };
+            let rows = payload.as_array().cloned().unwrap_or_default();
+            let returned = rows
+                .iter()
+                .filter_map(|row| {
+                    let player_id = value_i64(row, &["player_id", "Id"])?;
+                    (player_id > 0).then_some((player_id, row))
+                })
+                .collect::<std::collections::BTreeMap<_, _>>();
+            for claim in &batch {
+                let Some(profile) = returned.get(&claim.player_id) else {
+                    self.finish_unavailable(claim.player_id, "player absent from getplayerbatch")
+                        .await?;
+                    result.unavailable += 1;
+                    continue;
+                };
+                let platform = value_text(profile, &["platform", "Platform", "portal"])
+                    .filter(|value| !unknown_identity_value(Some(value)));
+                let region = value_text(profile, &["region", "Region"])
+                    .filter(|value| !unknown_identity_value(Some(value)));
+                self.database
+                    .query_json(
+                        "UPDATE players SET platform=CASE WHEN $2<>'' AND lower(COALESCE(platform,'')) IN('','unknown','unavailable') THEN $2 ELSE platform END,\
+                         region=CASE WHEN $3<>'' AND lower(COALESCE(region,'')) IN('','unknown','unavailable') THEN $3 ELSE region END,\
+                         last_updated=now() WHERE id=$1 OR active_player_id=$1",
+                        &[
+                            &claim.player_id,
+                            &platform.clone().unwrap_or_default(),
+                            &region.clone().unwrap_or_default(),
+                        ],
+                    )
+                    .await?;
+                let needs_platform = claim.needs_platform && platform.is_none();
+                let needs_region = claim.needs_region && region.is_none();
+                let status = if needs_platform || needs_region {
+                    "unavailable"
+                } else {
+                    "success"
+                };
+                self.database
+                    .query_json(
+                        "UPDATE player_activity_profile_refresh SET needs_platform=$2,needs_region=$3,status=$4,\
+                         attempts=attempts+1,last_fetched_at=now(),claim_owner=NULL,lease_until=NULL,error_message=NULL,\
+                         next_retry_at=CASE WHEN $4='success' THEN now()+INTERVAL '7 days' ELSE now()+INTERVAL '24 hours' END,updated_at=now() \
+                         WHERE player_id=$1",
+                        &[&claim.player_id, &needs_platform, &needs_region, &status],
+                    )
+                    .await?;
+                if status == "success" {
+                    result.updated += 1;
+                } else {
+                    result.unavailable += 1;
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    async fn finish_unavailable(&self, player_id: i64, reason: &str) -> Result<(), DatabaseError> {
+        self.database
+            .query_json(
+                "UPDATE player_activity_profile_refresh SET status='unavailable',attempts=attempts+1,\
+                 error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=now()+INTERVAL '24 hours',updated_at=now() \
+                 WHERE player_id=$1",
+                &[&player_id, &reason],
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+fn value_i64(value: &Value, keys: &[&str]) -> Option<i64> {
+    keys.iter().find_map(|key| {
+        value
+            .get(*key)
+            .and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
+    })
+}
+
+fn value_text(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        value
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    })
 }
 
 #[cfg(test)]

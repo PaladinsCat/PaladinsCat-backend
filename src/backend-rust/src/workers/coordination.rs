@@ -62,13 +62,13 @@ impl WorkerCoordinationRepository {
                   acquired_at, heartbeat_at, updated_at
                 )
                 SELECT
-                  $1, $2, 'rust',
+                  $1::varchar(64), $2::varchar(120), 'rust',
                   now() + ($3::int * interval '1 second'),
                   now(), now(), now()
                 WHERE EXISTS (
                   SELECT 1
                   FROM worker_scheduler_assignments assignment
-                  WHERE assignment.scheduler_key = $1
+                  WHERE assignment.scheduler_key = $1::varchar(64)
                     AND assignment.desired_engine = 'rust'
                 )
                 ON CONFLICT (scheduler_key) DO UPDATE SET
@@ -119,13 +119,13 @@ impl WorkerCoordinationRepository {
                     heartbeat_at = now(),
                     updated_at = now()
                 WHERE scheduler_key = $1
-                  AND owner_id = $2
+                  AND owner_id = $2::varchar(120)
                   AND engine = 'rust'
                   AND lease_until > now()
                   AND EXISTS (
                     SELECT 1
                     FROM worker_scheduler_assignments assignment
-                    WHERE assignment.scheduler_key = $1
+                    WHERE assignment.scheduler_key = $1::varchar(64)
                       AND assignment.desired_engine = 'rust'
                   )
                 "#,
@@ -178,13 +178,13 @@ impl WorkerCoordinationRepository {
                       acquired_at, heartbeat_at, updated_at
                     )
                     SELECT
-                      $1, $2, 'rust',
+                      $1::varchar(64), $2::varchar(120), 'rust',
                       now() + ($3::int * interval '1 second'),
                       now(), now(), now()
                     WHERE EXISTS (
                       SELECT 1
                       FROM worker_scheduler_assignments assignment
-                      WHERE assignment.scheduler_key = $1
+                      WHERE assignment.scheduler_key = $1::varchar(64)
                         AND assignment.desired_engine = 'rust'
                     )
                     ON CONFLICT (scheduler_key) DO UPDATE SET

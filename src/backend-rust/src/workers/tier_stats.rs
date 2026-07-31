@@ -164,7 +164,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires PALADINSCAT_TEST_DATABASE_URL with the complete schema"]
-    async fn live_empty_database_matches_typescript_zero_tier_projection() {
+    async fn live_database_matches_typescript_tier_projection() {
         let database_url =
             std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
         let config = BackendConfig::from_lookup(|name| match name {
@@ -177,6 +177,34 @@ mod tests {
         let repository = TierStatsRepository::new(database.clone());
 
         let client = database.connection().await.expect("fixture connection");
+        let expected_match_rows = client
+            .query(
+                "SELECT mp.league_tier::smallint AS tier,COUNT(*)::bigint AS count \
+                 FROM match_players mp JOIN matches m ON m.match_id=mp.match_id \
+                 WHERE m.is_ranked=TRUE AND mp.league_tier BETWEEN 0 AND 26 \
+                 GROUP BY mp.league_tier",
+                &[],
+            )
+            .await
+            .expect("expected match tiers");
+        let expected_profile_rows = client
+            .query(
+                "SELECT kbm_tier::smallint AS tier,COUNT(DISTINCT id)::bigint AS count \
+                 FROM players WHERE kbm_tier BETWEEN 0 AND 26 GROUP BY kbm_tier",
+                &[],
+            )
+            .await
+            .expect("expected profile tiers");
+        let to_counts = |rows: Vec<tokio_postgres::Row>| {
+            let mut counts = vec![0_i64; 27];
+            for row in rows {
+                let tier = row.get::<_, i16>("tier");
+                counts[usize::try_from(tier).expect("valid tier")] = row.get("count");
+            }
+            counts
+        };
+        let expected_matches = to_counts(expected_match_rows);
+        let expected_profiles = to_counts(expected_profile_rows);
         client
             .execute(
                 "DELETE FROM tier_stats WHERE source IN ('matches', 'profiles')",
@@ -190,11 +218,11 @@ mod tests {
         assert!(summary.errors.is_empty());
         assert_eq!(
             summary.matches.as_ref().expect("matches").counts,
-            vec![0; 27]
+            expected_matches
         );
         assert_eq!(
             summary.profiles.as_ref().expect("profiles").counts,
-            vec![0; 27]
+            expected_profiles
         );
 
         let client = database
@@ -212,9 +240,14 @@ mod tests {
             .expect("tier stats rows");
         assert_eq!(rows.len(), 2);
         for row in rows {
-            assert_eq!(row.get::<_, i64>("tier_0"), 0);
-            assert_eq!(row.get::<_, i64>("tier_18"), 0);
-            assert_eq!(row.get::<_, i64>("tier_26"), 0);
+            let expected = if row.get::<_, String>("source") == "matches" {
+                &expected_matches
+            } else {
+                &expected_profiles
+            };
+            assert_eq!(row.get::<_, i32>("tier_0"), expected[0] as i32);
+            assert_eq!(row.get::<_, i32>("tier_18"), expected[18] as i32);
+            assert_eq!(row.get::<_, i32>("tier_26"), expected[26] as i32);
         }
     }
 }

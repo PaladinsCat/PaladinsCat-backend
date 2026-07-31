@@ -231,6 +231,73 @@ impl RedisCache {
         }
     }
 
+    pub async fn flush_database(&self) -> bool {
+        let Some(mut connection) = self.connection().await else {
+            return false;
+        };
+        let result: redis::RedisResult<()> = match tokio::time::timeout(
+            self.command_timeout,
+            redis::cmd("FLUSHDB").query_async(&mut connection),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                self.mark_failed().await;
+                return false;
+            }
+        };
+        if result.is_err() {
+            self.mark_failed().await;
+            return false;
+        }
+        true
+    }
+
+    pub async fn delete_pattern(&self, pattern: &str) -> Option<u64> {
+        let mut connection = self.connection().await?;
+        let mut cursor = 0_u64;
+        let mut removed = 0_u64;
+        loop {
+            let result: redis::RedisResult<(u64, Vec<String>)> = match tokio::time::timeout(
+                self.command_timeout,
+                redis::cmd("SCAN")
+                    .arg(cursor)
+                    .arg("MATCH")
+                    .arg(pattern)
+                    .arg("COUNT")
+                    .arg(500)
+                    .query_async(&mut connection),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => {
+                    self.mark_failed().await;
+                    return None;
+                }
+            };
+            let (next, keys) = match result {
+                Ok(value) => value,
+                Err(_) => {
+                    self.mark_failed().await;
+                    return None;
+                }
+            };
+            if !keys.is_empty() {
+                let deleted: redis::RedisResult<u64> = redis::cmd("DEL")
+                    .arg(keys)
+                    .query_async(&mut connection)
+                    .await;
+                removed = removed.saturating_add(deleted.ok()?);
+            }
+            cursor = next;
+            if cursor == 0 {
+                return Some(removed);
+            }
+        }
+    }
+
     pub async fn exists(&self, key: &str) -> bool {
         let Some(mut connection) = self.connection().await else {
             return false;

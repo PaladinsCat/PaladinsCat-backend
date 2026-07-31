@@ -59,7 +59,7 @@ impl ScheduledJob {
     }
 }
 
-pub const SCHEDULED_JOBS: [ScheduledJob; 10] = [
+pub const SCHEDULED_JOBS: [ScheduledJob; 11] = [
     ScheduledJob {
         job_key: "ranked-tracker:leaderboard",
         scheduler_key: "ranked_tracker",
@@ -105,6 +105,14 @@ pub const SCHEDULED_JOBS: [ScheduledJob; 10] = [
         scheduler_key: "auto_ingester",
         cron_expression: "5 * * * *",
         minute: MinuteSchedule::Exact(5),
+        hour: HourSchedule::Any,
+        startup: StartupPolicy::None,
+    },
+    ScheduledJob {
+        job_key: "auto-ingester:drop-detection",
+        scheduler_key: "auto_ingester",
+        cron_expression: "*/15 * * * *",
+        minute: MinuteSchedule::Every(15),
         hour: HourSchedule::Any,
         startup: StartupPolicy::None,
     },
@@ -176,7 +184,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(domains, SCHEDULER_KEYS.into_iter().collect());
         assert_eq!(jobs.len(), SCHEDULED_JOBS.len());
-        assert_eq!(scheduled_jobs_for("auto_ingester").count(), 5);
+        assert_eq!(scheduled_jobs_for("auto_ingester").count(), 6);
     }
 
     #[test]

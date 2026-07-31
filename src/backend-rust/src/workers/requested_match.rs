@@ -6,11 +6,13 @@ use tokio::time::sleep;
 use uuid::Uuid;
 
 use super::{
+    casual_mechanics::CasualMechanicsRepository,
     match_facts::{CanonicalMatchPayload, MatchFactRepository},
     match_lifecycle::{
         MatchDiscovery, MatchDiscoverySource, MatchLifecycleAction, MatchLifecycleRepository,
         plan_match_lifecycle,
     },
+    ranked_projection::RankedProjectionRepository,
     relay::{MatchLifecycleRelay, WorkerRelayClient, execute_match_lifecycle_fetches},
 };
 
@@ -36,6 +38,8 @@ pub struct RequestedMatchIngestor {
     database: Database,
     lifecycle: MatchLifecycleRepository,
     facts: MatchFactRepository,
+    casual: CasualMechanicsRepository,
+    ranked: RankedProjectionRepository,
     relay: WorkerRelayClient,
     completion_timeout: Duration,
 }
@@ -45,6 +49,8 @@ impl RequestedMatchIngestor {
         Self {
             lifecycle: MatchLifecycleRepository::new(database.clone()),
             facts: MatchFactRepository::new(database.clone()),
+            casual: CasualMechanicsRepository::new(database.clone()),
+            ranked: RankedProjectionRepository::new(database.clone()),
             database,
             relay,
             completion_timeout,
@@ -56,7 +62,12 @@ impl RequestedMatchIngestor {
             return failed(match_id, "match ID must be positive");
         }
         match self.facts_are_durable(match_id).await {
-            Ok(true) => return ready(match_id),
+            Ok(true) => {
+                return match self.ensure_projected(match_id).await {
+                    Ok(()) => ready(match_id),
+                    Err(error) => failed(match_id, error),
+                };
+            }
             Ok(false) => {}
             Err(error) => return failed(match_id, error),
         }
@@ -74,7 +85,10 @@ impl RequestedMatchIngestor {
             Err(error) => return failed(match_id, error),
         };
         if !registration.needs_work {
-            return ready(match_id);
+            return match self.ensure_projected(match_id).await {
+                Ok(()) => ready(match_id),
+                Err(error) => failed(match_id, error),
+            };
         }
 
         let owner = format!("requested-match-{}", Uuid::new_v4());
@@ -89,7 +103,10 @@ impl RequestedMatchIngestor {
         };
         if evidence.facts_durable() {
             let _ = self.lifecycle.release(match_id, &owner).await;
-            return ready(match_id);
+            return match self.ensure_projected(match_id).await {
+                Ok(()) => ready(match_id),
+                Err(error) => failed(match_id, error),
+            };
         }
 
         let actions = plan_match_lifecycle(&evidence);
@@ -170,7 +187,32 @@ impl RequestedMatchIngestor {
                 ),
             );
         }
-        if let Err(error) = self.facts.finalize(&payload, "direct_lookup").await {
+        let finalized = match self.facts.finalize(&payload, "direct_lookup").await {
+            Ok(finalized) => finalized,
+            Err(error) => {
+                let _ = self.lifecycle.release(match_id, &owner).await;
+                return failed(match_id, error);
+            }
+        };
+        let projection = match finalized.population {
+            super::match_lifecycle::MatchPopulation::Ranked => self
+                .ranked
+                .project_match(match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| format!("{error:?}")),
+            super::match_lifecycle::MatchPopulation::Casual
+            | super::match_lifecycle::MatchPopulation::Special => self
+                .casual
+                .project_all_for_match(match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| format!("{error:?}")),
+            super::match_lifecycle::MatchPopulation::Unknown => {
+                Err("match population remained unknown after canonical finalization".to_owned())
+            }
+        };
+        if let Err(error) = projection {
             let _ = self.lifecycle.release(match_id, &owner).await;
             return failed(match_id, error);
         }
@@ -185,11 +227,64 @@ impl RequestedMatchIngestor {
         }
     }
 
+    async fn ensure_projected(&self, match_id: i64) -> Result<(), String> {
+        let row = self
+            .database
+            .one_json(
+                "SELECT population,completed_stages FROM match_ingest_status WHERE match_id=$1",
+                &[&match_id],
+            )
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "match ingest status is missing".to_owned())?;
+        let population = row
+            .get("population")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let stages = row
+            .get("completed_stages")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let has_stage = |stage: &str| {
+            stages
+                .iter()
+                .any(|value| value.as_str().is_some_and(|value| value == stage))
+        };
+        match population {
+            "ranked" if !has_stage("ranked_stats") => self
+                .ranked
+                .project_match(match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| format!("{error:?}")),
+            "casual" if !has_stage("casual_mechanics_stats") => self
+                .casual
+                .project_all_for_match(match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| format!("{error:?}")),
+            "special" if !has_stage("special_mechanics_stats") => self
+                .casual
+                .project_all_for_match(match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| format!("{error:?}")),
+            "ranked" | "casual" | "special" => Ok(()),
+            _ => Err("match population is unknown".to_owned()),
+        }
+    }
+
     async fn wait_for_existing_owner(&self, match_id: i64) -> RequestedMatchResult {
         let deadline = Instant::now() + self.completion_timeout;
         while Instant::now() < deadline {
             match self.facts_are_durable(match_id).await {
-                Ok(true) => return ready(match_id),
+                Ok(true) => {
+                    return match self.ensure_projected(match_id).await {
+                        Ok(()) => ready(match_id),
+                        Err(error) => failed(match_id, error),
+                    };
+                }
                 Ok(false) => sleep(COMPLETION_POLL_INTERVAL).await,
                 Err(error) => return failed(match_id, error),
             }
@@ -368,15 +463,21 @@ mod tests {
         })
         .expect("backend config");
         let database = Database::new(&config, "requested-match-test").expect("database");
-        database
-            .connection()
+        let client = database.connection().await.expect("connection");
+        let schema_exists = client
+            .query_one("SELECT to_regclass('public.queue_types') IS NOT NULL", &[])
             .await
-            .expect("connection")
-            .batch_execute(include_str!(
-                "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
-            ))
-            .await
-            .expect("seed schema");
+            .expect("schema probe")
+            .get::<_, bool>(0);
+        if !schema_exists {
+            client
+                .batch_execute(include_str!(
+                    "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
+                ))
+                .await
+                .expect("seed schema");
+        }
+        drop(client);
         let ingestor = RequestedMatchIngestor::new(
             database.clone(),
             WorkerRelayClient::new(&config).expect("relay"),
@@ -502,12 +603,19 @@ mod tests {
         .expect("backend config");
         let database = Database::new(&config, "requested-match-resume-test").expect("database");
         let client = database.connection().await.expect("connection");
-        client
-            .batch_execute(include_str!(
-                "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
-            ))
+        let schema_exists = client
+            .query_one("SELECT to_regclass('public.queue_types') IS NOT NULL", &[])
             .await
-            .expect("seed schema");
+            .expect("schema probe")
+            .get::<_, bool>(0);
+        if !schema_exists {
+            client
+                .batch_execute(include_str!(
+                    "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
+                ))
+                .await
+                .expect("seed schema");
+        }
         client
             .execute(
                 r#"

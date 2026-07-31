@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use paladinscat_core::database::{Database, DatabaseError};
+use serde::Serialize;
 use serde_json::Value;
 use time::OffsetDateTime;
 use tokio_postgres::{Row, Transaction};
@@ -10,6 +12,231 @@ pub const PRIVATE_IDENTITY_VERSION: i16 = 3;
 pub const PRIVATE_IDENTITY_LINK_THRESHOLD: i16 = 68;
 pub const PRIVATE_IDENTITY_MARGIN: i16 = 12;
 const PRIVATE_RESOLVER_LOCK: i64 = 812_240_583;
+const PRIVATE_ACCOUNT_NAME: &str = "PRIVATEACCOUNT";
+
+#[derive(Clone, Copy, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivateBackfillReport {
+    pub apply: bool,
+    pub source_rows: i32,
+    pub observation_rows: i32,
+    pub detailed_unresolved: i32,
+    pub minimal_rows: i32,
+    pub current_identities: i32,
+    pub linked_match_rows: i32,
+    pub legacy_active: i32,
+    pub outdated_active: i32,
+    pub unlinked_match_rows: i32,
+    pub merged_during_run: i32,
+    pub processed_matches: i32,
+}
+
+pub async fn backfill_private_account_identities(
+    database: &Database,
+    apply: bool,
+) -> Result<PrivateBackfillReport, DatabaseError> {
+    if !apply {
+        return private_backfill_report(database, false, 0, 0).await;
+    }
+    database
+        .query_json(
+            "UPDATE players_private SET tracking_version=$1,updated_at=now() \
+         WHERE tracking_version=2 AND is_active",
+            &[&PRIVATE_IDENTITY_VERSION],
+        )
+        .await?;
+    for table in ["casual_match_players", "special_match_players"] {
+        database
+            .query_json(
+                &format!(
+                    "UPDATE {table} mp SET private_player_id=o.private_player_id \
+                     FROM private_account_observations o WHERE mp.match_id=o.match_id \
+                       AND mp.player_id=0 AND mp.private_slot=o.private_slot \
+                       AND o.private_player_id IS NOT NULL \
+                       AND mp.private_player_id IS DISTINCT FROM o.private_player_id"
+                ),
+                &[],
+            )
+            .await?;
+    }
+    database.query_json(
+        "INSERT INTO private_account_observations(\
+           match_id,private_slot,entry_datetime,party_id,account_level,mastery_level,league_tier,\
+           league_points,champion_id,task_force,win_status,portal_id,portal_user_id,platform,source,source_priority,\
+           queue_id,stats_scope,map,match_end_datetime,observation_quality\
+         ) SELECT mp.match_id,CASE WHEN mp.private_slot>0 THEN mp.private_slot ELSE 1 END,mp.entry_datetime,\
+           COALESCE(mp.party_id,0),COALESCE(mp.account_level,0),COALESCE(mp.mastery_level,0),\
+           COALESCE(mp.league_tier,0),COALESCE(mp.league_points,0),mp.champion_id,mp.task_force,mp.win_status,\
+           mp.portal_id,NULLIF(mp.portal_user_id,''),NULLIF(mp.platform,''),COALESCE(mp.source,'direct'),\
+           CASE COALESCE(mp.source,'direct') WHEN 'direct' THEN 30 WHEN 'recovered' THEN 20 ELSE 10 END,\
+           m.queue_id,q.stats_scope,m.map,mp.entry_datetime+(m.duration_seconds*INTERVAL '1 second'),\
+           CASE WHEN COALESCE(m.limited,FALSE) THEN 'limited' ELSE 'complete' END \
+         FROM match_players mp JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime \
+         LEFT JOIN queue_types q ON q.queue_id=m.queue_id \
+         WHERE mp.player_id=0 AND upper(COALESCE(mp.player_name,''))=$1 \
+         ON CONFLICT(match_id,private_slot) DO UPDATE SET \
+           entry_datetime=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.entry_datetime ELSE private_account_observations.entry_datetime END,\
+           party_id=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.party_id ELSE private_account_observations.party_id END,\
+           account_level=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.account_level ELSE private_account_observations.account_level END,\
+           mastery_level=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.mastery_level ELSE private_account_observations.mastery_level END,\
+           league_tier=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.league_tier ELSE private_account_observations.league_tier END,\
+           league_points=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.league_points ELSE private_account_observations.league_points END,\
+           champion_id=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.champion_id ELSE private_account_observations.champion_id END,\
+           task_force=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.task_force ELSE private_account_observations.task_force END,\
+           win_status=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.win_status ELSE private_account_observations.win_status END,\
+           portal_id=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.portal_id ELSE private_account_observations.portal_id END,\
+           portal_user_id=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.portal_user_id ELSE private_account_observations.portal_user_id END,\
+           platform=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.platform ELSE private_account_observations.platform END,\
+           source=CASE WHEN EXCLUDED.source_priority>=private_account_observations.source_priority THEN EXCLUDED.source ELSE private_account_observations.source END,\
+           source_priority=GREATEST(EXCLUDED.source_priority,private_account_observations.source_priority),\
+           queue_id=COALESCE(EXCLUDED.queue_id,private_account_observations.queue_id),\
+           stats_scope=COALESCE(NULLIF(EXCLUDED.stats_scope,''),private_account_observations.stats_scope),\
+           map=COALESCE(NULLIF(EXCLUDED.map,''),private_account_observations.map),\
+           match_end_datetime=COALESCE(EXCLUDED.match_end_datetime,private_account_observations.match_end_datetime),\
+           observation_quality=EXCLUDED.observation_quality,updated_at=now()",
+        &[&PRIVATE_ACCOUNT_NAME],
+    ).await?;
+    repair_private_match_links(database).await?;
+    let match_rows = database
+        .query_json(
+            "SELECT match_id FROM private_account_observations \
+         WHERE private_player_id IS NULL AND resolution_status IN('unresolved','ambiguous') \
+         GROUP BY match_id ORDER BY min(entry_datetime),match_id",
+            &[],
+        )
+        .await?;
+    for row in &match_rows {
+        let Some(match_id) = value_i64(row.get("match_id")) else {
+            continue;
+        };
+        resolve_existing_private_match(database, match_id).await?;
+    }
+    repair_private_match_links(database).await?;
+    let unresolved = database
+        .one_json(
+            "SELECT count(*)::INT AS count FROM private_account_observations \
+         WHERE private_player_id IS NULL AND resolution_status IN('unresolved','ambiguous')",
+            &[],
+        )
+        .await?;
+    if unresolved
+        .as_ref()
+        .and_then(|row| value_i64(row.get("count")))
+        .unwrap_or_default()
+        == 0
+    {
+        database.query_json(
+            "UPDATE players_private SET is_active=FALSE,identity_status='legacy',updated_at=now() \
+             WHERE tracking_version=1 AND is_active AND verified_name IS NULL",
+            &[],
+        ).await?;
+    }
+    private_backfill_report(
+        database,
+        true,
+        i32::try_from(match_rows.len()).unwrap_or(i32::MAX),
+        0,
+    )
+    .await
+}
+
+async fn resolve_existing_private_match(
+    database: &Database,
+    match_id: i64,
+) -> Result<(), DatabaseError> {
+    let mut client = database.connection().await?;
+    let transaction = client.transaction().await?;
+    transaction
+        .query_one(
+            "SELECT pg_advisory_xact_lock($1)",
+            &[&PRIVATE_RESOLVER_LOCK],
+        )
+        .await?;
+    transaction.execute(
+        "UPDATE private_account_observations observation SET party_member_ids=COALESCE((\
+           SELECT array_agg(DISTINCT player.player_id ORDER BY player.player_id) FROM match_players player \
+           WHERE player.match_id=observation.match_id AND player.player_id>0 AND observation.party_id>0 \
+             AND player.party_id=observation.party_id),'{}'::BIGINT[]),updated_at=now() \
+         WHERE observation.match_id=$1",
+        &[&match_id],
+    ).await?;
+    let rows = transaction.query(
+        "SELECT * FROM private_account_observations WHERE match_id=$1 ORDER BY private_slot FOR UPDATE",
+        &[&match_id],
+    ).await?;
+    for row in rows {
+        resolve_observation(&transaction, &observation_row(&row)).await?;
+    }
+    transaction.commit().await?;
+    Ok(())
+}
+
+async fn repair_private_match_links(database: &Database) -> Result<(), DatabaseError> {
+    database.query_json(
+        "UPDATE match_players mp SET private_slot=o.private_slot,private_player_id=o.private_player_id \
+         FROM private_account_observations o WHERE mp.match_id=o.match_id AND mp.player_id=0 \
+           AND upper(COALESCE(mp.player_name,''))=$1 AND mp.private_slot=0 AND o.private_slot=1 \
+           AND NOT EXISTS(SELECT 1 FROM match_players existing WHERE existing.match_id=mp.match_id \
+             AND existing.player_id=0 AND existing.private_slot=o.private_slot AND existing.entry_datetime=mp.entry_datetime)",
+        &[&PRIVATE_ACCOUNT_NAME],
+    ).await?;
+    database
+        .query_json(
+            "UPDATE match_players mp SET private_player_id=o.private_player_id \
+         FROM private_account_observations o WHERE mp.match_id=o.match_id AND mp.player_id=0 \
+           AND mp.private_slot=o.private_slot AND o.private_player_id IS NOT NULL \
+           AND mp.private_player_id IS DISTINCT FROM o.private_player_id",
+            &[],
+        )
+        .await?;
+    Ok(())
+}
+
+async fn private_backfill_report(
+    database: &Database,
+    apply: bool,
+    processed_matches: i32,
+    merged_during_run: i32,
+) -> Result<PrivateBackfillReport, DatabaseError> {
+    let row = database.one_json(
+        "SELECT \
+         (SELECT count(*)::INT FROM match_players WHERE player_id=0 AND upper(COALESCE(player_name,''))=$1) AS source_rows,\
+         (SELECT count(*)::INT FROM private_account_observations) AS observation_rows,\
+         (SELECT count(*)::INT FROM private_account_observations WHERE private_player_id IS NULL AND resolution_status IN('unresolved','ambiguous')) AS detailed_unresolved,\
+         (SELECT count(*)::INT FROM private_account_observations WHERE resolution_status='minimal') AS minimal_rows,\
+         (SELECT count(*)::INT FROM players_private WHERE tracking_version=$2 AND is_active) AS current_identities,\
+         (SELECT count(*)::INT FROM match_players mp JOIN players_private pp ON pp.id=mp.private_player_id WHERE mp.player_id=0 AND pp.tracking_version=$2) AS linked_match_rows,\
+         (SELECT count(*)::INT FROM players_private WHERE tracking_version=1 AND is_active AND verified_name IS NULL) AS legacy_active,\
+         (SELECT count(*)::INT FROM players_private WHERE tracking_version>1 AND tracking_version<$2 AND is_active) AS outdated_active,\
+         (SELECT count(*)::INT FROM private_account_observations o LEFT JOIN match_players mp \
+           ON mp.match_id=o.match_id AND mp.player_id=0 AND mp.private_slot=o.private_slot \
+           WHERE o.private_player_id IS NOT NULL AND (mp.private_player_id IS NULL OR mp.private_player_id IS DISTINCT FROM o.private_player_id)) AS unlinked_match_rows",
+        &[&PRIVATE_ACCOUNT_NAME, &PRIVATE_IDENTITY_VERSION],
+    ).await?.unwrap_or(Value::Null);
+    let integer = |key: &str| {
+        value_i64(row.get(key))
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or_default()
+    };
+    Ok(PrivateBackfillReport {
+        apply,
+        source_rows: integer("source_rows"),
+        observation_rows: integer("observation_rows"),
+        detailed_unresolved: integer("detailed_unresolved"),
+        minimal_rows: integer("minimal_rows"),
+        current_identities: integer("current_identities"),
+        linked_match_rows: integer("linked_match_rows"),
+        legacy_active: integer("legacy_active"),
+        outdated_active: integer("outdated_active"),
+        unlinked_match_rows: integer("unlinked_match_rows"),
+        merged_during_run,
+        processed_matches,
+    })
+}
+
+fn value_i64(value: Option<&Value>) -> Option<i64> {
+    value.and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrivateObservation {

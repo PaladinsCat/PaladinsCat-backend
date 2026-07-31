@@ -97,6 +97,104 @@ impl CanonicalMatchPayload {
         Ok(payload)
     }
 
+    /// Reconstructs the historical raw-buffer contract. Discovery stores one
+    /// normalized player row per participant and repeats match metadata on
+    /// every row so the queue remains independently replayable.
+    pub fn from_buffer_rows(value: Value) -> Result<Self, MatchFactError> {
+        if let Ok(payload) = Self::from_relay_value(value.clone()) {
+            return Ok(payload);
+        }
+        let rows = value
+            .as_array()
+            .filter(|rows| !rows.is_empty())
+            .ok_or_else(|| {
+                MatchFactError::InvalidPayload("buffered match rows were empty".to_owned())
+            })?;
+        let first = &rows[0];
+        let text = |names: &[&str]| {
+            names
+                .iter()
+                .find_map(|name| first.get(*name).and_then(value_text))
+                .unwrap_or_default()
+        };
+        let integer = |names: &[&str]| {
+            names
+                .iter()
+                .find_map(|name| first.get(*name).and_then(value_i64))
+                .unwrap_or_default()
+        };
+        let optional_integer = |names: &[&str]| {
+            names
+                .iter()
+                .find_map(|name| first.get(*name).and_then(value_i64))
+                .and_then(|value| i32::try_from(value).ok())
+        };
+        let mut extra = BTreeMap::new();
+        for slot in 1..=8 {
+            for prefix in ["ban_id_", "BanId", "Ban_"] {
+                let name = format!("{prefix}{slot}");
+                if let Some(value) = first.get(&name) {
+                    extra.insert(name, value.clone());
+                }
+            }
+        }
+        let payload = Self {
+            match_id: integer(&["Match", "match_id"]),
+            entry_datetime: text(&[
+                "Entry_Datetime",
+                "entry_datetime",
+                "Match_Time",
+                "match_time",
+            ]),
+            map: text(&["Map_Game", "map"]),
+            queue_id: i32::try_from(integer(&[
+                "match_queue_id",
+                "Match_Queue_Id",
+                "queue_id",
+                "Queue",
+            ]))
+            .unwrap_or_default(),
+            duration_seconds: i32::try_from(integer(&["Match_Duration", "duration_seconds"]))
+                .unwrap_or_default(),
+            region: rows
+                .iter()
+                .find_map(|row| {
+                    ["Region", "region"]
+                        .iter()
+                        .find_map(|name| row.get(*name).and_then(value_text))
+                        .filter(|value| !value.trim().is_empty())
+                })
+                .unwrap_or_else(|| "Unknown".to_owned()),
+            team1_score: optional_integer(&["Team1Score", "Team1_Score", "team1_score"]),
+            team2_score: optional_integer(&["Team2Score", "Team2_Score", "team2_score"]),
+            winning_task_force: optional_integer(&[
+                "Winning_TaskForce",
+                "Winning_Task_Force",
+                "winning_task_force",
+            ]),
+            has_replay: Some(
+                text(&["hasReplay", "Has_Replay", "has_replay"]).eq_ignore_ascii_case("y")
+                    || first
+                        .get("has_replay")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+            ),
+            recovery_source: Some(text(&["recovery_source"])).filter(|value| !value.is_empty()),
+            recovery_api_calls: optional_integer(&["recovery_api_calls"]),
+            limited: Some(
+                first
+                    .get("limited")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+                    || text(&["limited"]).eq_ignore_ascii_case("true"),
+            ),
+            players: rows.clone(),
+            extra,
+        };
+        payload.validate()?;
+        Ok(payload)
+    }
+
     fn validate(&self) -> Result<(), MatchFactError> {
         if self.match_id <= 0 {
             return Err(MatchFactError::InvalidPayload(
@@ -118,9 +216,15 @@ impl CanonicalMatchPayload {
                 "map must be present".to_owned(),
             ));
         }
-        OffsetDateTime::parse(&self.entry_datetime, &Rfc3339).map_err(|error| {
-            MatchFactError::InvalidPayload(format!("entry_datetime must be RFC3339: {error}"))
-        })?;
+        if self.entry_datetime.trim().is_empty() {
+            return Err(MatchFactError::InvalidPayload(
+                "entry_datetime must be present".to_owned(),
+            ));
+        }
+        // New relay contracts are RFC3339. Legacy raw-buffer rows retain the
+        // vendor timestamp spelling and are parsed authoritatively by
+        // PostgreSQL at the write boundary.
+        let _ = OffsetDateTime::parse(&self.entry_datetime, &Rfc3339);
         if !valid_completed_score(self.team1_score, self.team2_score, self.winning_task_force) {
             return Err(MatchFactError::InvalidPayload(
                 "completed match score is missing or contradictory".to_owned(),
@@ -222,9 +326,9 @@ impl MatchFactRepository {
 
     /// Persists the public match-detail boundary in one transaction.
     ///
-    /// The canonical fact tables are shared for every mechanics population.
-    /// Population is recorded on match_ingest_status and is consumed only when
-    /// the physically isolated ranked/casual/special projectors run later.
+    /// Match ingestion shares normalization and validation, while every
+    /// population retains physical ownership of its match/player/mechanics
+    /// facts. Ranked facts never receive non-ranked rows.
     pub async fn finalize(
         &self,
         payload: &CanonicalMatchPayload,
@@ -241,7 +345,11 @@ impl MatchFactRepository {
         let already_durable = FACT_STAGES.iter().all(|stage| stages.contains(*stage));
 
         if !stages.contains("core") {
-            persist_match(&transaction, payload, population, quality).await?;
+            if population == MatchPopulation::Ranked {
+                persist_match(&transaction, payload, population, quality).await?;
+            } else {
+                persist_nonranked_match(&transaction, payload, population, quality).await?;
+            }
             add_stage(&transaction, payload.match_id, "core").await?;
             stages.insert("core".to_owned());
         }
@@ -256,7 +364,9 @@ impl MatchFactRepository {
         persist_and_resolve_private_identities(&transaction, payload, &players, quality.limited)
             .await?;
         if !stages.contains("match_bans") {
-            persist_bans(&transaction, payload.match_id, &bans).await?;
+            if population == MatchPopulation::Ranked {
+                persist_bans(&transaction, payload.match_id, &bans).await?;
+            }
             add_stage(&transaction, payload.match_id, "match_bans").await?;
             stages.insert("match_bans".to_owned());
         }
@@ -488,6 +598,121 @@ async fn persist_match(
     Ok(())
 }
 
+async fn persist_nonranked_match(
+    transaction: &Transaction<'_>,
+    payload: &CanonicalMatchPayload,
+    population: MatchPopulation,
+    quality: MatchQualityFlags,
+) -> Result<(), MatchFactError> {
+    let queue = transaction
+        .query_one(
+            "SELECT COALESCE(NULLIF(stats_scope,'ranked'),'other') stats_scope,\
+             COALESCE(NULLIF(participant_model,''),'unknown') participant_model \
+             FROM queue_types WHERE queue_id=$1",
+            &[&payload.queue_id],
+        )
+        .await?;
+    let stats_scope = queue.get::<_, String>("stats_scope");
+    let participant_model = queue.get::<_, String>("participant_model");
+    let player_count = i16::try_from(payload.players.len()).unwrap_or(i16::MAX);
+    let winning_task_force = payload
+        .winning_task_force
+        .and_then(|value| i16::try_from(value).ok());
+    let quality_name = if quality.limited {
+        "limited"
+    } else if player_count >= 10 && (!quality.broken || quality.recovered) {
+        "complete"
+    } else {
+        "partial"
+    };
+    let stats_eligible = quality_name == "complete";
+    match population {
+        MatchPopulation::Casual => {
+            transaction
+                .execute(
+                    r#"
+                    INSERT INTO casual_matches(
+                      match_id,queue_id,entry_datetime,region,map,duration_seconds,
+                      team1_score,team2_score,winning_task_force,quality,stats_eligible,
+                      player_count,source,raw_match,ingested_at,updated_at
+                    )VALUES($1,$2,$3::text::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,now(),now())
+                    ON CONFLICT(match_id) DO UPDATE SET
+                      queue_id=EXCLUDED.queue_id,entry_datetime=EXCLUDED.entry_datetime,
+                      region=EXCLUDED.region,map=EXCLUDED.map,
+                      duration_seconds=EXCLUDED.duration_seconds,
+                      team1_score=EXCLUDED.team1_score,team2_score=EXCLUDED.team2_score,
+                      winning_task_force=EXCLUDED.winning_task_force,quality=EXCLUDED.quality,
+                      stats_eligible=EXCLUDED.stats_eligible,player_count=EXCLUDED.player_count,
+                      source=EXCLUDED.source,raw_match=NULL,updated_at=now()
+                    "#,
+                    &[
+                        &payload.match_id,
+                        &payload.queue_id,
+                        &payload.entry_datetime,
+                        &normalized_region(&payload.region),
+                        &payload.map,
+                        &payload.duration_seconds,
+                        &payload.team1_score,
+                        &payload.team2_score,
+                        &winning_task_force,
+                        &quality_name,
+                        &stats_eligible,
+                        &player_count,
+                        &quality.source,
+                    ],
+                )
+                .await?;
+        }
+        MatchPopulation::Special => {
+            transaction
+                .execute(
+                    r#"
+                    INSERT INTO special_matches(
+                      match_id,queue_id,stats_scope,participant_model,entry_datetime,
+                      region,map,duration_seconds,team1_score,team2_score,
+                      winning_task_force,quality,stats_eligible,player_count,source,
+                      raw_match,ingested_at,updated_at
+                    )VALUES($1,$2,$3,$4,$5::text::timestamptz,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NULL,now(),now())
+                    ON CONFLICT(match_id) DO UPDATE SET
+                      queue_id=EXCLUDED.queue_id,stats_scope=EXCLUDED.stats_scope,
+                      participant_model=EXCLUDED.participant_model,
+                      entry_datetime=EXCLUDED.entry_datetime,region=EXCLUDED.region,map=EXCLUDED.map,
+                      duration_seconds=EXCLUDED.duration_seconds,
+                      team1_score=EXCLUDED.team1_score,team2_score=EXCLUDED.team2_score,
+                      winning_task_force=EXCLUDED.winning_task_force,quality=EXCLUDED.quality,
+                      stats_eligible=EXCLUDED.stats_eligible,player_count=EXCLUDED.player_count,
+                      source=EXCLUDED.source,raw_match=NULL,updated_at=now()
+                    "#,
+                    &[
+                        &payload.match_id,
+                        &payload.queue_id,
+                        &stats_scope,
+                        &participant_model,
+                        &payload.entry_datetime,
+                        &normalized_region(&payload.region),
+                        &payload.map,
+                        &payload.duration_seconds,
+                        &payload.team1_score,
+                        &payload.team2_score,
+                        &winning_task_force,
+                        &quality_name,
+                        &stats_eligible,
+                        &player_count,
+                        &quality.source,
+                    ],
+                )
+                .await?;
+        }
+        MatchPopulation::Ranked | MatchPopulation::Unknown => {
+            return Err(MatchFactError::InvalidPayload(format!(
+                "non-ranked match writer rejected {} population",
+                population.as_database()
+            )));
+        }
+    }
+    Ok(())
+}
+
 async fn persist_player_facts(
     transaction: &Transaction<'_>,
     payload: &CanonicalMatchPayload,
@@ -544,6 +769,13 @@ async fn persist_player_facts(
             &[players, &(population == MatchPopulation::Ranked)],
         )
         .await?;
+
+    if population != MatchPopulation::Ranked {
+        persist_nonranked_players(transaction, payload, population, players).await?;
+        persist_nonranked_equipment(transaction, payload, population, players).await?;
+        persist_account_merges(transaction, players).await?;
+        return Ok(());
+    }
 
     transaction
         .execute(
@@ -706,6 +938,192 @@ async fn persist_player_facts(
         .await?;
     persist_equipment(transaction, payload.match_id, players).await?;
     persist_account_merges(transaction, players).await?;
+    Ok(())
+}
+
+async fn persist_nonranked_players(
+    transaction: &Transaction<'_>,
+    payload: &CanonicalMatchPayload,
+    population: MatchPopulation,
+    players: &Value,
+) -> Result<(), MatchFactError> {
+    let table = match population {
+        MatchPopulation::Casual => "casual_match_players",
+        MatchPopulation::Special => "special_match_players",
+        MatchPopulation::Ranked | MatchPopulation::Unknown => {
+            return Err(MatchFactError::InvalidPayload(
+                "non-ranked player writer received ranked/unknown population".to_owned(),
+            ));
+        }
+    };
+    transaction
+        .execute(
+            &format!("DELETE FROM {table} WHERE match_id=$1"),
+            &[&payload.match_id],
+        )
+        .await?;
+    let stats_eligible = payload.limited != Some(true);
+    transaction
+        .execute(
+            &format!(
+                r#"
+                INSERT INTO {table}(
+                  match_id,roster_slot,private_slot,player_id,private_player_id,
+                  player_name,champion_id,champion_name,task_force,win_status,
+                  kills,deaths,assists,damage,damage_taken,healing,mitigation,
+                  credits,objective_time,account_level,mastery_level,party_id,
+                  portal_id,portal_user_id,platform,participant_kind,source,
+                  stats_eligible,raw_player
+                )
+                SELECT $1,ordinality::SMALLINT,
+                  CASE WHEN COALESCE(NULLIF(p->>'player_id','')::BIGINT,0)=0
+                    THEN COALESCE(NULLIF(p->>'_private_slot','')::SMALLINT,ordinality::SMALLINT)
+                    ELSE COALESCE(NULLIF(p->>'_private_slot','')::SMALLINT,0) END,
+                  COALESCE(NULLIF(p->>'player_id','')::BIGINT,0),NULL,
+                  NULLIF(p->>'player_name',''),NULLIF(p->>'champion_id','')::INT,
+                  NULLIF(p->>'champion_name',''),NULLIF(p->>'task_force','')::SMALLINT,
+                  NULLIF(p->>'win_status',''),COALESCE(NULLIF(p->>'kills','')::INT,0),
+                  COALESCE(NULLIF(p->>'deaths','')::INT,0),COALESCE(NULLIF(p->>'assists','')::INT,0),
+                  COALESCE(NULLIF(p->>'damage_done_physical','')::INT,0),
+                  COALESCE(NULLIF(p->>'damage_taken','')::INT,0),
+                  COALESCE(NULLIF(p->>'healing','')::INT,0),
+                  COALESCE(NULLIF(p->>'damage_mitigated','')::INT,0),
+                  COALESCE(NULLIF(p->>'gold_earned','')::INT,0),
+                  COALESCE(NULLIF(p->>'objective_assists','')::INT,0),
+                  COALESCE(NULLIF(p->>'account_level','')::INT,0),
+                  COALESCE(NULLIF(p->>'mastery_level','')::INT,0),
+                  COALESCE(NULLIF(p->>'party_id','')::INT,0),
+                  COALESCE(NULLIF(p->>'portal_id','')::INT,0),NULLIF(p->>'portal_user_id',''),
+                  NULLIF(p->>'platform',''),
+                  CASE
+                    WHEN COALESCE(NULLIF(p->>'player_id','')::BIGINT,0)>0 THEN 'human'
+                    WHEN UPPER(COALESCE(p->>'player_name',''))='PRIVATEACCOUNT' THEN 'private'
+                    WHEN COALESCE(NULLIF(p->>'champion_id','')::INT,0)>0 THEN 'bot'
+                    ELSE 'unknown'
+                  END,
+                  CASE LOWER(COALESCE(NULLIF(p->>'source',''),'direct'))
+                    WHEN 'direct' THEN 'direct' WHEN 'recovered' THEN 'recovered' ELSE 'minimal' END,
+                  $2 AND COALESCE(NULLIF(p->>'champion_id','')::INT,0)>0
+                    AND lower(COALESCE(p->>'win_status','')) IN('winner','win','loser','loss'),
+                  NULL
+                FROM jsonb_array_elements($3::JSONB) WITH ORDINALITY facts(p,ordinality)
+                "#
+            ),
+            &[&payload.match_id, &stats_eligible, players],
+        )
+        .await?;
+    Ok(())
+}
+
+async fn persist_nonranked_equipment(
+    transaction: &Transaction<'_>,
+    payload: &CanonicalMatchPayload,
+    population: MatchPopulation,
+    players: &Value,
+) -> Result<(), MatchFactError> {
+    let queue = transaction
+        .query_one(
+            "SELECT COALESCE(NULLIF(stats_scope,'ranked'),'other') stats_scope \
+             FROM queue_types WHERE queue_id=$1",
+            &[&payload.queue_id],
+        )
+        .await?;
+    let stats_scope = queue.get::<_, String>("stats_scope");
+    let population_name = population.as_database();
+    for table in [
+        "nonranked_match_items",
+        "nonranked_match_talents",
+        "nonranked_match_cards",
+    ] {
+        transaction
+            .execute(
+                &format!("DELETE FROM {table} WHERE match_id=$1"),
+                &[&payload.match_id],
+            )
+            .await?;
+    }
+    transaction
+        .execute(
+            r#"
+            INSERT INTO nonranked_match_items(
+              match_id,population,stats_scope,queue_id,roster_slot,player_id,
+              slot,item_id,item_level
+            )
+            SELECT $1,$2,$3,$4,ordinality::SMALLINT,
+              COALESCE(NULLIF(p->>'player_id','')::BIGINT,0),slot::SMALLINT,
+              (p->>('active_id_'||slot))::INT,
+              CASE WHEN COALESCE(NULLIF(p->>('active_level_'||slot),'')::INT,0)>2
+                THEN floor((p->>('active_level_'||slot))::NUMERIC/4)::SMALLINT
+                ELSE COALESCE(NULLIF(p->>('active_level_'||slot),'')::SMALLINT,0) END
+            FROM jsonb_array_elements($5::JSONB) WITH ORDINALITY facts(p,ordinality)
+            CROSS JOIN generate_series(1,4) slots(slot)
+            WHERE COALESCE(NULLIF(p->>('active_id_'||slot),'')::INT,0)>0
+            ON CONFLICT(match_id,roster_slot,item_id) DO UPDATE SET
+              player_id=EXCLUDED.player_id,slot=EXCLUDED.slot,item_level=EXCLUDED.item_level
+            "#,
+            &[
+                &payload.match_id,
+                &population_name,
+                &stats_scope,
+                &payload.queue_id,
+                players,
+            ],
+        )
+        .await?;
+    transaction
+        .execute(
+            r#"
+            INSERT INTO nonranked_match_talents(
+              match_id,population,stats_scope,queue_id,roster_slot,player_id,
+              champion_id,talent_id
+            )
+            SELECT $1,$2,$3,$4,ordinality::SMALLINT,
+              COALESCE(NULLIF(p->>'player_id','')::BIGINT,0),
+              (p->>'champion_id')::INT,(p->>'item_id_6')::INT
+            FROM jsonb_array_elements($5::JSONB) WITH ORDINALITY facts(p,ordinality)
+            WHERE COALESCE(NULLIF(p->>'champion_id','')::INT,0)>0
+              AND COALESCE(NULLIF(p->>'item_id_6','')::INT,0)>0
+            ON CONFLICT(match_id,roster_slot,talent_id) DO UPDATE SET
+              player_id=EXCLUDED.player_id,champion_id=EXCLUDED.champion_id
+            "#,
+            &[
+                &payload.match_id,
+                &population_name,
+                &stats_scope,
+                &payload.queue_id,
+                players,
+            ],
+        )
+        .await?;
+    transaction
+        .execute(
+            r#"
+            INSERT INTO nonranked_match_cards(
+              match_id,population,stats_scope,queue_id,roster_slot,player_id,
+              champion_id,talent_id,card_id,card_level
+            )
+            SELECT $1,$2,$3,$4,ordinality::SMALLINT,
+              COALESCE(NULLIF(p->>'player_id','')::BIGINT,0),
+              (p->>'champion_id')::INT,COALESCE(NULLIF(p->>'item_id_6','')::INT,0),
+              (p->>('item_id_'||slot))::INT,
+              COALESCE(NULLIF(p->>('item_level_'||slot),'')::SMALLINT,0)
+            FROM jsonb_array_elements($5::JSONB) WITH ORDINALITY facts(p,ordinality)
+            CROSS JOIN generate_series(1,5) slots(slot)
+            WHERE COALESCE(NULLIF(p->>'champion_id','')::INT,0)>0
+              AND COALESCE(NULLIF(p->>('item_id_'||slot),'')::INT,0)>0
+            ON CONFLICT(match_id,roster_slot,card_id) DO UPDATE SET
+              player_id=EXCLUDED.player_id,champion_id=EXCLUDED.champion_id,
+              talent_id=EXCLUDED.talent_id,card_level=EXCLUDED.card_level
+            "#,
+            &[
+                &payload.match_id,
+                &population_name,
+                &stats_scope,
+                &payload.queue_id,
+                players,
+            ],
+        )
+        .await?;
     Ok(())
 }
 
@@ -1092,6 +1510,22 @@ fn positive_i64(value: Option<&Value>) -> Option<i64> {
     positive_or_signed_i64(value).filter(|number| *number > 0)
 }
 
+fn value_i64(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+        .or_else(|| value.as_str()?.trim().parse().ok())
+}
+
+fn value_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(value) => Some(value.clone()),
+        Value::Number(value) => Some(value.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
 fn positive_or_signed_i64(value: Option<&Value>) -> Option<i64> {
     value.and_then(|value| {
         value
@@ -1225,16 +1659,32 @@ mod tests {
         })
         .expect("backend config");
         let database = Database::new(&config, "match-facts-test").expect("database");
-        database
-            .connection()
+        let client = database.connection().await.expect("connection");
+        let schema_exists = client
+            .query_one("SELECT to_regclass('public.queue_types') IS NOT NULL", &[])
             .await
-            .expect("connection")
-            .batch_execute(include_str!(
-                "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
-            ))
-            .await
-            .expect("seed schema");
+            .expect("schema probe")
+            .get::<_, bool>(0);
+        if !schema_exists {
+            client
+                .batch_execute(include_str!(
+                    "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
+                ))
+                .await
+                .expect("seed schema");
+        }
+        drop(client);
         let repository = MatchFactRepository::new(database.clone());
+        let aggregate_baseline = database
+            .one_json(
+                "SELECT \
+                   (SELECT count(*)::int FROM item_counts_ranked) ranked,\
+                   (SELECT count(*)::int FROM item_counts_casual) casual",
+                &[],
+            )
+            .await
+            .expect("aggregate baseline")
+            .expect("aggregate baseline row");
 
         let mut ranked = complete_match();
         ranked["ban_id_1"] = json!(777);
@@ -1288,12 +1738,17 @@ mod tests {
             .query_json(
                 r#"
                 SELECT
-                  (SELECT count(*)::int FROM matches) AS matches,
-                  (SELECT count(*)::int FROM match_players) AS players,
-                  (SELECT count(*)::int FROM match_player_items) AS items,
-                  (SELECT count(*)::int FROM match_player_cards) AS cards,
-                  (SELECT count(*)::int FROM match_player_talents) AS talents,
-                  (SELECT count(*)::int FROM match_bans) AS bans,
+                  (SELECT count(*)::int FROM matches WHERE match_id=123) AS ranked_matches,
+                  (SELECT count(*)::int FROM match_players WHERE match_id=123) AS ranked_players,
+                  (SELECT count(*)::int FROM match_player_items WHERE match_id=123) AS ranked_items,
+                  (SELECT count(*)::int FROM match_player_cards WHERE match_id=123) AS ranked_cards,
+                  (SELECT count(*)::int FROM match_player_talents WHERE match_id=123) AS ranked_talents,
+                  (SELECT count(*)::int FROM casual_matches WHERE match_id=124) AS casual_matches,
+                  (SELECT count(*)::int FROM casual_match_players WHERE match_id=124) AS casual_players,
+                  (SELECT count(*)::int FROM nonranked_match_items WHERE match_id=124) AS casual_items,
+                  (SELECT count(*)::int FROM nonranked_match_cards WHERE match_id=124) AS casual_cards,
+                  (SELECT count(*)::int FROM nonranked_match_talents WHERE match_id=124) AS casual_talents,
+                  (SELECT count(*)::int FROM match_bans WHERE match_id=123) AS bans,
                   (SELECT count(*)::int FROM item_counts_ranked) AS ranked_aggregates,
                   (SELECT count(*)::int FROM item_counts_casual) AS casual_aggregates,
                   (SELECT damage_per_minute FROM match_players
@@ -1308,21 +1763,27 @@ mod tests {
         assert_eq!(
             rows,
             vec![json!({
-                "matches":2,
-                "players":20,
-                "items":20,
-                "cards":10,
-                "talents":10,
+                "ranked_matches":1,
+                "ranked_players":10,
+                "ranked_items":10,
+                "ranked_cards":10,
+                "ranked_talents":10,
+                "casual_matches":1,
+                "casual_players":10,
+                "casual_items":10,
+                "casual_cards":0,
+                "casual_talents":0,
                 "bans":1,
-                "ranked_aggregates":0,
-                "casual_aggregates":0,
+                "ranked_aggregates":aggregate_baseline["ranked"],
+                "casual_aggregates":aggregate_baseline["casual"],
                 "dpm":1000.0,
                 "objective_time":20
             })]
         );
         let populations = database
             .query_json(
-                "SELECT match_id::text,population,completed_stages FROM match_ingest_status ORDER BY match_id",
+                "SELECT match_id::text,population,completed_stages FROM match_ingest_status \
+                 WHERE match_id IN (123,124) ORDER BY match_id",
                 &[],
             )
             .await
@@ -1333,7 +1794,9 @@ mod tests {
             let stages = row["completed_stages"].as_array().expect("stages");
             assert!(stages.iter().any(|stage| stage == "core"));
             assert!(stages.iter().any(|stage| stage == "player_facts"));
-            assert!(stages.iter().any(|stage| stage == "match_bans"));
+            if row["population"] == "ranked" {
+                assert!(stages.iter().any(|stage| stage == "match_bans"));
+            }
         }
 
         let private_ranked = |match_id: i64, entry_datetime: &str| {
@@ -1425,7 +1888,7 @@ mod tests {
                     FROM private_account_observations
                     WHERE match_id=141 AND private_slot=1) AS casual_resolution,
                   (SELECT private_player_id
-                    FROM match_players
+                    FROM casual_match_players
                     WHERE match_id=141 AND player_id=0 AND private_slot=1)
                     AS ambiguous_link
                 "#,

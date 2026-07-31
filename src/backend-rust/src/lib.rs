@@ -19,6 +19,7 @@ use crate::foundation::FoundationState;
 
 pub mod error;
 pub mod foundation;
+pub mod operators;
 mod raw_hirez_audit;
 pub mod request;
 pub mod route_cache;
@@ -31,6 +32,7 @@ pub mod workers;
 pub const INVENTORIED_ROUTES: usize = 268;
 pub const INVENTORIED_WORKERS: usize = 41;
 pub const INVENTORIED_SCHEDULERS: usize = 6;
+pub const INVENTORIED_OPERATOR_COMMANDS: usize = 20;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,9 +43,14 @@ pub struct CandidateStatus {
     pub routes_implemented: usize,
     pub routes_inventoried: usize,
     pub worker_modules_migrated: usize,
+    pub worker_modules_implemented: usize,
     pub worker_modules_inventoried: usize,
     pub scheduler_owners_migrated: usize,
+    pub scheduler_owners_implemented: usize,
     pub scheduler_owners_inventoried: usize,
+    pub operator_commands_migrated: usize,
+    pub operator_commands_implemented: usize,
+    pub operator_commands_inventoried: usize,
 }
 
 pub fn candidate_status() -> CandidateStatus {
@@ -51,12 +58,17 @@ pub fn candidate_status() -> CandidateStatus {
         status: "migration_candidate",
         admission: "quiesced",
         routes_migrated: 0,
-        routes_implemented: 160,
+        routes_implemented: 268,
         routes_inventoried: INVENTORIED_ROUTES,
         worker_modules_migrated: 0,
+        worker_modules_implemented: 41,
         worker_modules_inventoried: INVENTORIED_WORKERS,
         scheduler_owners_migrated: 0,
+        scheduler_owners_implemented: 6,
         scheduler_owners_inventoried: INVENTORIED_SCHEDULERS,
+        operator_commands_migrated: 0,
+        operator_commands_implemented: 20,
+        operator_commands_inventoried: INVENTORIED_OPERATOR_COMMANDS,
     }
 }
 
@@ -96,7 +108,28 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
         .merge(routes::matches::router(
             database.clone(),
             foundation.redis.clone(),
+            route_cache.clone(),
+            foundation.config.clone(),
+        ))
+        .merge(routes::players::router(
+            database.clone(),
+            foundation.redis.clone(),
             route_cache,
+            foundation.config.clone(),
+        ))
+        .merge(routes::auth::router(
+            database.clone(),
+            foundation.redis.clone(),
+            foundation.config.clone(),
+        ))
+        .merge(routes::admin::router(foundation.clone()))
+        .merge(routes::builds::router(database.clone()))
+        .merge(routes::community::router(database.clone()))
+        .merge(routes::tierlists::router(database.clone()))
+        .merge(routes::site_analytics::router(database.clone()))
+        .merge(routes::system::router(
+            database.clone(),
+            foundation.redis.clone(),
             foundation.config.clone(),
         ))
         .merge(routes::player_ext::router(database.clone()))
@@ -265,10 +298,14 @@ mod tests {
         let status = candidate_status();
         assert_eq!(status.admission, "quiesced");
         assert_eq!(status.routes_migrated, 0);
-        assert_eq!(status.routes_implemented, 160);
+        assert_eq!(status.routes_implemented, 268);
         assert_eq!(status.routes_inventoried, 268);
         assert_eq!(status.worker_modules_migrated, 0);
+        assert_eq!(status.worker_modules_implemented, 41);
+        assert_eq!(status.scheduler_owners_implemented, 6);
         assert_eq!(status.scheduler_owners_migrated, 0);
+        assert_eq!(status.operator_commands_implemented, 20);
+        assert_eq!(status.operator_commands_migrated, 0);
     }
 
     #[tokio::test]

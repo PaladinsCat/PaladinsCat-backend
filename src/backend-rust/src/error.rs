@@ -13,7 +13,7 @@ pub struct ApiError {
     status: StatusCode,
     code: &'static str,
     message: String,
-    details: Option<Value>,
+    details: Option<Box<Value>>,
     request_id: Option<String>,
     retry_after: Option<u64>,
 }
@@ -39,7 +39,7 @@ impl ApiError {
             status: StatusCode::NOT_FOUND,
             code: "NOT_FOUND",
             message: message.into(),
-            details: Some(details),
+            details: Some(Box::new(details)),
             request_id: None,
             retry_after: None,
         }
@@ -77,7 +77,8 @@ impl ApiError {
             status,
             code,
             message: message.into(),
-            details: (retry_after > 0).then(|| json!({ "retry_after_seconds": retry_after })),
+            details: (retry_after > 0)
+                .then(|| Box::new(json!({ "retry_after_seconds": retry_after }))),
             request_id: None,
             retry_after: (retry_after > 0).then_some(retry_after),
         }
@@ -101,7 +102,7 @@ impl IntoResponse for ApiError {
             error
                 .as_object_mut()
                 .expect("error object")
-                .insert("details".to_owned(), details);
+                .insert("details".to_owned(), *details);
         }
         if let Some(request_id) = self.request_id {
             error

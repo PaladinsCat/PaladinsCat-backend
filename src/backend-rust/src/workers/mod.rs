@@ -1,15 +1,27 @@
+pub mod cache_warmer;
 pub mod casual_mechanics;
 pub mod coordination;
+pub mod discovery_control;
+pub mod discovery_store;
+pub mod history_retention;
+pub mod live_tracker;
+pub mod loadouts;
+pub mod maintenance;
 pub mod match_facts;
 pub mod match_lifecycle;
+pub mod outage;
+pub mod pipeline;
+pub mod policy;
 pub mod private_identity;
-// Intentionally not compiled. The migration-109 implementation duplicates
-// canonical match_player_* facts and must not become a production worker path.
-// Reintroduce this module only after it projects the shared canonical facts
-// into physically separate casual aggregate tables.
 pub mod profile_enrichment;
+pub mod projections;
+pub mod ranked_projection;
+pub mod ranked_tracker;
+pub mod rating;
+pub mod raw_buffer;
 pub mod relay;
 pub mod requested_match;
 pub mod scheduler;
+pub mod scheduler_host;
 pub mod scheduler_runtime;
 pub mod tier_stats;
