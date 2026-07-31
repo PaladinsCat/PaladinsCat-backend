@@ -2,10 +2,11 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use paladinscat_backend::{
     candidate_status,
     operators::{
-        OperatorServices, migrations_apply, migrations_compare, options, pipeline_buffer_status,
-        pipeline_check, pipeline_ingest, pipeline_populate, pipeline_process, pipeline_reset_stuck,
-        pipeline_run, pipeline_status, private_accounts_backfill, ratings_reingest,
-        recovery_forecast, reference_ingest,
+        OperatorServices, migrations_apply, migrations_compare, mitigate_nonranked_raw_json,
+        nonranked_raw_json_status, options, pipeline_buffer_status, pipeline_check,
+        pipeline_ingest, pipeline_populate, pipeline_process, pipeline_reset_stuck, pipeline_run,
+        pipeline_status, private_accounts_backfill, ratings_reingest, recovery_forecast,
+        reference_ingest, remove_nonranked_raw_json_guard,
     },
 };
 use serde_json::Value;
@@ -58,6 +59,29 @@ async fn dispatch(arguments: &[String]) -> anyhow::Result<()> {
         Some("recovery") if arguments.get(1).map(String::as_str) == Some("forecast") => {
             let services = OperatorServices::from_environment()?;
             print_json(recovery_forecast(&services.database).await?);
+        }
+        Some("storage") if arguments.get(1).map(String::as_str) == Some("raw-json") => {
+            let services = OperatorServices::from_environment()?;
+            let opts = options(arguments.get(3..).unwrap_or_default());
+            match arguments.get(2).map(String::as_str) {
+                Some("status") => print_json(nonranked_raw_json_status(&services.database).await?),
+                Some("mitigate") if has_flag(arguments, "--apply") => {
+                    let batch_size = opts
+                        .get("batch-size")
+                        .map(|value| value.parse::<usize>())
+                        .transpose()?
+                        .unwrap_or(5_000);
+                    print_json(mitigate_nonranked_raw_json(&services.database, batch_size).await?);
+                }
+                Some("mitigate") => anyhow::bail!("storage raw-json mitigate requires --apply"),
+                Some("remove-guard") if has_flag(arguments, "--apply") => {
+                    print_json(remove_nonranked_raw_json_guard(&services.database).await?);
+                }
+                Some("remove-guard") => {
+                    anyhow::bail!("storage raw-json remove-guard requires --apply")
+                }
+                _ => usage_exit(),
+            }
         }
         Some("migrations") if arguments.get(1).map(String::as_str) == Some("compare") => {
             let opts = options(arguments.get(2..).unwrap_or_default());
@@ -244,7 +268,7 @@ fn has_flag(arguments: &[String], flag: &str) -> bool {
 }
 fn usage_exit() -> ! {
     eprintln!(
-        "usage: paladinscat-admin <pipeline|reference|ratings|recovery|migrations|private-accounts|deployment|schedulers> <command>"
+        "usage: paladinscat-admin <pipeline|reference|ratings|recovery|storage|migrations|private-accounts|deployment|schedulers> <command>"
     );
     std::process::exit(64);
 }

@@ -16,6 +16,64 @@ use crate::workers::{
     relay::WorkerRelayClient,
 };
 
+const NONRANKED_RAW_JSON_GUARD_SQL: &str = r#"
+CREATE OR REPLACE FUNCTION paladinscat_drop_nonranked_raw_match()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.raw_match = NULL;
+  RETURN NEW;
+END
+$$;
+CREATE OR REPLACE FUNCTION paladinscat_compact_nonranked_raw_player()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.raw_player IS NOT NULL THEN
+    NEW.raw_player = jsonb_strip_nulls(jsonb_build_object(
+      '_storage','compact-equipment-v1',
+      'active_id_1',NEW.raw_player->'active_id_1','item_active_1',NEW.raw_player->'item_active_1','active_level_1',NEW.raw_player->'active_level_1',
+      'active_id_2',NEW.raw_player->'active_id_2','item_active_2',NEW.raw_player->'item_active_2','active_level_2',NEW.raw_player->'active_level_2',
+      'active_id_3',NEW.raw_player->'active_id_3','item_active_3',NEW.raw_player->'item_active_3','active_level_3',NEW.raw_player->'active_level_3',
+      'active_id_4',NEW.raw_player->'active_id_4','item_active_4',NEW.raw_player->'item_active_4','active_level_4',NEW.raw_player->'active_level_4',
+      'item_id_1',NEW.raw_player->'item_id_1','item_purch_1',NEW.raw_player->'item_purch_1','item_level_1',NEW.raw_player->'item_level_1',
+      'item_id_2',NEW.raw_player->'item_id_2','item_purch_2',NEW.raw_player->'item_purch_2','item_level_2',NEW.raw_player->'item_level_2',
+      'item_id_3',NEW.raw_player->'item_id_3','item_purch_3',NEW.raw_player->'item_purch_3','item_level_3',NEW.raw_player->'item_level_3',
+      'item_id_4',NEW.raw_player->'item_id_4','item_purch_4',NEW.raw_player->'item_purch_4','item_level_4',NEW.raw_player->'item_level_4',
+      'item_id_5',NEW.raw_player->'item_id_5','item_purch_5',NEW.raw_player->'item_purch_5','item_level_5',NEW.raw_player->'item_level_5',
+      'item_id_6',NEW.raw_player->'item_id_6','item_purch_6',NEW.raw_player->'item_purch_6'
+    ));
+  END IF;
+  RETURN NEW;
+END
+$$;
+DROP TRIGGER IF EXISTS trg_compact_casual_raw_match ON casual_matches;
+CREATE TRIGGER trg_compact_casual_raw_match BEFORE INSERT OR UPDATE OF raw_match ON casual_matches
+FOR EACH ROW EXECUTE FUNCTION paladinscat_drop_nonranked_raw_match();
+DROP TRIGGER IF EXISTS trg_compact_special_raw_match ON special_matches;
+CREATE TRIGGER trg_compact_special_raw_match BEFORE INSERT OR UPDATE OF raw_match ON special_matches
+FOR EACH ROW EXECUTE FUNCTION paladinscat_drop_nonranked_raw_match();
+DROP TRIGGER IF EXISTS trg_compact_casual_raw_player ON casual_match_players;
+CREATE TRIGGER trg_compact_casual_raw_player BEFORE INSERT OR UPDATE OF raw_player ON casual_match_players
+FOR EACH ROW EXECUTE FUNCTION paladinscat_compact_nonranked_raw_player();
+DROP TRIGGER IF EXISTS trg_compact_special_raw_player ON special_match_players;
+CREATE TRIGGER trg_compact_special_raw_player BEFORE INSERT OR UPDATE OF raw_player ON special_match_players
+FOR EACH ROW EXECUTE FUNCTION paladinscat_compact_nonranked_raw_player();
+"#;
+
+const RAW_JSON_TABLES: [(&str, &str, &str); 4] = [
+    ("casual_matches", "raw_match", "raw_match IS NOT NULL"),
+    ("special_matches", "raw_match", "raw_match IS NOT NULL"),
+    (
+        "casual_match_players",
+        "raw_player",
+        "raw_player IS NOT NULL AND raw_player->>'_storage' IS DISTINCT FROM 'compact-equipment-v1'",
+    ),
+    (
+        "special_match_players",
+        "raw_player",
+        "raw_player IS NOT NULL AND raw_player->>'_storage' IS DISTINCT FROM 'compact-equipment-v1'",
+    ),
+];
+
 #[derive(Clone)]
 pub struct OperatorServices {
     pub database: Database,
@@ -52,6 +110,92 @@ pub fn options(arguments: &[String]) -> BTreeMap<String, String> {
         }
     }
     result
+}
+
+pub async fn nonranked_raw_json_status(database: &Database) -> Result<Value> {
+    let client = database.connection().await?;
+    let mut tables = serde_json::Map::new();
+    for (table, column, pending) in RAW_JSON_TABLES {
+        let row = client
+            .query_one(
+                &format!(
+                    "SELECT count(*) FILTER(WHERE {column} IS NOT NULL)::BIGINT retained,\
+                     count(*) FILTER(WHERE {pending})::BIGINT pending FROM {table}"
+                ),
+                &[],
+            )
+            .await?;
+        tables.insert(
+            table.to_owned(),
+            json!({
+                "retained": row.get::<_, i64>("retained"),
+                "pending": row.get::<_, i64>("pending"),
+            }),
+        );
+    }
+    let guard_count = client
+        .query_one(
+            "SELECT count(*)::BIGINT FROM pg_trigger WHERE NOT tgisinternal \
+             AND tgname IN('trg_compact_casual_raw_match','trg_compact_special_raw_match',\
+             'trg_compact_casual_raw_player','trg_compact_special_raw_player')",
+            &[],
+        )
+        .await?
+        .get::<_, i64>(0);
+    Ok(json!({"guard_triggers":guard_count,"tables":tables}))
+}
+
+pub async fn mitigate_nonranked_raw_json(database: &Database, batch_size: usize) -> Result<Value> {
+    let batch_size = batch_size.clamp(1, 50_000) as i64;
+    let mut client = database.connection().await?;
+    let transaction = client.transaction().await?;
+    transaction
+        .batch_execute("SET LOCAL lock_timeout='5s';SET LOCAL statement_timeout='5min'")
+        .await?;
+    transaction
+        .batch_execute(NONRANKED_RAW_JSON_GUARD_SQL)
+        .await?;
+    let mut updated = serde_json::Map::new();
+    for (table, column, pending) in RAW_JSON_TABLES {
+        let changed = transaction
+            .execute(
+                &format!(
+                    "WITH selected AS(SELECT ctid FROM {table} WHERE {pending} LIMIT $1 FOR UPDATE SKIP LOCKED) \
+                     UPDATE {table} target SET {column}={column} FROM selected \
+                     WHERE target.ctid=selected.ctid"
+                ),
+                &[&batch_size],
+            )
+            .await?;
+        updated.insert(table.to_owned(), json!(changed));
+    }
+    transaction.commit().await?;
+    Ok(json!({
+        "guard_installed": true,
+        "batch_size_per_table": batch_size,
+        "updated": updated,
+        "note": "rerun bounded batches and use storage raw-json status until pending is zero"
+    }))
+}
+
+pub async fn remove_nonranked_raw_json_guard(database: &Database) -> Result<Value> {
+    let client = database.connection().await?;
+    client
+        .batch_execute(
+            "SET lock_timeout='5s';\
+             DROP TRIGGER IF EXISTS trg_compact_casual_raw_match ON casual_matches;\
+             DROP TRIGGER IF EXISTS trg_compact_special_raw_match ON special_matches;\
+             DROP TRIGGER IF EXISTS trg_compact_casual_raw_player ON casual_match_players;\
+             DROP TRIGGER IF EXISTS trg_compact_special_raw_player ON special_match_players;\
+             DROP FUNCTION IF EXISTS paladinscat_drop_nonranked_raw_match();\
+             DROP FUNCTION IF EXISTS paladinscat_compact_nonranked_raw_player();\
+             RESET lock_timeout",
+        )
+        .await?;
+    Ok(json!({
+        "guard_removed": true,
+        "warning": "already compacted rows are not expanded; the legacy writer may resume full JSON storage"
+    }))
 }
 
 pub async fn pipeline_populate(
@@ -662,4 +806,42 @@ fn env_i64(name: &str, default: i64) -> i64 {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(default)
+}
+
+#[cfg(test)]
+mod storage_mitigation_tests {
+    use super::{NONRANKED_RAW_JSON_GUARD_SQL, RAW_JSON_TABLES};
+
+    #[test]
+    fn raw_json_guard_preserves_only_legacy_equipment_fallback_fields() {
+        for key in [
+            "active_id_1",
+            "item_active_4",
+            "active_level_4",
+            "item_id_1",
+            "item_purch_5",
+            "item_level_5",
+            "item_id_6",
+            "item_purch_6",
+        ] {
+            assert!(NONRANKED_RAW_JSON_GUARD_SQL.contains(key), "missing {key}");
+        }
+        assert!(NONRANKED_RAW_JSON_GUARD_SQL.contains("NEW.raw_match = NULL"));
+        assert!(NONRANKED_RAW_JSON_GUARD_SQL.contains("compact-equipment-v1"));
+        assert!(!NONRANKED_RAW_JSON_GUARD_SQL.contains("player_name"));
+    }
+
+    #[test]
+    fn raw_json_cleanup_targets_only_the_four_nonranked_payload_columns() {
+        assert_eq!(RAW_JSON_TABLES.len(), 4);
+        assert_eq!(
+            RAW_JSON_TABLES.map(|(table, column, _)| (table, column)),
+            [
+                ("casual_matches", "raw_match"),
+                ("special_matches", "raw_match"),
+                ("casual_match_players", "raw_player"),
+                ("special_match_players", "raw_player"),
+            ]
+        );
+    }
 }

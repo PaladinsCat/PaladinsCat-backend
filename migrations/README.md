@@ -28,3 +28,10 @@ them without explicit confirmation:
 
 Never edit an applied migration. The runner records a SHA-256 checksum and
 refuses to continue if an applied file changes.
+
+The emergency `paladinscat-admin storage raw-json` bridge is deliberately not a
+tracked migration: production is at migration 111, while applying 112-115 would
+also switch non-ranked physical ownership before full compatibility is proven.
+The bridge installs reversible future-write guards and performs bounded payload
+compaction without advancing `schema_migrations`. Migration 115 remains the
+eventual authoritative contract step.
