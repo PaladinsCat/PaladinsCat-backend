@@ -148,13 +148,24 @@ pub async fn nonranked_raw_json_status(database: &Database) -> Result<Value> {
 pub async fn mitigate_nonranked_raw_json(database: &Database, batch_size: usize) -> Result<Value> {
     let batch_size = batch_size.clamp(1, 50_000) as i64;
     let mut client = database.connection().await?;
+    let guard_count = client
+        .query_one(
+            "SELECT count(*)::BIGINT FROM pg_trigger WHERE NOT tgisinternal \
+             AND tgname IN('trg_compact_casual_raw_match','trg_compact_special_raw_match',\
+             'trg_compact_casual_raw_player','trg_compact_special_raw_player')",
+            &[],
+        )
+        .await?
+        .get::<_, i64>(0);
     let transaction = client.transaction().await?;
     transaction
         .batch_execute("SET LOCAL lock_timeout='5s';SET LOCAL statement_timeout='5min'")
         .await?;
-    transaction
-        .batch_execute(NONRANKED_RAW_JSON_GUARD_SQL)
-        .await?;
+    if guard_count != 4 {
+        transaction
+            .batch_execute(NONRANKED_RAW_JSON_GUARD_SQL)
+            .await?;
+    }
     let mut updated = serde_json::Map::new();
     for (table, column, pending) in RAW_JSON_TABLES {
         let changed = transaction
@@ -172,6 +183,7 @@ pub async fn mitigate_nonranked_raw_json(database: &Database, batch_size: usize)
     transaction.commit().await?;
     Ok(json!({
         "guard_installed": true,
+        "guard_reused": guard_count == 4,
         "batch_size_per_table": batch_size,
         "updated": updated,
         "note": "rerun bounded batches and use storage raw-json status until pending is zero"
