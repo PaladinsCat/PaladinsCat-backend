@@ -500,14 +500,24 @@ async fn start_runtime_tasks(
     if let Some(owner) = owner {
         let mut owner_stop = tasks.stop.subscribe();
         handles.push(tokio::spawn(async move {
+            let mut previously_ready = ready.load(Ordering::Acquire);
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                        let owner_ok = owner.is_healthy().await;
+                        let owner_ok = match owner.ensure_healthy().await {
+                            Ok(owner_ok) => owner_ok,
+                            Err(error) => {
+                                error!(%error, "live provider owner lease recovery failed");
+                                false
+                            }
+                        };
                         ready.store(owner_ok, Ordering::Release);
-                        if !owner_ok {
+                        if owner_ok && !previously_ready {
+                            info!("live provider owner lease recovered; outbound admission enabled");
+                        } else if !owner_ok && previously_ready {
                             error!("live provider owner lease lost; outbound admission disabled");
                         }
+                        previously_ready = owner_ok;
                     }
                     changed = owner_stop.changed() => {
                         if changed.is_err() || *owner_stop.borrow() {
