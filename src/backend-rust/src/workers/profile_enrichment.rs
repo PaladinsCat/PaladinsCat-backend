@@ -104,10 +104,7 @@ WITH due AS (
   WHERE (refresh.needs_platform OR refresh.needs_region)
     AND (
       refresh.status = 'pending'
-      OR (
-        refresh.status IN ('success', 'unavailable', 'failed', 'skipped_recent')
-        AND (refresh.next_retry_at IS NULL OR refresh.next_retry_at <= now())
-      )
+      OR (refresh.status = 'failed' AND refresh.next_retry_at <= now())
       OR (refresh.status = 'fetching' AND refresh.lease_until <= now())
     )
     AND (refresh.lease_until IS NULL OR refresh.lease_until <= now())
@@ -323,7 +320,7 @@ impl ProfileEnrichmentRepository {
                     .query_json(
                         "UPDATE player_activity_profile_refresh SET needs_platform=$2,needs_region=$3,status=$4,\
                          attempts=attempts+1,last_fetched_at=now(),claim_owner=NULL,lease_until=NULL,error_message=NULL,\
-                         next_retry_at=CASE WHEN $4='success' THEN now()+INTERVAL '7 days' ELSE now()+INTERVAL '24 hours' END,updated_at=now() \
+                         next_retry_at=NULL,updated_at=now() \
                          WHERE player_id=$1",
                         &[&claim.player_id, &needs_platform, &needs_region, &status],
                     )
@@ -342,7 +339,7 @@ impl ProfileEnrichmentRepository {
         self.database
             .query_json(
                 "UPDATE player_activity_profile_refresh SET status='unavailable',attempts=attempts+1,\
-                 error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=now()+INTERVAL '24 hours',updated_at=now() \
+                 error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=NULL,updated_at=now() \
                  WHERE player_id=$1",
                 &[&player_id, &reason],
             )

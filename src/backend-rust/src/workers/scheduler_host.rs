@@ -178,7 +178,7 @@ async fn dispatch(services: &SchedulerServices, job_key: &str) -> Result<Value, 
             let complete = results.iter().filter(|result| result.is_ok()).count();
             let failed = results.len() - complete;
             let enrichment = ProfileEnrichmentRepository::new(services.database.clone())
-                .run(&services.config, 10, "rust-auto-ingester")
+                .run(&services.config, 100, "rust-auto-ingester")
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(json!({
