@@ -429,6 +429,14 @@ fn profile_enrichment_allowed_calls(max_calls: usize, budget: ApiHeadroomSnapsho
     max_calls.min(usize::try_from(budget.total_usable_before_reserve).unwrap_or(usize::MAX))
 }
 
+const BRACKETED_MISSING_PRESENCE_HOURS_SQL: &str = "WITH hours AS(SELECT tick FROM generate_series($2::TEXT::DATE+INTERVAL '1 hour',$3::TEXT::DATE+($4::INT*INTERVAL '1 hour')-INTERVAL '1 hour',INTERVAL '1 hour') tick) \
+             SELECT queue.queue_id,to_char(hours.tick,'YYYY-MM-DD') date,EXTRACT(HOUR FROM hours.tick)::INT hour \
+             FROM unnest($1::INT[]) queue(queue_id) CROSS JOIN hours \
+             JOIN hourly_ingest_state previous ON previous.queue_id=queue.queue_id AND previous.date=(hours.tick-INTERVAL '1 hour')::DATE AND previous.hour=EXTRACT(HOUR FROM hours.tick-INTERVAL '1 hour')::INT \
+             LEFT JOIN hourly_ingest_state missing ON missing.queue_id=queue.queue_id AND missing.date=hours.tick::DATE AND missing.hour=EXTRACT(HOUR FROM hours.tick)::INT \
+             JOIN hourly_ingest_state next ON next.queue_id=queue.queue_id AND next.date=(hours.tick+INTERVAL '1 hour')::DATE AND next.hour=EXTRACT(HOUR FROM hours.tick+INTERVAL '1 hour')::INT \
+             WHERE missing.queue_id IS NULL ORDER BY date,hour,queue.queue_id";
+
 async fn bracketed_missing_presence_hours(
     database: &Database,
     now: OffsetDateTime,
@@ -451,22 +459,20 @@ async fn bracketed_missing_presence_hours(
         .to_string();
     Ok(database
         .query_json(
-            "WITH hours AS(SELECT tick FROM generate_series($2::DATE+INTERVAL '1 hour',$3::DATE+($4::INT*INTERVAL '1 hour')-INTERVAL '1 hour',INTERVAL '1 hour') tick) \
-             SELECT queue.queue_id,to_char(hours.tick,'YYYY-MM-DD') date,EXTRACT(HOUR FROM hours.tick)::INT hour \
-             FROM unnest($1::INT[]) queue(queue_id) CROSS JOIN hours \
-             JOIN hourly_ingest_state previous ON previous.queue_id=queue.queue_id AND previous.date=(hours.tick-INTERVAL '1 hour')::DATE AND previous.hour=EXTRACT(HOUR FROM hours.tick-INTERVAL '1 hour')::INT \
-             LEFT JOIN hourly_ingest_state missing ON missing.queue_id=queue.queue_id AND missing.date=hours.tick::DATE AND missing.hour=EXTRACT(HOUR FROM hours.tick)::INT \
-             JOIN hourly_ingest_state next ON next.queue_id=queue.queue_id AND next.date=(hours.tick+INTERVAL '1 hour')::DATE AND next.hour=EXTRACT(HOUR FROM hours.tick+INTERVAL '1 hour')::INT \
-             WHERE missing.queue_id IS NULL ORDER BY date,hour,queue.queue_id",
+            BRACKETED_MISSING_PRESENCE_HOURS_SQL,
             &[&queue_ids.as_slice(), &min_date, &max_date, &max_hour],
         )
         .await?
         .into_iter()
         .filter_map(|row| {
             Some((
-                row.get("queue_id")?.as_i64().and_then(|value| i32::try_from(value).ok())?,
+                row.get("queue_id")?
+                    .as_i64()
+                    .and_then(|value| i32::try_from(value).ok())?,
                 row.get("date")?.as_str()?.to_owned(),
-                row.get("hour")?.as_i64().and_then(|value| i32::try_from(value).ok())?,
+                row.get("hour")?
+                    .as_i64()
+                    .and_then(|value| i32::try_from(value).ok())?,
             ))
         })
         .collect())
@@ -505,6 +511,12 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bracketed_gap_scan_binds_string_dates_as_text() {
+        assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$2::TEXT::DATE"));
+        assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$3::TEXT::DATE"));
+    }
 
     #[test]
     fn profile_enrichment_respects_api_headroom() {
