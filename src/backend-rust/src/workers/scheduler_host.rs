@@ -26,6 +26,7 @@ use super::{
 };
 
 const OWNERSHIP_LEASE: Duration = Duration::from_secs(60);
+const STARTUP_OWNERSHIP_LEASE: Duration = Duration::from_secs(5 * 60);
 const OWNERSHIP_HEARTBEAT: Duration = Duration::from_secs(15);
 const JOB_LEASE: Duration = Duration::from_secs(60 * 60);
 
@@ -43,7 +44,7 @@ pub async fn run_scheduler_domain(
 ) -> Result<SchedulerRuntimeExit, DatabaseError> {
     let coordination = WorkerCoordinationRepository::new(database.clone());
     if !coordination
-        .acquire_scheduler_owner(&scheduler_key, &owner_id, OWNERSHIP_LEASE)
+        .acquire_scheduler_owner(&scheduler_key, &owner_id, STARTUP_OWNERSHIP_LEASE)
         .await?
     {
         return Ok(SchedulerRuntimeExit::OwnershipUnavailable);
@@ -457,7 +458,7 @@ async fn bracketed_missing_presence_hours(
              LEFT JOIN hourly_ingest_state missing ON missing.queue_id=queue.queue_id AND missing.date=hours.tick::DATE AND missing.hour=EXTRACT(HOUR FROM hours.tick)::INT \
              JOIN hourly_ingest_state next ON next.queue_id=queue.queue_id AND next.date=(hours.tick+INTERVAL '1 hour')::DATE AND next.hour=EXTRACT(HOUR FROM hours.tick+INTERVAL '1 hour')::INT \
              WHERE missing.queue_id IS NULL ORDER BY date,hour,queue.queue_id",
-            &[&queue_ids, &min_date, &max_date, &max_hour],
+            &[&queue_ids.as_slice(), &min_date, &max_date, &max_hour],
         )
         .await?
         .into_iter()
