@@ -214,10 +214,31 @@ async fn dispatch(services: &SchedulerServices, job_key: &str) -> Result<Value, 
             }))
         }
         "auto-ingester:buffer-drain" => {
-            let result = process_buffer_batch(&services.database, 50)
-                .await
-                .map_err(|error| error.to_string())?;
-            serde_json::to_value(result).map_err(|error| error.to_string())
+            let max_batches = rust_buffer_drain_max_batches();
+            let mut processed = 0_i32;
+            let mut failed = 0_i32;
+            let mut deferred = 0_i32;
+            let mut batches = 0_usize;
+            for _ in 0..max_batches {
+                let result = process_buffer_batch(&services.database, 50)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                let handled = result.processed + result.failed + result.deferred;
+                if handled == 0 {
+                    break;
+                }
+                processed = processed.saturating_add(result.processed);
+                failed = failed.saturating_add(result.failed);
+                deferred = deferred.saturating_add(result.deferred);
+                batches += 1;
+            }
+            Ok(json!({
+                "processed":processed,
+                "failed":failed,
+                "deferred":deferred,
+                "batches":batches,
+                "max_batches":max_batches,
+            }))
         }
         "auto-ingester:raw-buffer-retention" => {
             let result = cleanup_raw_ingest_buffer_retention(&services.database, "scheduler")
@@ -379,6 +400,14 @@ fn profile_enrichment_max_calls() -> usize {
         .and_then(|value| value.parse().ok())
         .unwrap_or(100)
         .clamp(1, 500)
+}
+
+fn rust_buffer_drain_max_batches() -> usize {
+    std::env::var("RUST_BUFFER_DRAIN_MAX_BATCHES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(12_usize)
+        .clamp(1, 100)
 }
 
 fn api_key_reserve_calls() -> i32 {
