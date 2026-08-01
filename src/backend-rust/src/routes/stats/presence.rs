@@ -10,6 +10,7 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use paladinscat_core::database::{QueryParam, format_json_timestamp};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use url::form_urlencoded;
 
 use crate::{
     error::ApiError,
@@ -20,6 +21,7 @@ use crate::{
 use super::{StatsState, stats_cache_key};
 
 const CACHE_TTL_SECONDS: u64 = 60;
+const ACTIVITY_STALE_TTL_SECONDS: u64 = 6 * 60 * 60;
 const EVIDENCE_CTES: &str = r#"
 recent_discoveries AS MATERIALIZED (
   SELECT d.match_id,d.queue_id,q.queue_name,q.stats_scope,q.participant_model,
@@ -604,11 +606,12 @@ async fn cached_payload(
     params: Vec<QueryParam>,
 ) -> Result<Response, ApiError> {
     let database = state.database.clone();
+    let stale_ttl_seconds = presence_stale_ttl_seconds(&uri);
     cached_database_json(
         state.cache,
         stats_cache_key(&uri),
         CACHE_TTL_SECONDS,
-        CACHE_TTL_SECONDS * 3,
+        stale_ttl_seconds,
         &request_id,
         move || {
             let database = database.clone();
@@ -626,4 +629,34 @@ async fn cached_payload(
         },
     )
     .await
+}
+
+fn presence_stale_ttl_seconds(uri: &axum::http::Uri) -> u64 {
+    if uri.path() == "/stats/presence"
+        && uri.query().is_some_and(|query| {
+            form_urlencoded::parse(query.as_bytes())
+                .find(|(key, _)| key == "view")
+                .is_some_and(|(_, value)| value == "activity-v4")
+        })
+    {
+        ACTIVITY_STALE_TTL_SECONDS
+    } else {
+        CACHE_TTL_SECONDS * 3
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn activity_presence_uses_legacy_stale_window() {
+        let uri: axum::http::Uri = "/stats/presence?view=activity-v4".parse().unwrap();
+        assert_eq!(presence_stale_ttl_seconds(&uri), 6 * 60 * 60);
+
+        let uri: axum::http::Uri = "/stats/presence?view=default&view=activity-v4"
+            .parse()
+            .unwrap();
+        assert_eq!(presence_stale_ttl_seconds(&uri), CACHE_TTL_SECONDS * 3);
+    }
 }
