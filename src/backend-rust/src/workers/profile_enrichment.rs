@@ -123,7 +123,7 @@ WITH due AS (
       OR (refresh.status = 'fetching' AND refresh.lease_until <= now())
     )
     AND (refresh.lease_until IS NULL OR refresh.lease_until <= now())
-  ORDER BY refresh.player_id
+  ORDER BY presence.last_observed_at DESC, refresh.player_id
   LIMIT $1
   FOR UPDATE OF refresh SKIP LOCKED
 )
@@ -195,6 +195,9 @@ pub struct ProfileEnrichmentRepository {
     database: Database,
 }
 
+const PROFILE_CLAIM_LEASE: Duration = Duration::from_secs(30 * 60);
+const FAILED_RETRY_MINUTES: i32 = 60;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProfileEnrichmentResult {
     pub calls: usize,
@@ -262,12 +265,11 @@ impl ProfileEnrichmentRepository {
         owner: &str,
     ) -> Result<ProfileEnrichmentResult, ProfileEnrichmentError> {
         let batches = self
-            .claim_unknown_batches(max_calls, owner, Duration::from_secs(300))
+            .claim_unknown_batches(max_calls, owner, PROFILE_CLAIM_LEASE)
             .await?;
         let relay = WorkerRelayClient::new(config)?;
         let mut result = ProfileEnrichmentResult::default();
-        for batch in batches {
-            result.calls += 1;
+        for (index, batch) in batches.iter().enumerate() {
             result.claimed += batch.len();
             let ids = batch.iter().map(|row| row.player_id).collect::<Vec<_>>();
             let response = relay
@@ -284,15 +286,26 @@ impl ProfileEnrichmentRepository {
                     self.database
                         .query_json(
                             "UPDATE player_activity_profile_refresh SET status='failed',attempts=attempts+1,\
-                             error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=now()+INTERVAL '30 minutes',updated_at=now() \
+                             last_attempt_at=now(),error_message=$2,claim_owner=NULL,lease_until=NULL,\
+                             next_retry_at=now()+($3::int*INTERVAL '1 minute'),updated_at=now() \
                              WHERE player_id=ANY($1::BIGINT[])",
-                            &[&ids, &message],
+                            &[&ids, &message, &FAILED_RETRY_MINUTES],
                         )
                         .await?;
                     result.failed += ids.len();
-                    continue;
+                    for unprocessed in batches.iter().skip(index + 1) {
+                        self.release_unprocessed(
+                            &unprocessed
+                                .iter()
+                                .map(|claim| claim.player_id)
+                                .collect::<Vec<_>>(),
+                        )
+                        .await?;
+                    }
+                    break;
                 }
             };
+            result.calls += 1;
             let rows = payload.as_array().cloned().unwrap_or_default();
             let returned = rows
                 .iter()
@@ -301,7 +314,7 @@ impl ProfileEnrichmentRepository {
                     (player_id > 0).then_some((player_id, row))
                 })
                 .collect::<std::collections::BTreeMap<_, _>>();
-            for claim in &batch {
+            for claim in batch {
                 let Some(profile) = returned.get(&claim.player_id) else {
                     self.finish_unavailable(claim.player_id, "player absent from getplayerbatch")
                         .await?;
@@ -334,7 +347,10 @@ impl ProfileEnrichmentRepository {
                 self.database
                     .query_json(
                         "UPDATE player_activity_profile_refresh SET needs_platform=$2,needs_region=$3,status=$4,\
-                         attempts=attempts+1,last_fetched_at=now(),claim_owner=NULL,lease_until=NULL,error_message=NULL,\
+                         attempts=attempts+1,last_attempt_at=now(),\
+                         last_success_at=CASE WHEN $4='success' THEN now() ELSE last_success_at END,\
+                         claim_owner=NULL,lease_until=NULL,\
+                         error_message=CASE WHEN $4='success' THEN NULL ELSE 'Hi-Rez getplayerbatch returned no usable profile for this player ID.' END,\
                          next_retry_at=NULL,updated_at=now() \
                          WHERE player_id=$1",
                         &[&claim.player_id, &needs_platform, &needs_region, &status],
@@ -354,9 +370,23 @@ impl ProfileEnrichmentRepository {
         self.database
             .query_json(
                 "UPDATE player_activity_profile_refresh SET status='unavailable',attempts=attempts+1,\
-                 error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=NULL,updated_at=now() \
+                 last_attempt_at=now(),error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=NULL,updated_at=now() \
                  WHERE player_id=$1",
                 &[&player_id, &reason],
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn release_unprocessed(&self, player_ids: &[i64]) -> Result<(), DatabaseError> {
+        if player_ids.is_empty() {
+            return Ok(());
+        }
+        self.database
+            .query_json(
+                "UPDATE player_activity_profile_refresh SET status='pending',claim_owner=NULL,lease_until=NULL,\
+                 error_message=NULL,next_retry_at=now(),updated_at=now() WHERE player_id=ANY($1::BIGINT[])",
+                &[&player_ids],
             )
             .await?;
         Ok(())
@@ -431,6 +461,12 @@ mod tests {
             batches.iter().map(Vec::len).collect::<Vec<_>>(),
             vec![20, 20, 1]
         );
+    }
+
+    #[test]
+    fn preserves_typescript_claim_and_retry_windows() {
+        assert_eq!(PROFILE_CLAIM_LEASE, Duration::from_secs(30 * 60));
+        assert_eq!(FAILED_RETRY_MINUTES, 60);
     }
 
     #[tokio::test]
