@@ -7,9 +7,10 @@ use paladinscat_core::{
 };
 use serde_json::{Value, json};
 
-use super::relay::{WorkerRelayClient, WorkerRelayError};
-
-pub const PLAYER_PROFILE_BATCH_SIZE: usize = 20;
+use super::{
+    policy::{ACTIVITY_PROFILE_BATCH_SIZE, ACTIVITY_PROFILE_TTL_HOURS},
+    relay::{WorkerRelayClient, WorkerRelayError},
+};
 
 const SEED_UNKNOWN_IDENTITIES_SQL: &str = r#"
 WITH candidate_profiles AS MATERIALIZED (
@@ -101,7 +102,21 @@ const CLAIM_UNKNOWN_IDENTITIES_SQL: &str = r#"
 WITH due AS (
   SELECT refresh.player_id
   FROM player_activity_profile_refresh refresh
+  JOIN player_presence_24h presence
+    ON presence.player_id = refresh.player_id
+   AND presence.last_observed_at >= now() - interval '24 hours'
+  LEFT JOIN LATERAL (
+    SELECT profile.hirez_profile_refreshed_at
+    FROM players profile
+    WHERE profile.id = refresh.player_id
+       OR (profile.active_player_id = refresh.player_id AND profile.active_player_id > 0)
+    ORDER BY CASE WHEN profile.id = refresh.player_id THEN 0 ELSE 1 END,
+             profile.hirez_profile_refreshed_at DESC NULLS LAST
+    LIMIT 1
+  ) profile ON TRUE
   WHERE (refresh.needs_platform OR refresh.needs_region)
+    AND (profile.hirez_profile_refreshed_at IS NULL
+      OR profile.hirez_profile_refreshed_at < now() - ($4::int * interval '1 hour'))
     AND (
       refresh.status = 'pending'
       OR (refresh.status = 'failed' AND refresh.next_retry_at <= now())
@@ -170,7 +185,7 @@ pub fn unknown_identity_batches(
         .filter(|player| player.player_id > 0 && seen.insert(player.player_id))
         .collect();
     candidates
-        .chunks(PLAYER_PROFILE_BATCH_SIZE)
+        .chunks(ACTIVITY_PROFILE_BATCH_SIZE)
         .map(<[PlayerIdentityState]>::to_vec)
         .collect()
 }
@@ -211,8 +226,8 @@ impl ProfileEnrichmentRepository {
         if max_calls == 0 {
             return Ok(Vec::new());
         }
-        let limit =
-            i64::try_from(max_calls.saturating_mul(PLAYER_PROFILE_BATCH_SIZE)).unwrap_or(i64::MAX);
+        let limit = i64::try_from(max_calls.saturating_mul(ACTIVITY_PROFILE_BATCH_SIZE))
+            .unwrap_or(i64::MAX);
         let lease_seconds = i32::try_from(lease.as_secs()).unwrap_or(i32::MAX);
         let mut client = self.database.connection().await?;
         let transaction = client.transaction().await?;
@@ -222,7 +237,7 @@ impl ProfileEnrichmentRepository {
         let rows = transaction
             .query(
                 CLAIM_UNKNOWN_IDENTITIES_SQL,
-                &[&limit, &owner, &lease_seconds],
+                &[&limit, &owner, &lease_seconds, &ACTIVITY_PROFILE_TTL_HOURS],
             )
             .await?;
         transaction.commit().await?;
@@ -235,7 +250,7 @@ impl ProfileEnrichmentRepository {
             })
             .collect();
         Ok(claimed
-            .chunks(PLAYER_PROFILE_BATCH_SIZE)
+            .chunks(ACTIVITY_PROFILE_BATCH_SIZE)
             .map(<[ClaimedPlayerIdentity]>::to_vec)
             .collect())
     }
@@ -301,7 +316,7 @@ impl ProfileEnrichmentRepository {
                     .query_json(
                         "UPDATE players SET platform=CASE WHEN $2<>'' AND lower(COALESCE(platform,'')) IN('','unknown','unavailable') THEN $2 ELSE platform END,\
                          region=CASE WHEN $3<>'' AND lower(COALESCE(region,'')) IN('','unknown','unavailable') THEN $3 ELSE region END,\
-                         last_updated=now() WHERE id=$1 OR active_player_id=$1",
+                         hirez_profile_refreshed_at=now(),last_updated=now() WHERE id=$1 OR active_player_id=$1",
                         &[
                             &claim.player_id,
                             &platform.clone().unwrap_or_default(),

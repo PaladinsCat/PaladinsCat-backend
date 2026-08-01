@@ -59,7 +59,7 @@ impl ScheduledJob {
     }
 }
 
-pub const SCHEDULED_JOBS: [ScheduledJob; 11] = [
+pub const SCHEDULED_JOBS: [ScheduledJob; 12] = [
     ScheduledJob {
         job_key: "ranked-tracker:leaderboard",
         scheduler_key: "ranked_tracker",
@@ -113,6 +113,14 @@ pub const SCHEDULED_JOBS: [ScheduledJob; 11] = [
         scheduler_key: "auto_ingester",
         cron_expression: "*/15 * * * *",
         minute: MinuteSchedule::Every(15),
+        hour: HourSchedule::Any,
+        startup: StartupPolicy::None,
+    },
+    ScheduledJob {
+        job_key: "auto-ingester:profile-enrichment",
+        scheduler_key: "auto_ingester",
+        cron_expression: "50 * * * *",
+        minute: MinuteSchedule::Exact(50),
         hour: HourSchedule::Any,
         startup: StartupPolicy::None,
     },
@@ -184,7 +192,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(domains, SCHEDULER_KEYS.into_iter().collect());
         assert_eq!(jobs.len(), SCHEDULED_JOBS.len());
-        assert_eq!(scheduled_jobs_for("auto_ingester").count(), 6);
+        assert_eq!(scheduled_jobs_for("auto_ingester").count(), 7);
     }
 
     #[test]
@@ -204,6 +212,7 @@ mod tests {
         assert!(due(12, 17).contains("auto-ingester:raw-buffer-retention"));
         assert!(due(12, 23).contains("auto-ingester:player-history-retention"));
         assert!(due(12, 25).contains("auto-ingester:buffer-drain"));
+        assert!(due(12, 50).contains("auto-ingester:profile-enrichment"));
         assert!(due(12, 40).contains("hourly-gap-checker:scan"));
         assert!(due(12, 15).contains("tier-stats:refresh"));
     }

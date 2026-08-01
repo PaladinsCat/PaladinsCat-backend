@@ -177,22 +177,28 @@ async fn dispatch(services: &SchedulerServices, job_key: &str) -> Result<Value, 
                 .await;
             let complete = results.iter().filter(|result| result.is_ok()).count();
             let failed = results.len() - complete;
-            let enrichment = ProfileEnrichmentRepository::new(services.database.clone())
-                .run(&services.config, 100, "rust-auto-ingester")
-                .await
-                .map_err(|error| error.to_string())?;
             Ok(json!({
                 "date":date,
                 "hour":target.hour(),
                 "complete":complete,
-                "failed":failed,
-                "profileEnrichment":{
-                    "calls":enrichment.calls,
-                    "claimed":enrichment.claimed,
-                    "updated":enrichment.updated,
-                    "unavailable":enrichment.unavailable,
-                    "failed":enrichment.failed
-                }
+                "failed":failed
+            }))
+        }
+        "auto-ingester:profile-enrichment" => {
+            let enrichment = ProfileEnrichmentRepository::new(services.database.clone())
+                .run(
+                    &services.config,
+                    profile_enrichment_max_calls(),
+                    "rust-player-activity-profile",
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(json!({
+                "calls":enrichment.calls,
+                "claimed":enrichment.claimed,
+                "updated":enrichment.updated,
+                "unavailable":enrichment.unavailable,
+                "failed":enrichment.failed
             }))
         }
         "auto-ingester:buffer-drain" => {
@@ -282,6 +288,13 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         .into_iter()
         .map(|(date, hour)| (486, date, hour, true))
         .collect::<Vec<_>>();
+    candidates.extend(
+        bracketed_missing_presence_hours(&services.database, now)
+            .await
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|(queue_id, date, hour)| (queue_id, date, hour, false)),
+    );
     for (date, hour) in expected_elapsed_discovery_hours(now) {
         for queue in MATCH_COUNT_QUEUE_DEFINITIONS
             .iter()
@@ -346,6 +359,57 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     Ok(
         json!({"candidates":candidates.len(),"attempted":candidates.len().min(limit),"completed":completed}),
     )
+}
+
+fn profile_enrichment_max_calls() -> usize {
+    std::env::var("PLAYER_ACTIVITY_PROFILE_MAX_CALLS_PER_RUN")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(100)
+        .clamp(1, 500)
+}
+
+async fn bracketed_missing_presence_hours(
+    database: &Database,
+    now: OffsetDateTime,
+) -> Result<Vec<(i32, String, i32)>, DatabaseError> {
+    let queue_ids = MATCH_COUNT_QUEUE_DEFINITIONS
+        .iter()
+        .filter(|queue| queue.track_presence && !queue.ranked)
+        .map(|queue| queue.queue_id)
+        .collect::<Vec<_>>();
+    let Some((max_date, max_hour)) = expected_elapsed_discovery_hours(now).last().cloned() else {
+        return Ok(Vec::new());
+    };
+    let lookback_days = std::env::var("GAP_CHECKER_RETRY_STATE_LOOKBACK_DAYS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(2)
+        .max(1);
+    let min_date = (now - time::Duration::days(lookback_days))
+        .date()
+        .to_string();
+    Ok(database
+        .query_json(
+            "WITH hours AS(SELECT tick FROM generate_series($2::DATE+INTERVAL '1 hour',$3::DATE+($4::INT*INTERVAL '1 hour')-INTERVAL '1 hour',INTERVAL '1 hour') tick) \
+             SELECT queue.queue_id,to_char(hours.tick,'YYYY-MM-DD') date,EXTRACT(HOUR FROM hours.tick)::INT hour \
+             FROM unnest($1::INT[]) queue(queue_id) CROSS JOIN hours \
+             JOIN hourly_ingest_state previous ON previous.queue_id=queue.queue_id AND previous.date=(hours.tick-INTERVAL '1 hour')::DATE AND previous.hour=EXTRACT(HOUR FROM hours.tick-INTERVAL '1 hour')::INT \
+             LEFT JOIN hourly_ingest_state missing ON missing.queue_id=queue.queue_id AND missing.date=hours.tick::DATE AND missing.hour=EXTRACT(HOUR FROM hours.tick)::INT \
+             JOIN hourly_ingest_state next ON next.queue_id=queue.queue_id AND next.date=(hours.tick+INTERVAL '1 hour')::DATE AND next.hour=EXTRACT(HOUR FROM hours.tick+INTERVAL '1 hour')::INT \
+             WHERE missing.queue_id IS NULL ORDER BY date,hour,queue.queue_id",
+            &[&queue_ids, &min_date, &max_date, &max_hour],
+        )
+        .await?
+        .into_iter()
+        .filter_map(|row| {
+            Some((
+                row.get("queue_id")?.as_i64().and_then(|value| i32::try_from(value).ok())?,
+                row.get("date")?.as_str()?.to_owned(),
+                row.get("hour")?.as_i64().and_then(|value| i32::try_from(value).ok())?,
+            ))
+        })
+        .collect())
 }
 
 fn expected_elapsed_discovery_hours(now: OffsetDateTime) -> Vec<(String, i32)> {
