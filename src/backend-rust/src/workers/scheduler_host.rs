@@ -17,7 +17,7 @@ use super::{
         refresh_derived_projections_with_job,
     },
     pipeline::CanonicalIngestPipeline,
-    policy::MATCH_COUNT_QUEUE_DEFINITIONS,
+    policy::{ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot},
     profile_enrichment::ProfileEnrichmentRepository,
     ranked_tracker::RankedTracker,
     scheduler::{ScheduledJob, StartupPolicy, scheduled_jobs_for},
@@ -185,12 +185,24 @@ async fn dispatch(services: &SchedulerServices, job_key: &str) -> Result<Value, 
             }))
         }
         "auto-ingester:profile-enrichment" => {
+            let max_calls = profile_enrichment_allowed_calls(
+                profile_enrichment_max_calls(),
+                api_headroom_snapshot(&services.database, api_key_reserve_calls())
+                    .await
+                    .map_err(|error| error.to_string())?,
+            );
+            if max_calls == 0 {
+                return Ok(json!({
+                    "calls":0,
+                    "claimed":0,
+                    "updated":0,
+                    "unavailable":0,
+                    "failed":0,
+                    "skipped":"no_api_headroom"
+                }));
+            }
             let enrichment = ProfileEnrichmentRepository::new(services.database.clone())
-                .run(
-                    &services.config,
-                    profile_enrichment_max_calls(),
-                    "rust-player-activity-profile",
-                )
+                .run(&services.config, max_calls, "rust-player-activity-profile")
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(json!({
@@ -369,6 +381,24 @@ fn profile_enrichment_max_calls() -> usize {
         .clamp(1, 500)
 }
 
+fn api_key_reserve_calls() -> i32 {
+    std::env::var("API_KEY_RESERVE_CALLS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|value: &i32| *value >= 0)
+        .unwrap_or(100)
+}
+
+fn profile_enrichment_allowed_calls(max_calls: usize, budget: ApiHeadroomSnapshot) -> usize {
+    if !budget.has_usable_keys {
+        return 0;
+    }
+    if budget.total_keys == 0 {
+        return max_calls;
+    }
+    max_calls.min(usize::try_from(budget.total_usable_before_reserve).unwrap_or(usize::MAX))
+}
+
 async fn bracketed_missing_presence_hours(
     database: &Database,
     now: OffsetDateTime,
@@ -440,6 +470,51 @@ async fn shutdown_signal() {
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
         .expect("SIGTERM handler");
     tokio::select! { _=tokio::signal::ctrl_c()=>{}, _=terminate.recv()=>{} }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profile_enrichment_respects_api_headroom() {
+        assert_eq!(
+            profile_enrichment_allowed_calls(
+                100,
+                ApiHeadroomSnapshot {
+                    total_keys: 2,
+                    usable_keys: 0,
+                    total_usable_before_reserve: 0,
+                    has_usable_keys: false,
+                },
+            ),
+            0
+        );
+        assert_eq!(
+            profile_enrichment_allowed_calls(
+                100,
+                ApiHeadroomSnapshot {
+                    total_keys: 2,
+                    usable_keys: 1,
+                    total_usable_before_reserve: 17,
+                    has_usable_keys: true,
+                },
+            ),
+            17
+        );
+        assert_eq!(
+            profile_enrichment_allowed_calls(
+                100,
+                ApiHeadroomSnapshot {
+                    total_keys: 0,
+                    usable_keys: 0,
+                    total_usable_before_reserve: 0,
+                    has_usable_keys: true,
+                },
+            ),
+            100
+        );
+    }
 }
 
 #[cfg(not(unix))]
