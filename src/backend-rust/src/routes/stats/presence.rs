@@ -193,7 +193,7 @@ async fn presence(
              'fresh',(SELECT COUNT(*) FROM resolved WHERE hirez_profile_refreshed_at>=now()-interval '24 hours'), \
              'platform_known',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NOT NULL), \
              'platform_unknown',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NULL), \
-             'last_enrichment_at',(SELECT MAX(last_attempt_at) FROM player_activity_profile_refresh)) \
+             'last_enrichment_at',(SELECT MAX(last_attempt_at)::text FROM player_activity_profile_refresh)) \
          ) AS payload",
         EVIDENCE_CTES.replace("__QUEUE_FILTER__", "TRUE")
     );
