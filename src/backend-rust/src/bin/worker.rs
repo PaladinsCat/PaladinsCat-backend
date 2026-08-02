@@ -160,8 +160,24 @@ async fn run_all_schedulers(mut arguments: impl Iterator<Item = String>) {
             uuid::Uuid::new_v4()
         );
         tasks.spawn(async move {
-            let result =
-                run_scheduler_domain(database, config, scheduler_key.clone(), owner_id).await;
+            let result = loop {
+                let result = run_scheduler_domain(
+                    database.clone(),
+                    config.clone(),
+                    scheduler_key.clone(),
+                    owner_id.clone(),
+                )
+                .await;
+                if matches!(
+                    result.as_ref(),
+                    Ok(SchedulerRuntimeExit::OwnershipUnavailable)
+                ) {
+                    tracing::warn!(%scheduler_key, "scheduler ownership unavailable; retrying");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                break result;
+            };
             (scheduler_key, result)
         });
     }
@@ -169,9 +185,6 @@ async fn run_all_schedulers(mut arguments: impl Iterator<Item = String>) {
         match result {
             Ok((scheduler, Ok(SchedulerRuntimeExit::Shutdown))) => {
                 tracing::info!(%scheduler, "scheduler stopped");
-            }
-            Ok((scheduler, Ok(SchedulerRuntimeExit::OwnershipUnavailable))) => {
-                tracing::warn!(%scheduler, "scheduler ownership unavailable");
             }
             Ok((scheduler, Ok(exit))) => {
                 eprintln!("{scheduler} scheduler stopped unexpectedly: {exit:?}");
