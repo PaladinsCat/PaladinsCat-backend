@@ -80,7 +80,7 @@ pub async fn record_match_count_discovery_result(
     let transaction = client.transaction().await?;
     transaction.execute(
         "INSERT INTO match_count_discoveries(match_id,queue_id,region,entry_datetime,active_flag,source_date,source_hour)\
-         SELECT observation.match_id,$2,observation.region,observation.entry_datetime,$3::BOOLEAN OR observation.active_flag,$4::DATE,$5 \
+         SELECT observation.match_id,$2,observation.region,observation.entry_datetime,$3::BOOLEAN OR observation.active_flag,$4::TEXT::DATE,$5 \
          FROM jsonb_to_recordset($1::JSONB) AS observation(match_id BIGINT,region TEXT,entry_datetime TIMESTAMPTZ,active_flag BOOLEAN)\
          ON CONFLICT(match_id,queue_id) DO UPDATE SET region=CASE WHEN EXCLUDED.region<>'Unknown' THEN EXCLUDED.region ELSE match_count_discoveries.region END,\
          entry_datetime=COALESCE(match_count_discoveries.entry_datetime,EXCLUDED.entry_datetime),active_flag=EXCLUDED.active_flag,last_seen_at=now()",
@@ -95,7 +95,7 @@ pub async fn record_match_count_discovery_result(
              CASE WHEN discovery.active_flag THEN 'waiting_for_completion' ELSE 'discovered' END,\
              discovery.first_seen_at,discovery.last_seen_at FROM match_count_discoveries discovery \
              JOIN queue_types queue ON queue.queue_id=discovery.queue_id WHERE discovery.queue_id=$3 \
-             AND discovery.source_date=$1::DATE AND discovery.source_hour=$2 ON CONFLICT(match_id) DO UPDATE SET\
+             AND discovery.source_date=$1::TEXT::DATE AND discovery.source_hour=$2 ON CONFLICT(match_id) DO UPDATE SET\
              queue_id=EXCLUDED.queue_id,stats_scope=EXCLUDED.stats_scope,\
              last_observed_at=GREATEST(nonranked_match_acquisition.last_observed_at,EXCLUDED.last_observed_at),\
              region=CASE WHEN EXCLUDED.region<>'Unknown' THEN EXCLUDED.region ELSE nonranked_match_acquisition.region END,\
@@ -108,12 +108,12 @@ pub async fn record_match_count_discovery_result(
         ).await?;
     }
     transaction.execute(
-        "DELETE FROM match_count_discovery_region_hours WHERE date=$1::DATE AND hour=$2 AND queue_id=$3",
+        "DELETE FROM match_count_discovery_region_hours WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id],
     ).await?;
     transaction.execute(
         "INSERT INTO match_count_discovery_region_hours(date,hour,queue_id,region,match_count)\
-         SELECT $2::DATE,$3,$4,observation.region,count(*)::INT \
+         SELECT $2::TEXT::DATE,$3,$4,observation.region,count(*)::INT \
          FROM jsonb_to_recordset($1::JSONB) AS observation(region TEXT) GROUP BY observation.region",
         &[&observations, &date, &hour, &queue_id],
     ).await?;

@@ -67,7 +67,7 @@ pub async fn record_hourly_ingest_quota_wait(
     database.query_json(
         "INSERT INTO hourly_ingest_state(date,hour,queue_id,status,attempts,raw_match_count,staged_match_count,\
          fetched,fetch_succeeded,source,error_message,last_attempt_at,next_retry_at,lease_until,updated_at)\
-         VALUES($1::DATE,$2,$3,'pending',0,0,0,FALSE,FALSE,$4,$5,NULL,now()+($6*INTERVAL '1 minute'),NULL,now())\
+         VALUES($1::TEXT::DATE,$2,$3,'pending',0,0,0,FALSE,FALSE,$4,$5,NULL,now()+($6*INTERVAL '1 minute'),NULL,now())\
          ON CONFLICT(date,hour,queue_id) DO NOTHING",
         &[&date, &hour, &queue_id, &source, &reason, &retry],
     ).await?;
@@ -85,7 +85,7 @@ pub async fn claim_hourly_ingest_hour(
     ensure_hourly_ingest_tables(database).await?;
     let rows = database.query_json(
         "INSERT INTO hourly_ingest_state(date,hour,queue_id,status,attempts,fetched,fetch_succeeded,source,error_message,last_attempt_at,next_retry_at,lease_until,updated_at)\
-         VALUES($1::DATE,$2,$3,'fetching',1,FALSE,FALSE,$4,NULL,now(),NULL,now()+($5*INTERVAL '1 minute'),now())\
+         VALUES($1::TEXT::DATE,$2,$3,'fetching',1,FALSE,FALSE,$4,NULL,now(),NULL,now()+($5*INTERVAL '1 minute'),now())\
          ON CONFLICT(date,hour,queue_id) DO UPDATE SET status='fetching',attempts=hourly_ingest_state.attempts+1,\
          fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
          lease_until=now()+($5*INTERVAL '1 minute'),updated_at=now() WHERE \
@@ -109,11 +109,11 @@ pub async fn mark_hourly_ingest_empty(
     database.query_json(
         "UPDATE hourly_ingest_state SET status='empty',raw_match_count=0,staged_match_count=0,fetched=TRUE,\
          fetch_succeeded=TRUE,error_message=NULL,lease_until=NULL,next_retry_at=now()+(CASE WHEN attempts>=3 THEN $4 ELSE $5 END*INTERVAL '1 minute'),updated_at=now()\
-         WHERE date=$1::DATE AND hour=$2 AND queue_id=$3",
+         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id, &slow, &fast],
     ).await?;
     database.query_json(
-        "INSERT INTO hourly_match_counts(date,hour,queue_id,total_matches,fetched_at) VALUES($1::DATE,$2,$3,0,now())\
+        "INSERT INTO hourly_match_counts(date,hour,queue_id,total_matches,fetched_at) VALUES($1::TEXT::DATE,$2,$3,0,now())\
          ON CONFLICT(date,hour,queue_id) DO NOTHING",
         &[&date, &hour, &queue_id],
     ).await?;
@@ -132,7 +132,7 @@ pub async fn mark_hourly_ingest_staged(
         "UPDATE hourly_ingest_state SET status='staged',raw_match_count=GREATEST(raw_match_count,$4),\
          staged_match_count=GREATEST(staged_match_count,$5),fetched=TRUE,fetch_succeeded=TRUE,error_message=NULL,\
          lease_until=now()+($6*INTERVAL '1 minute'),next_retry_at=NULL,updated_at=now() \
-         WHERE date=$1::DATE AND hour=$2 AND queue_id=$3",
+         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id, &raw_count, &staged_count, &STAGED_LEASE_MINUTES],
     ).await?;
     Ok(())
@@ -148,13 +148,13 @@ pub async fn mark_hourly_ingest_complete(
     ensure_hourly_ingest_tables(database).await?;
     database.query_json(
         "WITH terminal_debt AS(SELECT count(*)::INT terminal_count FROM hourly_ingest_match_debt \
-         WHERE date=$1::DATE AND hour=$2 AND queue_id=$3 AND status='unrecoverable')\
+         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 AND status='unrecoverable')\
          UPDATE hourly_ingest_state SET status='complete',raw_match_count=GREATEST(raw_match_count,$4),\
          staged_match_count=GREATEST(staged_match_count,LEAST(GREATEST(raw_match_count,$4),$4+terminal_debt.terminal_count)),\
          fetched=TRUE,fetch_succeeded=TRUE,error_message=NULL,lease_until=NULL,next_retry_at=NULL,completed_at=now(),updated_at=now()\
-         FROM terminal_debt WHERE date=$1::DATE AND hour=$2 AND queue_id=$3 \
+         FROM terminal_debt WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 \
          AND (raw_match_count=0 OR $4>=raw_match_count OR $4+terminal_debt.terminal_count>=raw_match_count OR status='complete')\
-         AND NOT EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.date=$1::DATE AND debt.hour=$2 \
+         AND NOT EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.date=$1::TEXT::DATE AND debt.hour=$2 \
            AND debt.queue_id=$3 AND debt.status IN('pending','staged'))",
         &[&date, &hour, &queue_id, &total_matches],
     ).await?;
@@ -180,7 +180,7 @@ pub async fn mark_hourly_ingest_failed(
         "UPDATE hourly_ingest_state SET status='failed',raw_match_count=GREATEST(raw_match_count,COALESCE($6,raw_match_count)),\
          staged_match_count=GREATEST(staged_match_count,COALESCE($7,staged_match_count)),fetched=TRUE,fetch_succeeded=FALSE,\
          error_message=$4,lease_until=NULL,next_retry_at=now()+($5*INTERVAL '1 minute'),updated_at=now()\
-         WHERE date=$1::DATE AND hour=$2 AND queue_id=$3",
+         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id, &message, &retry, &raw_count, &staged_count],
     ).await?;
     Ok(())
@@ -196,7 +196,7 @@ pub async fn hourly_ingest_states(
     Ok(database.query_json(
         "SELECT date::TEXT,hour,queue_id,status,attempts,raw_match_count,staged_match_count,fetched,fetch_succeeded,\
          source,error_message,last_attempt_at::TEXT,next_retry_at::TEXT,lease_until::TEXT,completed_at::TEXT \
-         FROM hourly_ingest_state WHERE queue_id=$1 AND date>=$2::DATE AND date<=$3::DATE",
+         FROM hourly_ingest_state WHERE queue_id=$1 AND date>=$2::TEXT::DATE AND date<=$3::TEXT::DATE",
         &[&queue_id, &min_date, &max_date],
     ).await?.into_iter().map(map_state).collect())
 }
@@ -217,7 +217,7 @@ pub async fn record_discovered_matches(
     let retry = env_i32("HOURLY_INGEST_MATCH_DEBT_RETRY_MINUTES", 10).max(5);
     database.query_json(
         "INSERT INTO hourly_ingest_match_debt(match_id,date,hour,queue_id,status,reason,attempts,first_seen_at,last_attempt_at,next_retry_at,updated_at)\
-         SELECT id,$1::DATE,$2,$3,'pending',$5,1,now(),now(),now()+($6*INTERVAL '1 minute'),now() FROM unnest($4::BIGINT[]) ids(id)\
+         SELECT id,$1::TEXT::DATE,$2,$3,'pending',$5,1,now(),now(),now()+($6*INTERVAL '1 minute'),now() FROM unnest($4::BIGINT[]) ids(id)\
          ON CONFLICT(match_id) DO UPDATE SET date=EXCLUDED.date,hour=EXCLUDED.hour,queue_id=EXCLUDED.queue_id,\
          status=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.status ELSE 'pending' END,\
          reason=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.reason ELSE EXCLUDED.reason END,\
@@ -326,7 +326,7 @@ pub async fn revive_retryable_match_debt(
         .query_json(
             "UPDATE hourly_ingest_match_debt SET status='pending',\
              reason='retryable revival: previous terminal classification did not prove api_no_data; '||COALESCE(reason,''),\
-             next_retry_at=now(),updated_at=now() WHERE date=$1::DATE AND hour=$2 AND queue_id=$3 \
+             next_retry_at=now(),updated_at=now() WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 \
              AND status='unrecoverable' AND COALESCE(reason,'') NOT ILIKE 'api_no_data:%' RETURNING match_id",
             &[&date, &hour, &queue_id],
         )
@@ -346,7 +346,7 @@ pub async fn revive_fresh_no_authority_debt(
         .query_json(
             "WITH revived AS(UPDATE hourly_ingest_match_debt SET status='pending',\
              reason='fresh retryable revival: previous terminal classification did not prove api_no_data; '||COALESCE(reason,''),\
-             next_retry_at=now(),updated_at=now() WHERE queue_id=$1 AND date BETWEEN $2::DATE AND $3::DATE \
+             next_retry_at=now(),updated_at=now() WHERE queue_id=$1 AND date BETWEEN $2::TEXT::DATE AND $3::TEXT::DATE \
              AND status='unrecoverable' AND first_seen_at>=now()-($4*INTERVAL '1 hour') \
              AND COALESCE(reason,'') NOT ILIKE 'api_no_data:%' \
              AND (COALESCE(reason,'') ILIKE '%no authoritative payload%' OR COALESCE(reason,'') ILIKE 'dropped/corrupt:%') \
@@ -375,7 +375,7 @@ pub async fn due_match_debt_ids(
 ) -> Result<Vec<i64>, DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
     Ok(database.query_json(
-        "SELECT match_id::TEXT FROM hourly_ingest_match_debt WHERE date=$1::DATE AND hour=$2 AND queue_id=$3 \
+        "SELECT match_id::TEXT FROM hourly_ingest_match_debt WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 \
          AND status='pending' AND ($5 OR next_retry_at IS NULL OR next_retry_at<=now()) \
          ORDER BY attempts,first_seen_at LIMIT $4",
         &[&date, &hour, &queue_id, &limit, &ignore_cooldown],
@@ -390,8 +390,8 @@ pub async fn due_debt_hours(
 ) -> Result<Vec<(String, i32)>, DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
     Ok(database.query_json(
-        "SELECT DISTINCT date::TEXT,hour FROM hourly_ingest_match_debt WHERE queue_id=$1 AND date>=$2::DATE \
-         AND date<=$3::DATE AND status='pending' AND (next_retry_at IS NULL OR next_retry_at<=now()) ORDER BY date,hour",
+        "SELECT DISTINCT date::TEXT,hour FROM hourly_ingest_match_debt WHERE queue_id=$1 AND date>=$2::TEXT::DATE \
+         AND date<=$3::TEXT::DATE AND status='pending' AND (next_retry_at IS NULL OR next_retry_at<=now()) ORDER BY date,hour",
         &[&queue_id, &min_date, &max_date],
     ).await?.into_iter().filter_map(|row| Some((text(&row, "date")?.to_owned(), i32::try_from(integer(&row, "hour")?).ok()?))).collect())
 }

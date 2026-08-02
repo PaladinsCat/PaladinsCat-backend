@@ -176,7 +176,7 @@ pub(super) async fn delete_hourly_match_count(
     state
         .database
         .query_json(
-            "DELETE FROM hourly_match_counts WHERE date=$1::DATE AND hour=$2 AND queue_id=$3",
+            "DELETE FROM hourly_match_counts WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
             &[&date, &hour, &queue_id],
         )
         .await

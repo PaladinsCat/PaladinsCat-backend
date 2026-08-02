@@ -338,7 +338,7 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
                 .database
                 .one_json(
                     "SELECT status,next_retry_at<=now() retry_due,lease_until<=now() lease_due \
-                     FROM hourly_ingest_state WHERE date=$1::DATE AND hour=$2 AND queue_id=$3",
+                     FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
                     &[&date, &hour, &queue.queue_id],
                 )
                 .await

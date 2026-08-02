@@ -159,7 +159,7 @@ impl RankedTracker {
              INSERT INTO leaderboard_current(player_id,name,tier,points,rank,prev_rank,prev_tier,trend,tier_change,wins,losses,leaves,season,updated_at)\
              SELECT player_id,name,$2,points,rank,prev_rank,prev_tier,\
                CASE WHEN prev_rank>0 THEN prev_rank-rank ELSE 0 END,CASE WHEN prev_tier IS NOT NULL THEN $2-prev_tier ELSE 0 END,\
-               wins,losses,leaves,$3,now() FROM prepared ON CONFLICT(player_id) DO UPDATE SET\
+               wins,losses,leaves,$3,now() FROM prepared ON CONFLICT(player_id) DO UPDATE SET \
                name=EXCLUDED.name,tier=EXCLUDED.tier,points=EXCLUDED.points,rank=EXCLUDED.rank,prev_rank=EXCLUDED.prev_rank,\
                prev_tier=EXCLUDED.prev_tier,trend=EXCLUDED.trend,tier_change=EXCLUDED.tier_change,wins=EXCLUDED.wins,\
                losses=EXCLUDED.losses,leaves=EXCLUDED.leaves,season=EXCLUDED.season,updated_at=now()",

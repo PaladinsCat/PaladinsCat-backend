@@ -273,7 +273,7 @@ pub(super) async fn hourly_match_counts_date(
     rows(
         &state,
         &request_id,
-        "SELECT * FROM hourly_match_counts WHERE date=$1::DATE ORDER BY hour DESC".to_owned(),
+        "SELECT * FROM hourly_match_counts WHERE date=$1::TEXT::DATE ORDER BY hour DESC".to_owned(),
         vec![QueryParam::Text(date)],
     )
     .await
