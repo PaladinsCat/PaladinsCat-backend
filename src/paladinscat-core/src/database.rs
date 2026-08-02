@@ -78,7 +78,10 @@ impl Database {
         params: &[&(dyn ToSql + Sync)],
     ) -> Result<Vec<Value>, DatabaseError> {
         let client = self.pool.get().await?;
-        let rows = client.query(sql, params).await?;
+        let rows = client.query(sql, params).await.map_err(|error| {
+            tracing::error!(sql, error=?error, "PostgreSQL query failed");
+            error
+        })?;
         rows.iter().map(row_to_json).collect()
     }
 
