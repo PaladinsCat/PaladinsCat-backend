@@ -347,7 +347,7 @@ pub async fn revive_fresh_no_authority_debt(
             "WITH revived AS(UPDATE hourly_ingest_match_debt SET status='pending',\
              reason='fresh retryable revival: previous terminal classification did not prove api_no_data; '||COALESCE(reason,''),\
              next_retry_at=now(),updated_at=now() WHERE queue_id=$1 AND date BETWEEN $2::TEXT::DATE AND $3::TEXT::DATE \
-             AND status='unrecoverable' AND first_seen_at>=now()-($4*INTERVAL '1 hour') \
+             AND status='unrecoverable' AND first_seen_at>=now()-($4::INT*INTERVAL '1 hour') \
              AND COALESCE(reason,'') NOT ILIKE 'api_no_data:%' \
              AND (COALESCE(reason,'') ILIKE '%no authoritative payload%' OR COALESCE(reason,'') ILIKE 'dropped/corrupt:%') \
              RETURNING date,hour) SELECT date::TEXT,hour,count(*)::INT revived FROM revived GROUP BY date,hour ORDER BY date,hour",

@@ -112,7 +112,7 @@ async fn touch(
     database
         .query_json(
             "INSERT INTO site_daily_visitors(visit_date,visitor_hash,page_views,first_seen,last_seen) \
-             VALUES($2::date,$1,$3,now(),now()) ON CONFLICT(visit_date,visitor_hash) DO UPDATE SET \
+             VALUES($2::TEXT::DATE,$1,$3,now(),now()) ON CONFLICT(visit_date,visitor_hash) DO UPDATE SET \
              page_views=site_daily_visitors.page_views+$3,last_seen=now()",
             &[&digest, &date, &increment],
         )
@@ -137,7 +137,7 @@ async fn visit(
         .database
         .query_json(
             "INSERT INTO site_daily_page_views(visit_date,path,page_views,updated_at) \
-             VALUES($2::date,$1,1,now()) ON CONFLICT(visit_date,path) DO UPDATE SET \
+             VALUES($2::TEXT::DATE,$1,1,now()) ON CONFLICT(visit_date,path) DO UPDATE SET \
              page_views=site_daily_page_views.page_views+1,updated_at=now()",
             &[&path, &date],
         )
