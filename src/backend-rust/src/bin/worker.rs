@@ -170,6 +170,9 @@ async fn run_all_schedulers(mut arguments: impl Iterator<Item = String>) {
             Ok((scheduler, Ok(SchedulerRuntimeExit::Shutdown))) => {
                 tracing::info!(%scheduler, "scheduler stopped");
             }
+            Ok((scheduler, Ok(SchedulerRuntimeExit::OwnershipUnavailable))) => {
+                tracing::warn!(%scheduler, "scheduler ownership unavailable");
+            }
             Ok((scheduler, Ok(exit))) => {
                 eprintln!("{scheduler} scheduler stopped unexpectedly: {exit:?}");
                 tasks.abort_all();
