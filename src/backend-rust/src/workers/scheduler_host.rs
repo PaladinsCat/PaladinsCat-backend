@@ -325,6 +325,11 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         .and_then(|value| value.parse().ok())
         .unwrap_or(24_usize)
         .max(1);
+    let priority_hour = std::env::var("GAP_CHECKER_PRIORITY_DATE").ok().zip(
+        std::env::var("GAP_CHECKER_PRIORITY_HOUR")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok()),
+    );
     let pipeline = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
         .map_err(|error| error.to_string())?;
     let mut candidates = due
@@ -383,18 +388,25 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
             }
         }
     }
+    let is_priority = |candidate: &(i32, String, i32, bool, bool)| {
+        priority_hour.as_ref().is_some_and(|(date, hour)| {
+            candidate.0 == 486 && candidate.1.as_str() == date.as_str() && candidate.2 == *hour
+        })
+    };
     candidates.sort_by(|left, right| {
-        (left.1 < recent_cutoff)
-            .cmp(&(right.1 < recent_cutoff))
-            .then((left.0 != 486).cmp(&(right.0 != 486)))
-            .then(right.4.cmp(&left.4))
-            .then(
-                right
-                    .1
-                    .cmp(&left.1)
-                    .then(right.2.cmp(&left.2))
-                    .then(left.0.cmp(&right.0)),
-            )
+        is_priority(right).cmp(&is_priority(left)).then(
+            (left.1 < recent_cutoff)
+                .cmp(&(right.1 < recent_cutoff))
+                .then((left.0 != 486).cmp(&(right.0 != 486)))
+                .then(right.4.cmp(&left.4))
+                .then(
+                    right
+                        .1
+                        .cmp(&left.1)
+                        .then(right.2.cmp(&left.2))
+                        .then(left.0.cmp(&right.0)),
+                ),
+        )
     });
     let mut completed = 0;
     for (queue_id, date, hour, debt_only, _) in candidates.iter().take(limit) {
