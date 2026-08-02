@@ -312,7 +312,7 @@ pub(crate) async fn resolve_player_live_match(
             "INSERT INTO player_status (\
                player_id, status, status_string, current_match_id, queue_id, \
                privacy_flag, personal_status_message, updated_at\
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,now()) \
+             ) VALUES ($1::BIGINT,$2,$3,$4,$5,$6,$7,now()) \
              ON CONFLICT (player_id) DO UPDATE SET \
                status = EXCLUDED.status, status_string = EXCLUDED.status_string, \
                current_match_id = EXCLUDED.current_match_id, queue_id = EXCLUDED.queue_id, \
