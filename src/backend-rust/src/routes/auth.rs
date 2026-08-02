@@ -164,7 +164,7 @@ async fn create_session(
     state
         .database
         .query_json(
-            "INSERT INTO sessions(user_id,token,expires_at) VALUES($1,$2,$3::timestamptz) RETURNING id",
+            "INSERT INTO sessions(user_id,token,expires_at) VALUES($1,$2,$3::TEXT::TIMESTAMPTZ) RETURNING id",
             &[&user_id, &hash, &expires_text],
         )
         .await
@@ -337,7 +337,7 @@ async fn login(
     state
         .database
         .query_json(
-            "UPDATE users SET last_login=$2::timestamptz,updated_at=now() WHERE id=$1 RETURNING id",
+            "UPDATE users SET last_login=$2::TEXT::TIMESTAMPTZ,updated_at=now() WHERE id=$1 RETURNING id",
             &[&user_id, &last_login],
         )
         .await

@@ -905,7 +905,7 @@ async fn candidate_observations(
                 OR (
                   $5<>0 AND candidate.party_id=$5
                   AND abs(extract(epoch FROM (
-                    candidate.entry_datetime-$6::timestamptz
+                    candidate.entry_datetime-$6::TEXT::TIMESTAMPTZ
                   )))<=43200
                 )
                 OR (

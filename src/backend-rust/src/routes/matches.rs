@@ -312,7 +312,7 @@ async fn format_match(
              LEFT JOIN private_account_observations o ON mp.player_id=0 AND o.match_id=mp.match_id \
                AND (o.private_slot=mp.private_slot OR (mp.private_slot=0 AND o.private_slot=1)) \
              LEFT JOIN players_private pp ON pp.id=COALESCE(NULLIF(mp.private_player_id,0),o.private_player_id) \
-             WHERE mp.match_id=$1 AND mp.entry_datetime=$2::timestamptz \
+             WHERE mp.match_id=$1 AND mp.entry_datetime=$2::TEXT::TIMESTAMPTZ \
              ORDER BY mp.task_force,mp.player_id,mp.private_slot",
             &[QueryParam::Int64(match_id),QueryParam::Text(entry_datetime)],
         ).await.map_err(|error| ApiError::database(error,request_id))?;
@@ -426,7 +426,7 @@ async fn paged_matches(
             "SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.duration_seconds,m.region, \
              m.winning_task_force,(SELECT c.name FROM match_players mp JOIN champions c ON c.id=mp.champion_id \
              WHERE mp.match_id=m.match_id LIMIT 1) AS sample_champion \
-             FROM matches m WHERE m.queue_id=$1 AND (m.entry_datetime,m.match_id)<($2::timestamptz,$3::bigint) \
+             FROM matches m WHERE m.queue_id=$1 AND (m.entry_datetime,m.match_id)<($2::TEXT::TIMESTAMPTZ,$3::bigint) \
              ORDER BY m.entry_datetime DESC,m.match_id DESC LIMIT $4",
             vec![
                 QueryParam::Int32(queue_id),
