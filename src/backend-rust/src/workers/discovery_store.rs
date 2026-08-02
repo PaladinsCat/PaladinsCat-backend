@@ -118,6 +118,20 @@ pub async fn record_match_count_discovery_result(
          FROM jsonb_to_recordset($1::JSONB) AS observation(region TEXT) GROUP BY observation.region",
         &[&observations, &date, &hour, &queue_id],
     ).await?;
+    transaction.execute(
+        "INSERT INTO hourly_match_counts(date,hour,queue_id,matches_na,matches_eu,matches_asia,matches_sea,matches_jpn,matches_rus,matches_br,matches_oce,matches_sa,matches_unknown,total_matches,fetched_at)\
+         SELECT $2::TEXT::DATE,$3,$4,\
+         count(*) FILTER(WHERE observation.region='NA')::INT,count(*) FILTER(WHERE observation.region='EU')::INT,count(*) FILTER(WHERE observation.region IN('ASIA','Asia'))::INT,\
+         count(*) FILTER(WHERE observation.region='SEA')::INT,count(*) FILTER(WHERE observation.region='JPN')::INT,count(*) FILTER(WHERE observation.region='RUS')::INT,\
+         count(*) FILTER(WHERE observation.region='BR')::INT,count(*) FILTER(WHERE observation.region='OCE')::INT,count(*) FILTER(WHERE observation.region='SA')::INT,\
+         count(*) FILTER(WHERE COALESCE(observation.region,'') NOT IN('NA','EU','ASIA','Asia','SEA','JPN','RUS','BR','OCE','SA'))::INT,count(*)::INT,now() \
+         FROM jsonb_to_recordset($1::JSONB) AS observation(region TEXT)\
+         ON CONFLICT(date,hour,queue_id) DO UPDATE SET matches_na=EXCLUDED.matches_na,matches_eu=EXCLUDED.matches_eu,\
+         matches_asia=EXCLUDED.matches_asia,matches_sea=EXCLUDED.matches_sea,matches_jpn=EXCLUDED.matches_jpn,matches_rus=EXCLUDED.matches_rus,\
+         matches_br=EXCLUDED.matches_br,matches_oce=EXCLUDED.matches_oce,matches_sa=EXCLUDED.matches_sa,matches_unknown=EXCLUDED.matches_unknown,\
+         total_matches=EXCLUDED.total_matches,fetched_at=now()",
+        &[&observations, &date, &hour, &queue_id],
+    ).await?;
     transaction.commit().await?;
     Ok(count)
 }
