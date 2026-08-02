@@ -306,6 +306,7 @@ async fn dispatch(services: &SchedulerServices, job_key: &str) -> Result<Value, 
 
 async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let now = OffsetDateTime::now_utc();
+    let recent_cutoff = (now - time::Duration::hours(48)).date().to_string();
     let min_date = (now - time::Duration::days(30)).date().to_string();
     let max_date = now.date().to_string();
     let _ = revive_fresh_no_authority_debt(&services.database, 486, &min_date, &max_date)
@@ -381,10 +382,15 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         }
     }
     candidates.sort_by(|left, right| {
-        left.1
-            .cmp(&right.1)
-            .then(left.2.cmp(&right.2))
-            .then(left.0.cmp(&right.0))
+        (left.1 < recent_cutoff)
+            .cmp(&(right.1 < recent_cutoff))
+            .then((left.0 != 486).cmp(&(right.0 != 486)))
+            .then(
+                left.1
+                    .cmp(&right.1)
+                    .then(left.2.cmp(&right.2))
+                    .then(left.0.cmp(&right.0)),
+            )
     });
     let mut completed = 0;
     for (queue_id, date, hour, debt_only) in candidates.iter().take(limit) {
@@ -408,6 +414,15 @@ async fn repair_recent_ranked_projections(database: &Database, hours: i32) -> us
         .and_then(|value| value.parse().ok())
         .unwrap_or(250_i64)
         .max(1);
+    if let Ok(client) = database.connection().await {
+        let _ = client.execute(
+            "UPDATE match_ingest_status mis SET population='ranked',updated_at=now() FROM matches m,match_count_discoveries d \
+             WHERE m.match_id=mis.match_id AND d.match_id=mis.match_id AND m.queue_id=486 AND d.queue_id=486 \
+             AND d.source_date+(d.source_hour*INTERVAL '1 hour')>=now()-($1::INT*INTERVAL '1 hour') \
+             AND mis.population='unknown' AND COALESCE(mis.completed_stages,'{}'::TEXT[]) @> ARRAY['player_facts','match_bans']::TEXT[]",
+            &[&hours],
+        ).await;
+    }
     let rows = database.query_json(
         "SELECT mis.match_id FROM match_ingest_status mis JOIN matches m ON m.match_id=mis.match_id \
          WHERE m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE AND m.entry_datetime>=now()-($1::INT*INTERVAL '1 hour') \
@@ -422,11 +437,14 @@ async fn repair_recent_ranked_projections(database: &Database, hours: i32) -> us
         let Some(match_id) = row.get("match_id").and_then(Value::as_i64) else {
             continue;
         };
+        let result = repository.project_match(match_id).await;
         if matches!(
-            repository.project_match(match_id).await,
+            result,
             Ok(RankedProjectionResult::Projected | RankedProjectionResult::AlreadyProjected)
         ) {
             repaired += 1;
+        } else if let Err(error) = result {
+            tracing::warn!(match_id, %error, "recent ranked projection repair deferred");
         }
     }
     repaired

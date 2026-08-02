@@ -53,12 +53,16 @@ impl RankedProjectionRepository {
             .await
             .map_err(|error| RankedProjectionError::Rating(format!("{error:?}")))?
         {
-            RatingApplicationResult::Busy | RatingApplicationResult::Deferred => {
+            RatingApplicationResult::Busy => {
                 return Err(RankedProjectionError::Rating(
                     "rating stream is not ready".to_owned(),
                 ));
             }
-            RatingApplicationResult::Applied | RatingApplicationResult::Skipped => {}
+            // A late match queues a chronological rating rebuild. Its independent
+            // ranked aggregates can still be projected immediately and idempotently.
+            RatingApplicationResult::Deferred
+            | RatingApplicationResult::Applied
+            | RatingApplicationResult::Skipped => {}
         }
         let mut client = self.database.connection().await?;
         let transaction = client.transaction().await?;
