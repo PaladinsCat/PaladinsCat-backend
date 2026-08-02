@@ -1363,10 +1363,10 @@ async fn fact(
            FROM nonranked_match_talents n WHERE n.match_id=$1)\
          SELECT f.player_id,f.roster_slot,f.talent_id,COALESCE(t.talent_name,i.item_name) talent_name,\
            COALESCE(t.champion_id,i.champion_id,f.champion_id) champion_id,c.name champion_name,i.description,\
-           i.icon_url db_icon_url FROM facts f LEFT JOIN talents t ON t.talent_id=f.talent_id\
-         LEFT JOIN items i ON i.item_id=f.talent_id LEFT JOIN champions c ON c.id=COALESCE(t.champion_id,i.champion_id,f.champion_id)\
-         WHERE f.storage_kind=$2 AND COALESCE(t.champion_id,i.champion_id,f.champion_id)=f.champion_id\
-         ORDER BY f.roster_slot,f.player_id,f.talent_id",
+           i.icon_url db_icon_url FROM facts f LEFT JOIN talents t ON t.talent_id=f.talent_id \
+           LEFT JOIN items i ON i.item_id=f.talent_id LEFT JOIN champions c ON c.id=COALESCE(t.champion_id,i.champion_id,f.champion_id) \
+           WHERE f.storage_kind=$2 AND COALESCE(t.champion_id,i.champion_id,f.champion_id)=f.champion_id \
+           ORDER BY f.roster_slot,f.player_id,f.talent_id",
         &[&match_id,&storage_kind],
     ).await.map_err(|error| ApiError::database(error,&request_id))?;
     let players = assemble_match_facts(&stored_players, items, cards, talents);

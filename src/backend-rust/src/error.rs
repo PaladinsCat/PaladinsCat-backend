@@ -87,7 +87,7 @@ impl ApiError {
 
 impl ApiError {
     pub fn database(error: DatabaseError, request_id: &RequestId) -> Self {
-        tracing::error!(error = %error, "database request failed");
+        tracing::error!(error = ?error, "database request failed");
         Self::internal(request_id)
     }
 }

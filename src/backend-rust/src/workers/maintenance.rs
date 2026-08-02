@@ -78,7 +78,7 @@ async fn delete_retained(
         "WITH doomed AS(\
            SELECT id FROM raw_ingest_buffer WHERE status=$1 \
              AND COALESCE(processed_at,created_at)<now()-($2::INT*INTERVAL '1 hour') \
-           ORDER BY COALESCE(processed_at,created_at),id LIMIT $3\
+           ORDER BY COALESCE(processed_at,created_at),id LIMIT $3::INT\
          ),deleted AS(\
            DELETE FROM raw_ingest_buffer rib USING doomed d WHERE rib.id=d.id \
            RETURNING rib.status,rib.endpoint,rib.entity_type,rib.created_at,rib.processed_at\

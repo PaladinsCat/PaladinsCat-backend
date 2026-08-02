@@ -150,7 +150,7 @@ async fn execute_scheduled_job(
     let (status, result, error) = match execution {
         Ok(value) => ("completed", Some(value), None),
         Err(error) => {
-            tracing::error!(job=job.job_key,%error,"scheduled Rust job failed");
+            tracing::error!(job=job.job_key,error=?error,"scheduled Rust job failed");
             ("failed", None, Some(error))
         }
     };
@@ -429,7 +429,7 @@ fn profile_enrichment_allowed_calls(max_calls: usize, budget: ApiHeadroomSnapsho
     max_calls.min(usize::try_from(budget.total_usable_before_reserve).unwrap_or(usize::MAX))
 }
 
-const BRACKETED_MISSING_PRESENCE_HOURS_SQL: &str = "WITH hours AS(SELECT tick FROM generate_series($2::TEXT::DATE+INTERVAL '1 hour',$3::TEXT::DATE+($4::INT*INTERVAL '1 hour')-INTERVAL '1 hour',INTERVAL '1 hour') tick) \
+const BRACKETED_MISSING_PRESENCE_HOURS_SQL: &str = "WITH hours AS(SELECT tick FROM generate_series($2::TEXT::DATE+INTERVAL '1 hour',$3::TEXT::DATE+($4::TEXT::INT*INTERVAL '1 hour')-INTERVAL '1 hour',INTERVAL '1 hour') tick) \
              SELECT queue.queue_id,to_char(hours.tick,'YYYY-MM-DD') date,EXTRACT(HOUR FROM hours.tick)::INT hour \
              FROM unnest($1::INT[]) queue(queue_id) CROSS JOIN hours \
              JOIN hourly_ingest_state previous ON previous.queue_id=queue.queue_id AND previous.date=(hours.tick-INTERVAL '1 hour')::DATE AND previous.hour=EXTRACT(HOUR FROM hours.tick-INTERVAL '1 hour')::INT \
@@ -457,6 +457,7 @@ async fn bracketed_missing_presence_hours(
     let min_date = (now - time::Duration::days(lookback_days))
         .date()
         .to_string();
+    let max_hour = max_hour.to_string();
     Ok(database
         .query_json(
             BRACKETED_MISSING_PRESENCE_HOURS_SQL,

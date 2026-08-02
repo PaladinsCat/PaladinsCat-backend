@@ -310,10 +310,10 @@ async fn page_data(
                 let compositions = state
                     .database
                     .query_json(
-                        "SELECT frontline_count,damage_count,flank_count,support_count, \
+                        "SELECT frontline AS frontline_count,damage AS damage_count,flank AS flank_count,support AS support_count, \
                            SUM(count)::BIGINT AS total_matches,SUM(wins)::BIGINT AS wins, \
                            COALESCE(ROUND(100.0*SUM(wins)::NUMERIC/NULLIF(SUM(count),0),2),0) AS win_rate \
-                         FROM composition_counts_ranked GROUP BY 1,2,3,4 \
+                         FROM match_compositions_ranked GROUP BY 1,2,3,4 \
                          ORDER BY total_matches DESC LIMIT 10",
                         &[],
                     )

@@ -28,8 +28,11 @@ pub async fn cleanup_player_history_retention(
           id BIGSERIAL PRIMARY KEY,reason TEXT NOT NULL,table_name TEXT NOT NULL,delete_class TEXT NOT NULL,\
           deleted_count INT NOT NULL,retention_seconds INT NOT NULL,oldest_observed_at TIMESTAMPTZ,\
           newest_observed_at TIMESTAMPTZ,oldest_expires_at TIMESTAMPTZ,newest_expires_at TIMESTAMPTZ,\
-          created_at TIMESTAMPTZ NOT NULL DEFAULT now());\
-         CREATE INDEX IF NOT EXISTS idx_player_history_retention_audit_created ON player_history_retention_audit(created_at DESC)",
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+        &[],
+    ).await?;
+    database.query_json(
+        "CREATE INDEX IF NOT EXISTS idx_player_history_retention_audit_created ON player_history_retention_audit(created_at DESC)",
         &[],
     ).await?;
     let limit = env_i32("PLAYER_HISTORY_RETENTION_BATCH_SIZE", 5_000);
