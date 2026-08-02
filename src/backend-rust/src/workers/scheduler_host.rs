@@ -329,14 +329,14 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         .map_err(|error| error.to_string())?;
     let mut candidates = due
         .into_iter()
-        .map(|(date, hour)| (486, date, hour, true))
+        .map(|(date, hour)| (486, date, hour, true, false))
         .collect::<Vec<_>>();
     candidates.extend(
         bracketed_missing_presence_hours(&services.database, now)
             .await
             .map_err(|error| error.to_string())?
             .into_iter()
-            .map(|(queue_id, date, hour)| (queue_id, date, hour, false)),
+            .map(|(queue_id, date, hour)| (queue_id, date, hour, false, true)),
     );
     for (date, hour) in expected_elapsed_discovery_hours(now) {
         for queue in MATCH_COUNT_QUEUE_DEFINITIONS
@@ -371,15 +371,15 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
                 }
             });
             if retryable
-                && !candidates
-                    .iter()
-                    .any(|(candidate_queue, candidate_date, candidate_hour, _)| {
+                && !candidates.iter().any(
+                    |(candidate_queue, candidate_date, candidate_hour, _, _)| {
                         *candidate_queue == queue.queue_id
                             && candidate_date == &date
                             && *candidate_hour == hour
-                    })
+                    },
+                )
             {
-                candidates.push((queue.queue_id, date.clone(), hour, false));
+                candidates.push((queue.queue_id, date.clone(), hour, false, state.is_none()));
             }
         }
     }
@@ -387,6 +387,7 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         (left.1 < recent_cutoff)
             .cmp(&(right.1 < recent_cutoff))
             .then((left.0 != 486).cmp(&(right.0 != 486)))
+            .then(right.4.cmp(&left.4))
             .then(
                 right
                     .1
@@ -396,7 +397,7 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
             )
     });
     let mut completed = 0;
-    for (queue_id, date, hour, debt_only) in candidates.iter().take(limit) {
+    for (queue_id, date, hour, debt_only, _) in candidates.iter().take(limit) {
         if pipeline
             .discover_hour(*queue_id, date, *hour, "gap-checker", *debt_only)
             .await
