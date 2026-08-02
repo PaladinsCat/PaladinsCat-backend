@@ -29,7 +29,9 @@ pub(super) async fn get(
         &[],
     );
     let active_users = state.database.one_json(
-        "SELECT COUNT(*)::INT AS active_users FROM site_live_sessions WHERE last_seen_at>=now()-INTERVAL '5 minutes'",
+        "SELECT COUNT(*)::INT AS active_users FROM site_daily_visitors \
+         WHERE visit_date=(now() AT TIME ZONE 'UTC')::DATE \
+         AND last_seen>=now()-INTERVAL '5 minutes'",
         &[],
     );
     let daily = state.database.query_json(
