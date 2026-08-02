@@ -367,10 +367,7 @@ async fn search(
             filters.push(format!("players.id=${}", params.len()));
         } else {
             params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
-            filters.push(format!(
-                "players.name ILIKE ${} ESCAPE '\\\\'",
-                params.len()
-            ));
+            filters.push(format!("players.name ILIKE ${} ESCAPE '\\'", params.len()));
         }
     }
     push_text_filter(&mut params, &mut filters, "players.region", query.region);

@@ -101,8 +101,8 @@ pub(super) async fn alt_account_relations(
         let pattern = params.len();
         params.push(QueryParam::Text(search.to_owned()));
         format!(
-            "WHERE main_player.name ILIKE ${pattern} ESCAPE '\\\\' \
-             OR alt_player.name ILIKE ${pattern} ESCAPE '\\\\' \
+            "WHERE main_player.name ILIKE ${pattern} ESCAPE '\\' \
+             OR alt_player.name ILIKE ${pattern} ESCAPE '\\' \
              OR main_player.id::TEXT=${} OR alt_player.id::TEXT=${}",
             params.len(),
             params.len()
