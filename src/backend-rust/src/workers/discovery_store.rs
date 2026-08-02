@@ -96,14 +96,14 @@ pub async fn record_match_count_discovery_result(
              CASE WHEN discovery.active_flag THEN 'waiting_for_completion' ELSE 'discovered' END,\
              discovery.first_seen_at,discovery.last_seen_at FROM match_count_discoveries discovery \
              JOIN queue_types queue ON queue.queue_id=discovery.queue_id WHERE discovery.queue_id=$3 \
-             AND discovery.source_date=$1::TEXT::DATE AND discovery.source_hour=$2 ON CONFLICT(match_id) DO UPDATE SET\
+             AND discovery.source_date=$1::TEXT::DATE AND discovery.source_hour=$2 ON CONFLICT(match_id) DO UPDATE SET \
              queue_id=EXCLUDED.queue_id,stats_scope=EXCLUDED.stats_scope,\
              last_observed_at=GREATEST(nonranked_match_acquisition.last_observed_at,EXCLUDED.last_observed_at),\
              region=CASE WHEN EXCLUDED.region<>'Unknown' THEN EXCLUDED.region ELSE nonranked_match_acquisition.region END,\
              discovered_entry_datetime=COALESCE(nonranked_match_acquisition.discovered_entry_datetime,EXCLUDED.discovered_entry_datetime),\
              active_flag=EXCLUDED.active_flag,status=CASE \
-               WHEN nonranked_match_acquisition.status IN('discovered','waiting_for_completion') AND EXCLUDED.active_flag THEN 'waiting_for_completion'\
-               WHEN nonranked_match_acquisition.status='waiting_for_completion' AND NOT EXCLUDED.active_flag THEN 'discovered'\
+               WHEN nonranked_match_acquisition.status IN('discovered','waiting_for_completion') AND EXCLUDED.active_flag THEN 'waiting_for_completion' \
+               WHEN nonranked_match_acquisition.status='waiting_for_completion' AND NOT EXCLUDED.active_flag THEN 'discovered' \
                ELSE nonranked_match_acquisition.status END,updated_at=now()",
             &[&date, &hour, &queue_id],
         ).await?;
