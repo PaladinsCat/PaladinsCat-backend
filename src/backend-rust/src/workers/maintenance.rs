@@ -114,7 +114,7 @@ pub async fn refresh_baselines_with_job(
     match result {
         Ok(rows) => {
             database.query_json(
-                "UPDATE sync_jobs SET status='completed',completed_at=now(),players_processed=$1 WHERE id=$2",
+                "UPDATE sync_jobs SET status='completed',completed_at=now(),players_processed=$1 WHERE id=$2::BIGINT",
                 &[&rows, &job_id],
             ).await?;
             Ok(RefreshJobResult { job_id, rows })
@@ -122,7 +122,7 @@ pub async fn refresh_baselines_with_job(
         Err(error) => {
             let message = error.to_string();
             let _ = database.query_json(
-                "UPDATE sync_jobs SET status='failed',completed_at=now(),error_message=$1 WHERE id=$2",
+                "UPDATE sync_jobs SET status='failed',completed_at=now(),error_message=$1 WHERE id=$2::BIGINT",
                 &[&message, &job_id],
             ).await;
             Err(error)
@@ -196,7 +196,7 @@ pub async fn refresh_derived_projections_with_job(
     match result {
         Ok(counts) => {
             database.query_json(
-                "UPDATE sync_jobs SET status='completed',completed_at=now(),players_processed=$1 WHERE id=$2",
+                "UPDATE sync_jobs SET status='completed',completed_at=now(),players_processed=$1 WHERE id=$2::BIGINT",
                 &[&i32::try_from(counts.values().sum::<i64>()).unwrap_or(i32::MAX), &job_id],
             ).await?;
             Ok(ProjectionRefreshResult { job_id, counts })
@@ -204,7 +204,7 @@ pub async fn refresh_derived_projections_with_job(
         Err(error) => {
             let message = error.to_string();
             let _ = database.query_json(
-                "UPDATE sync_jobs SET status='failed',completed_at=now(),error_message=$1 WHERE id=$2",
+                "UPDATE sync_jobs SET status='failed',completed_at=now(),error_message=$1 WHERE id=$2::BIGINT",
                 &[&message, &job_id],
             ).await;
             Err(error)

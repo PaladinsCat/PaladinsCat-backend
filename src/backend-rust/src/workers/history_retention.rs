@@ -67,7 +67,7 @@ pub async fn cleanup_player_history_retention(
         "WITH doomed AS(SELECT e.match_id,e.player_id FROM player_match_history_entries e \
            WHERE e.observed_at<now()-($1::INT*INTERVAL '1 hour') AND EXISTS(SELECT 1 FROM match_players mp \
              WHERE mp.match_id=e.match_id AND mp.player_id=e.player_id AND mp.source IN('direct','recovered')) \
-           ORDER BY e.observed_at,e.match_id,e.player_id LIMIT $2),deleted AS(\
+           ORDER BY e.observed_at,e.match_id,e.player_id LIMIT $2::INT),deleted AS(\
            DELETE FROM player_match_history_entries e USING doomed d WHERE e.match_id=d.match_id AND e.player_id=d.player_id \
            RETURNING e.observed_at,e.expires_at),inserted AS(\
            INSERT INTO player_history_retention_audit(reason,table_name,delete_class,deleted_count,retention_seconds,\
@@ -115,7 +115,7 @@ async fn delete_class(
         "expires_at,match_id,player_id"
     };
     let sql = format!(
-        "WITH doomed AS(SELECT {keys} FROM {table} WHERE {predicate} ORDER BY {order} LIMIT $2),deleted AS(\
+        "WITH doomed AS(SELECT {keys} FROM {table} WHERE {predicate} ORDER BY {order} LIMIT $2::INT),deleted AS(\
          DELETE FROM {table} target USING doomed WHERE {join} RETURNING target.{observed},target.expires_at),inserted AS(\
          INSERT INTO player_history_retention_audit(reason,table_name,delete_class,deleted_count,retention_seconds,\
            oldest_observed_at,newest_observed_at,oldest_expires_at,newest_expires_at)\

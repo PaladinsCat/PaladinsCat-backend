@@ -591,7 +591,7 @@ async fn read_site_notification(
     };
     if state
         .database
-        .one_json("SELECT id FROM notifications WHERE id=$1", &[&id])
+        .one_json("SELECT id FROM notifications WHERE id=$1::BIGINT", &[&id])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
         .is_none()
