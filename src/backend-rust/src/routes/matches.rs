@@ -30,7 +30,7 @@ use crate::{
 };
 
 const RANKED_QUEUE_ID: i32 = 486;
-const MATCH_DETAIL_CACHE_VERSION: i32 = 13;
+const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
 
 #[derive(Clone)]
 struct MatchesState {
@@ -291,7 +291,11 @@ async fn format_match(
             .unwrap_or_default()
             .to_owned();
         let players = state.database.query_json_params(
-            "SELECT mp.*,c.name AS champion_name, \
+            "WITH party_groups AS ( \
+               SELECT party_id FROM match_players WHERE match_id=$1 AND entry_datetime=$2::TEXT::TIMESTAMPTZ AND party_id>0 \
+               GROUP BY party_id HAVING COUNT(*)>1), \
+             party_numbered AS (SELECT party_id,ROW_NUMBER() OVER (ORDER BY party_id) AS party_num FROM party_groups) \
+             SELECT mp.*,COALESCE(pn.party_num,0::BIGINT) AS party,c.name AS champion_name, \
              COALESCE(NULLIF(mp.private_player_id,0),o.private_player_id) AS private_player_id, \
              pp.alias AS private_account_alias,pp.verified_name AS private_account_verified_name, \
              COALESCE(pp.verified_name,pp.alias) AS private_account_display_name, \
@@ -300,7 +304,7 @@ async fn format_match(
                'platform',COALESCE(NULLIF(p.platform,''),NULLIF(mp.platform,'')), \
                'region',COALESCE(NULLIF(NULLIF(p.region,''),'Unknown'),NULLIF(NULLIF(mp.region,''),'Unknown')), \
                'global_wins',p.wins,'global_losses',p.losses,'kbm_tier',COALESCE(p.kbm_tier,NULLIF(mp.league_tier,0)), \
-               'kbm_points',COALESCE(p.kbm_points,mp.league_points),'cheater',COALESCE(p.cheater,false), \
+               'kbm_points',COALESCE(p.kbm_points,mp.league_points),'queue_elo',pqr.mu,'champion_elo',pcr.mu,'cheater',COALESCE(p.cheater,false), \
                'sus_count',COALESCE(p.sus_count,0),'verified',EXISTS(SELECT 1 FROM users u WHERE u.linked_player_id=mp.player_id) \
              ) WHEN COALESCE(NULLIF(mp.private_player_id,0),o.private_player_id)>0 THEN jsonb_build_object( \
                'source','private_account_database','level',COALESCE(NULLIF(pp.account_level,0),NULLIF(mp.account_level,0)), \
@@ -309,9 +313,12 @@ async fn format_match(
                'sus_count',COALESCE(pp.sus_count,0),'verified',false) ELSE NULL END AS profile_snapshot \
              FROM match_players mp LEFT JOIN champions c ON c.id=mp.champion_id \
              LEFT JOIN players p ON p.id=mp.player_id \
+             LEFT JOIN player_queue_ratings pqr ON pqr.player_id=mp.player_id AND pqr.queue_id=486 \
+             LEFT JOIN player_champion_ratings pcr ON pcr.player_id=mp.player_id AND pcr.champion_id=mp.champion_id \
              LEFT JOIN private_account_observations o ON mp.player_id=0 AND o.match_id=mp.match_id \
                AND (o.private_slot=mp.private_slot OR (mp.private_slot=0 AND o.private_slot=1)) \
              LEFT JOIN players_private pp ON pp.id=COALESCE(NULLIF(mp.private_player_id,0),o.private_player_id) \
+             LEFT JOIN party_numbered pn ON pn.party_id=mp.party_id \
              WHERE mp.match_id=$1 AND mp.entry_datetime=$2::TEXT::TIMESTAMPTZ \
              ORDER BY mp.task_force,mp.player_id,mp.private_slot",
             &[QueryParam::Int64(match_id),QueryParam::Text(entry_datetime)],
