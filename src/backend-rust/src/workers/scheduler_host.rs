@@ -315,6 +315,8 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let revived_ranked = revive_recent_ranked_pipeline_debt(&services.database, 48)
         .await
         .map_err(|error| error.to_string())?;
+    // Durable local projections must not wait behind slower provider backfill calls.
+    let repaired_ranked = repair_recent_ranked_projections(&services.database, 48).await;
     let due = due_debt_hours(&services.database, 486, &min_date, &max_date)
         .await
         .map_err(|error| error.to_string())?;
@@ -402,7 +404,6 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
             completed += 1;
         }
     }
-    let repaired_ranked = repair_recent_ranked_projections(&services.database, 48).await;
     Ok(
         json!({"candidates":candidates.len(),"attempted":candidates.len().min(limit),"completed":completed,"revived_ranked_debt":revived_ranked,"repaired_ranked_projections":repaired_ranked}),
     )
@@ -412,7 +413,7 @@ async fn repair_recent_ranked_projections(database: &Database, hours: i32) -> us
     let limit = std::env::var("RANKED_RECOVERY_MAX_PROJECTIONS_PER_RUN")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(250_i64)
+        .unwrap_or(1_000_i64)
         .max(1);
     if let Ok(client) = database.connection().await {
         let _ = client.execute(
