@@ -48,6 +48,7 @@ impl RankedTracker {
         let job_id = job
             .as_ref()
             .and_then(|row| integer(row, "id"))
+            .and_then(|value| i32::try_from(value).ok())
             .unwrap_or_default();
         let result = self.track_inner().await;
         let (status, players, error) = match &result {
