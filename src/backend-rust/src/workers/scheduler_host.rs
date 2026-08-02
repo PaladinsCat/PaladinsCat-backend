@@ -508,6 +508,11 @@ async fn shutdown_signal() {
     tokio::select! { _=tokio::signal::ctrl_c()=>{}, _=terminate.recv()=>{} }
 }
 
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -557,9 +562,4 @@ mod tests {
             100
         );
     }
-}
-
-#[cfg(not(unix))]
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
 }

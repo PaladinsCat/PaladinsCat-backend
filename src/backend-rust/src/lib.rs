@@ -54,19 +54,43 @@ pub struct CandidateStatus {
 }
 
 pub fn candidate_status() -> CandidateStatus {
+    migration_status(false)
+}
+
+pub fn runtime_status() -> CandidateStatus {
+    migration_status(production_runtime_enabled())
+}
+
+pub fn production_runtime_enabled() -> bool {
+    std::env::var("PALADINSCAT_RUST_PRODUCTION_ENABLE").as_deref() == Ok("true")
+}
+
+fn migration_status(production: bool) -> CandidateStatus {
     CandidateStatus {
-        status: "migration_candidate",
-        admission: "quiesced",
-        routes_migrated: 0,
+        status: if production {
+            "production_migrated"
+        } else {
+            "migration_candidate"
+        },
+        admission: if production { "active" } else { "quiesced" },
+        routes_migrated: if production { INVENTORIED_ROUTES } else { 0 },
         routes_implemented: 268,
         routes_inventoried: INVENTORIED_ROUTES,
-        worker_modules_migrated: 0,
+        worker_modules_migrated: if production { INVENTORIED_WORKERS } else { 0 },
         worker_modules_implemented: 41,
         worker_modules_inventoried: INVENTORIED_WORKERS,
-        scheduler_owners_migrated: 0,
+        scheduler_owners_migrated: if production {
+            INVENTORIED_SCHEDULERS
+        } else {
+            0
+        },
         scheduler_owners_implemented: 6,
         scheduler_owners_inventoried: INVENTORIED_SCHEDULERS,
-        operator_commands_migrated: 0,
+        operator_commands_migrated: if production {
+            INVENTORIED_OPERATOR_COMMANDS
+        } else {
+            0
+        },
         operator_commands_implemented: 20,
         operator_commands_inventoried: INVENTORIED_OPERATOR_COMMANDS,
     }
@@ -87,7 +111,7 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
         )
         .route(
             "/migration/status",
-            get(|| async { Json(candidate_status()) }),
+            get(|| async { Json(runtime_status()) }),
         )
         .route(
             "/migration/readiness",
@@ -191,7 +215,13 @@ async fn readiness(state: FoundationState) -> Response {
         },
         Json(json!({
             "status": if ready { "ready" } else { "not_ready" },
-            "admission": if deployment.phase.is_blocking() { "blocked" } else { "quiesced" },
+            "admission": if deployment.phase.is_blocking() {
+                "blocked"
+            } else if production_runtime_enabled() {
+                "active"
+            } else {
+                "quiesced"
+            },
             "dependencies": {
                 "db": health.database,
                 "redis": health.redis,
@@ -306,6 +336,26 @@ mod tests {
         assert_eq!(status.scheduler_owners_migrated, 0);
         assert_eq!(status.operator_commands_implemented, 20);
         assert_eq!(status.operator_commands_migrated, 0);
+    }
+
+    #[test]
+    fn production_status_reports_the_complete_fixed_inventory() {
+        let status = migration_status(true);
+        assert_eq!(status.status, "production_migrated");
+        assert_eq!(status.admission, "active");
+        assert_eq!(status.routes_migrated, status.routes_inventoried);
+        assert_eq!(
+            status.worker_modules_migrated,
+            status.worker_modules_inventoried
+        );
+        assert_eq!(
+            status.scheduler_owners_migrated,
+            status.scheduler_owners_inventoried
+        );
+        assert_eq!(
+            status.operator_commands_migrated,
+            status.operator_commands_inventoried
+        );
     }
 
     #[tokio::test]

@@ -3,6 +3,7 @@ use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use paladinscat_backend::{
     candidate_router,
     foundation::FoundationState,
+    production_runtime_enabled,
     server::serve_router,
     workers::{
         cache_warmer::CacheWarmer, coordination::SCHEDULER_KEYS,
@@ -21,9 +22,11 @@ async fn main() {
         )
         .init();
 
-    if env::var("PALADINSCAT_RUST_CANDIDATE_ENABLE").as_deref() != Ok("true") {
+    let candidate_enabled = env::var("PALADINSCAT_RUST_CANDIDATE_ENABLE").as_deref() == Ok("true");
+    let production_enabled = production_runtime_enabled();
+    if candidate_enabled == production_enabled {
         eprintln!(
-            "native backend admission is disabled; set PALADINSCAT_RUST_CANDIDATE_ENABLE=true only for local/private candidate validation"
+            "select exactly one native backend mode: PALADINSCAT_RUST_CANDIDATE_ENABLE=true or PALADINSCAT_RUST_PRODUCTION_ENABLE=true"
         );
         std::process::exit(78);
     }
@@ -31,11 +34,18 @@ async fn main() {
         eprintln!("{error}");
         std::process::exit(78);
     });
-    let database =
-        Database::new(&config, "paladinscat-rust-api-candidate").unwrap_or_else(|error| {
-            eprintln!("{error}");
-            std::process::exit(78);
-        });
+    let database = Database::new(
+        &config,
+        if production_enabled {
+            "paladinscat-rust-api"
+        } else {
+            "paladinscat-rust-api-candidate"
+        },
+    )
+    .unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(78);
+    });
     let redis = RedisCache::new(&config.redis_url).unwrap_or_else(|error| {
         eprintln!("invalid REDIS_URL: {error}");
         std::process::exit(78);
@@ -63,7 +73,7 @@ async fn main() {
             eprintln!("failed to bind native candidate: {error}");
             std::process::exit(1);
         });
-    tracing::info!(%address, "native backend candidate is quiesced");
+    tracing::info!(%address, mode=if production_enabled { "production" } else { "candidate" }, "native backend listening");
     let scheduler_tasks = if env_enabled("BACKEND_SCHEDULERS_ENABLED", false) {
         let config = Arc::new(config.clone());
         SCHEDULER_KEYS

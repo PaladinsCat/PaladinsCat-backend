@@ -1,6 +1,5 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use paladinscat_backend::{
-    candidate_status,
     operators::{
         OperatorServices, migrations_apply, migrations_compare, mitigate_nonranked_raw_json,
         nonranked_raw_json_status, options, pipeline_buffer_status, pipeline_check,
@@ -8,6 +7,7 @@ use paladinscat_backend::{
         pipeline_status, private_accounts_backfill, ratings_reingest, recovery_forecast,
         reference_ingest, remove_nonranked_raw_json_guard,
     },
+    runtime_status,
 };
 use serde_json::Value;
 
@@ -23,7 +23,7 @@ async fn main() {
 
 async fn dispatch(arguments: &[String]) -> anyhow::Result<()> {
     match arguments.first().map(String::as_str) {
-        Some("migration-status") => print_json(candidate_status()),
+        Some("migration-status") => print_json(runtime_status()),
         Some("deployment-request") => deployment_request(None, None).await,
         Some("deployment-status") => authenticated_get("/admin/deployment/status").await,
         Some("schedulers-ready") => schedulers_assert_running().await,
