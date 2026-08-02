@@ -47,6 +47,28 @@ pub struct DiscoveryResult {
     pub empty: bool,
 }
 
+const CLAIM_INCOMPLETE_NONRANKED_SQL: &str = r#"
+WITH due AS (
+  SELECT match_id, queue_id
+  FROM nonranked_match_acquisition
+  WHERE status IN ('discovered', 'waiting_for_completion', 'fetching')
+    AND active_flag = FALSE
+    AND (lease_until IS NULL OR lease_until <= now())
+    AND source_date + (source_hour * interval '1 hour')
+      >= (now() AT TIME ZONE 'UTC') - ($2::int * interval '1 hour')
+  ORDER BY source_date, source_hour, match_id
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE nonranked_match_acquisition acquisition
+SET status = 'fetching', detail_attempts = detail_attempts + 1,
+    last_attempt_at = now(), lease_until = now() + interval '15 minutes',
+    error_message = NULL, updated_at = now()
+FROM due
+WHERE acquisition.match_id = due.match_id
+RETURNING acquisition.match_id, acquisition.queue_id
+"#;
+
 #[derive(Clone)]
 pub struct CanonicalIngestPipeline {
     database: Database,
@@ -254,6 +276,98 @@ impl CanonicalIngestPipeline {
         Ok(result)
     }
 
+    /// Replays already-discovered non-ranked rows only. It deliberately does
+    /// not call getmatchidsbyqueue, so an acquisition outage can recover player
+    /// facts without reopening historical hourly discovery.
+    pub async fn replay_incomplete_nonranked(
+        &self,
+        limit: usize,
+        lookback_hours: i32,
+    ) -> Result<usize, PipelineError> {
+        if limit == 0 || lookback_hours <= 0 {
+            return Ok(0);
+        }
+        let budget = api_headroom_snapshot(&self.database, self.reserve_per_key).await?;
+        if !budget.has_usable_keys {
+            return Ok(0);
+        }
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let rows = self
+            .database
+            .query_json(CLAIM_INCOMPLETE_NONRANKED_SQL, &[&limit, &lookback_hours])
+            .await?;
+        let mut by_queue = BTreeMap::<i32, Vec<i64>>::new();
+        for row in rows {
+            let Some(match_id) = row
+                .get("match_id")
+                .and_then(Value::as_i64)
+                .filter(|id| *id > 0)
+            else {
+                continue;
+            };
+            let Some(queue_id) = row
+                .get("queue_id")
+                .and_then(Value::as_i64)
+                .and_then(|id| i32::try_from(id).ok())
+            else {
+                continue;
+            };
+            by_queue.entry(queue_id).or_default().push(match_id);
+        }
+        let mut completed = 0;
+        for (queue_id, match_ids) in by_queue {
+            let outcomes = self
+                .fetch_completed_continuously(&match_ids, queue_id)
+                .await?;
+            let returned = outcomes
+                .iter()
+                .filter_map(extract_match_id)
+                .collect::<std::collections::BTreeSet<_>>();
+            for outcome in outcomes {
+                let match_id = extract_match_id(&outcome).unwrap_or_default();
+                match CanonicalMatchPayload::from_relay_value(outcome) {
+                    Ok(payload) => {
+                        let finalized = self
+                            .facts
+                            .finalize(&payload, "nonranked-acquisition-replay")
+                            .await
+                            .map_err(|error| PipelineError::Facts(error.to_string()))?;
+                        let _ = self.casual.project_all_for_match(finalized.match_id).await;
+                        self.database.query_json(
+                            "UPDATE nonranked_match_acquisition SET status='complete_direct',quality='complete',\
+                             direct_player_count=GREATEST(direct_player_count,$2),roster_player_count=GREATEST(roster_player_count,$2),\
+                             lease_until=NULL,completed_at=COALESCE(completed_at,now()),error_message=NULL,updated_at=now() WHERE match_id=$1",
+                            &[&finalized.match_id, &i16::try_from(finalized.player_count).unwrap_or(i16::MAX)],
+                        ).await?;
+                        completed += 1;
+                    }
+                    Err(error) if match_id > 0 => {
+                        self.mark_nonranked_replay_deferred(match_id, &error.to_string())
+                            .await?;
+                    }
+                    Err(_) => {}
+                }
+            }
+            for match_id in match_ids.into_iter().filter(|id| !returned.contains(id)) {
+                self.mark_nonranked_replay_deferred(match_id, "no authoritative payload returned")
+                    .await?;
+            }
+        }
+        Ok(completed)
+    }
+
+    async fn mark_nonranked_replay_deferred(
+        &self,
+        match_id: i64,
+        error: &str,
+    ) -> Result<(), DatabaseError> {
+        self.database.query_json(
+            "UPDATE nonranked_match_acquisition SET status='service_deferred',lease_until=NULL,error_message=$2,updated_at=now() WHERE match_id=$1",
+            &[&match_id, &error],
+        ).await?;
+        Ok(())
+    }
+
     /// Preserves the relay's batch-of-ten contract and isolates only an
     /// omitted blocker. Successfully returned matches are never recalled.
     async fn fetch_completed_continuously(
@@ -356,6 +470,25 @@ fn extract_match_id(value: &Value) -> Option<i64> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn incomplete_nonranked_replay_claim_is_oldest_first_and_bounded() {
+        assert!(
+            CLAIM_INCOMPLETE_NONRANKED_SQL
+                .contains("status IN ('discovered', 'waiting_for_completion', 'fetching')")
+        );
+        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("(now() AT TIME ZONE 'UTC')"));
+        assert!(
+            CLAIM_INCOMPLETE_NONRANKED_SQL.contains("ORDER BY source_date, source_hour, match_id")
+        );
+        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("LIMIT $1"));
+        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("FOR UPDATE SKIP LOCKED"));
+    }
 }
 
 fn text(value: &Value, keys: &[&str]) -> Option<String> {

@@ -334,14 +334,14 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         .map_err(|error| error.to_string())?;
     let mut candidates = due
         .into_iter()
-        .map(|(date, hour)| (486, date, hour, true, false))
+        .map(|(date, hour)| GapCandidate::ranked_debt(date, hour))
         .collect::<Vec<_>>();
     candidates.extend(
         bracketed_missing_presence_hours(&services.database, now)
             .await
             .map_err(|error| error.to_string())?
             .into_iter()
-            .map(|(queue_id, date, hour)| (queue_id, date, hour, false, true)),
+            .map(|(queue_id, date, hour)| GapCandidate::presence(queue_id, date, hour)),
     );
     for (date, hour) in expected_elapsed_discovery_hours(now) {
         for queue in MATCH_COUNT_QUEUE_DEFINITIONS
@@ -376,51 +376,110 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
                 }
             });
             if retryable
-                && !candidates.iter().any(
-                    |(candidate_queue, candidate_date, candidate_hour, _, _)| {
-                        *candidate_queue == queue.queue_id
-                            && candidate_date == &date
-                            && *candidate_hour == hour
-                    },
-                )
+                && !candidates.iter().any(|candidate| {
+                    candidate.queue_id == queue.queue_id
+                        && candidate.date == date
+                        && candidate.hour == hour
+                })
             {
-                candidates.push((queue.queue_id, date.clone(), hour, false, state.is_none()));
+                candidates.push(GapCandidate::presence(queue.queue_id, date.clone(), hour));
             }
         }
     }
-    let is_priority = |candidate: &(i32, String, i32, bool, bool)| {
-        priority_hour.as_ref().is_some_and(|(date, hour)| {
-            candidate.0 == 486 && candidate.1.as_str() == date.as_str() && candidate.2 == *hour
-        })
-    };
-    candidates.sort_by(|left, right| {
-        is_priority(right).cmp(&is_priority(left)).then(
-            (left.1 < recent_cutoff)
-                .cmp(&(right.1 < recent_cutoff))
-                .then((left.0 != 486).cmp(&(right.0 != 486)))
-                .then(right.4.cmp(&left.4))
-                .then(
-                    right
-                        .1
-                        .cmp(&left.1)
-                        .then(right.2.cmp(&left.2))
-                        .then(left.0.cmp(&right.0)),
-                ),
-        )
-    });
+    prioritize_gap_candidates(&mut candidates, priority_hour.as_ref(), &recent_cutoff);
     let mut completed = 0;
-    for (queue_id, date, hour, debt_only, _) in candidates.iter().take(limit) {
+    for candidate in candidates.iter().take(limit) {
         if pipeline
-            .discover_hour(*queue_id, date, *hour, "gap-checker", *debt_only)
+            .discover_hour(
+                candidate.queue_id,
+                &candidate.date,
+                candidate.hour,
+                "gap-checker",
+                candidate.debt_only,
+            )
             .await
             .is_ok()
         {
             completed += 1;
         }
     }
+    let replay_limit = std::env::var("NONRANKED_REPLAY_MAX_MATCHES_PER_RUN")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(100_usize)
+        .clamp(1, 100);
+    let replay_lookback_hours = bounded_nonranked_replay_lookback_hours(
+        std::env::var("NONRANKED_REPLAY_LOOKBACK_HOURS")
+            .ok()
+            .and_then(|value| value.parse().ok()),
+    );
+    let replayed_nonranked = pipeline
+        .replay_incomplete_nonranked(replay_limit, replay_lookback_hours)
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(
-        json!({"candidates":candidates.len(),"attempted":candidates.len().min(limit),"completed":completed,"revived_ranked_debt":revived_ranked,"repaired_ranked_projections":repaired_ranked}),
+        json!({"candidates":candidates.len(),"attempted":candidates.len().min(limit),"completed":completed,"replayed_nonranked":replayed_nonranked,"revived_ranked_debt":revived_ranked,"repaired_ranked_projections":repaired_ranked}),
     )
+}
+
+fn bounded_nonranked_replay_lookback_hours(value: Option<i32>) -> i32 {
+    value.unwrap_or(72).clamp(1, 168)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GapCandidate {
+    queue_id: i32,
+    date: String,
+    hour: i32,
+    debt_only: bool,
+    presence_only: bool,
+}
+
+impl GapCandidate {
+    fn ranked_debt(date: String, hour: i32) -> Self {
+        Self {
+            queue_id: 486,
+            date,
+            hour,
+            debt_only: true,
+            presence_only: false,
+        }
+    }
+
+    fn presence(queue_id: i32, date: String, hour: i32) -> Self {
+        Self {
+            queue_id,
+            date,
+            hour,
+            debt_only: false,
+            presence_only: true,
+        }
+    }
+}
+
+fn prioritize_gap_candidates(
+    candidates: &mut [GapCandidate],
+    priority_hour: Option<&(String, i32)>,
+    recent_cutoff: &str,
+) {
+    candidates.sort_by(|left, right| {
+        let left_priority = priority_hour.is_some_and(|(date, hour)| {
+            left.queue_id == 486 && left.date == *date && left.hour == *hour
+        });
+        let right_priority = priority_hour.is_some_and(|(date, hour)| {
+            right.queue_id == 486 && right.date == *date && right.hour == *hour
+        });
+        right_priority
+            .cmp(&left_priority)
+            // Presence is the public activity surface. Process its oldest
+            // incomplete hour first so a multi-queue outage cannot be starved
+            // by newer gaps or ranked debt.
+            .then(right.presence_only.cmp(&left.presence_only))
+            .then((left.date.as_str() < recent_cutoff).cmp(&(right.date.as_str() < recent_cutoff)))
+            .then(left.date.cmp(&right.date))
+            .then(left.hour.cmp(&right.hour))
+            .then(left.queue_id.cmp(&right.queue_id))
+    });
 }
 
 async fn repair_recent_ranked_projections(database: &Database, hours: i32) -> usize {
@@ -585,6 +644,53 @@ mod tests {
     fn bracketed_gap_scan_binds_string_dates_as_text() {
         assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$2::TEXT::DATE"));
         assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$3::TEXT::DATE"));
+    }
+
+    #[test]
+    fn gap_recovery_fairly_drains_oldest_multi_queue_presence_outage() {
+        let queues = [424, 425, 452, 453, 10297, 10332, 10348, 10362, 10367, 10369];
+        let mut candidates = [1, 2, 3]
+            .into_iter()
+            .flat_map(|hour| {
+                queues
+                    .into_iter()
+                    .map(move |queue| GapCandidate::presence(queue, "2026-08-02".to_owned(), hour))
+            })
+            .chain([GapCandidate::ranked_debt("2026-08-01".to_owned(), 23)])
+            .collect::<Vec<_>>();
+
+        prioritize_gap_candidates(&mut candidates, None, "2026-07-31");
+        let scheduled = &candidates[..24];
+
+        assert!(scheduled.iter().all(|candidate| candidate.presence_only));
+        assert_eq!(
+            scheduled
+                .iter()
+                .filter(|candidate| candidate.hour == 1)
+                .count(),
+            queues.len(),
+        );
+        assert_eq!(
+            scheduled
+                .iter()
+                .filter(|candidate| candidate.hour == 2)
+                .count(),
+            queues.len(),
+        );
+        assert_eq!(
+            scheduled
+                .iter()
+                .filter(|candidate| candidate.hour == 3)
+                .count(),
+            4,
+        );
+    }
+
+    #[test]
+    fn nonranked_replay_lookback_is_recent_and_bounded() {
+        assert_eq!(bounded_nonranked_replay_lookback_hours(None), 72);
+        assert_eq!(bounded_nonranked_replay_lookback_hours(Some(0)), 1);
+        assert_eq!(bounded_nonranked_replay_lookback_hours(Some(999)), 168);
     }
 
     #[test]

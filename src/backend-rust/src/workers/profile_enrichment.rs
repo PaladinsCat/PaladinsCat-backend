@@ -325,6 +325,27 @@ impl ProfileEnrichmentRepository {
                     .filter(|value| !unknown_identity_value(Some(value)));
                 let region = value_text(profile, &["region", "Region"])
                     .filter(|value| !unknown_identity_value(Some(value)));
+                let player_name = value_text(
+                    profile,
+                    &[
+                        "hz_player_name",
+                        "hz_gamer_tag",
+                        "player_name",
+                        "Name",
+                        "name",
+                    ],
+                )
+                .unwrap_or_else(|| format!("Player #{}", claim.player_id));
+                // Presence can contain a public identity before any profile row
+                // exists. Create its minimal profile row so this successful
+                // enrichment actually removes the Unknown platform/region.
+                self.database
+                    .query_json(
+                        "INSERT INTO players (id,name,platform,region,hirez_profile_refreshed_at,last_updated) \
+                         VALUES($1,$2,NULLIF($3,''),NULLIF($4,''),now(),now()) ON CONFLICT(id) DO NOTHING",
+                        &[&claim.player_id, &player_name, &platform.clone().unwrap_or_default(), &region.clone().unwrap_or_default()],
+                    )
+                    .await?;
                 self.database
                     .query_json(
                         "UPDATE players SET platform=CASE WHEN $2<>'' AND lower(COALESCE(platform,'')) IN('','unknown','unavailable') THEN $2 ELSE platform END,\
@@ -492,24 +513,28 @@ mod tests {
             .await
             .expect("refresh fixture cleanup");
         for player_id in base_id..=base_id + 22 {
-            client
-                .execute(
-                    r#"
-                    INSERT INTO players (id, name, platform, region)
-                    VALUES (
-                      $1,
-                      'integration-player',
-                      CASE WHEN $2 THEN 'Steam' ELSE NULL END,
-                      CASE WHEN $2 THEN 'North America' ELSE NULL END
+            // The final fixture intentionally has presence but no players row.
+            // That is the production Unknown-platform/region shape.
+            if player_id != base_id + 22 {
+                client
+                    .execute(
+                        r#"
+                        INSERT INTO players (id, name, platform, region)
+                        VALUES (
+                          $1,
+                          'integration-player',
+                          CASE WHEN $2 THEN 'Steam' ELSE NULL END,
+                          CASE WHEN $2 THEN 'North America' ELSE NULL END
+                        )
+                        ON CONFLICT (id) DO UPDATE SET
+                          platform = EXCLUDED.platform,
+                          region = EXCLUDED.region
+                        "#,
+                        &[&player_id, &(player_id == base_id)],
                     )
-                    ON CONFLICT (id) DO UPDATE SET
-                      platform = EXCLUDED.platform,
-                      region = EXCLUDED.region
-                    "#,
-                    &[&player_id, &(player_id == base_id)],
-                )
-                .await
-                .expect("player fixture");
+                    .await
+                    .expect("player fixture");
+            }
             client
                 .execute(
                     r#"
@@ -546,6 +571,12 @@ mod tests {
                 .iter()
                 .flatten()
                 .all(|player| player.needs_platform && player.needs_region)
+        );
+        assert!(
+            batches
+                .iter()
+                .flatten()
+                .any(|player| player.player_id == base_id + 22)
         );
 
         let client = database.connection().await.expect("connection");
