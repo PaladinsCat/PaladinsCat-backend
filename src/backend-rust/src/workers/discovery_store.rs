@@ -125,6 +125,7 @@ pub async fn record_match_count_discovery_result(
 pub async fn filter_already_handled_match_ids(
     database: &Database,
     match_ids: &[i64],
+    queue_id: i32,
     include_raw_buffer: bool,
     include_pull_list: bool,
 ) -> Result<MatchIngestGuardResult, DatabaseError> {
@@ -140,7 +141,7 @@ pub async fn filter_already_handled_match_ids(
     }
     let status_rows = database
         .query_json(
-            "SELECT match_id,status FROM match_ingest_status WHERE match_id=ANY($1)",
+            "SELECT match_id,status,COALESCE(completed_stages,'{}'::TEXT[]) @> ARRAY['player_facts','match_bans','ranked_stats']::TEXT[] ranked_complete FROM match_ingest_status WHERE match_id=ANY($1)",
             &[&ids],
         )
         .await
@@ -150,14 +151,23 @@ pub async fn filter_already_handled_match_ids(
         .filter_map(|row| {
             Some((
                 integer(&row, "match_id")?,
-                row.get("status")?.as_str()?.to_owned(),
+                (
+                    row.get("status")?.as_str()?.to_owned(),
+                    row.get("ranked_complete")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                ),
             ))
         })
         .collect::<HashMap<_, _>>();
     let terminal = |id: i64| {
-        statuses
-            .get(&id)
-            .is_none_or(|status| matches!(status.as_str(), "complete" | "limited"))
+        statuses.get(&id).is_some_and(|(status, ranked_complete)| {
+            if queue_id == 486 {
+                status == "complete" && *ranked_complete
+            } else {
+                matches!(status.as_str(), "complete" | "limited")
+            }
+        })
     };
     let matches = database
         .query_json(

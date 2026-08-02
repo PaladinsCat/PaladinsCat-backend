@@ -174,7 +174,8 @@ impl CanonicalIngestPipeline {
             "discovered by hourly ingest",
         )
         .await?;
-        let guard = filter_already_handled_match_ids(&self.database, &ids, true, true).await?;
+        let guard =
+            filter_already_handled_match_ids(&self.database, &ids, queue_id, true, true).await?;
         result.skipped = guard.skipped_ids.len();
         mark_match_debt_staged_or_complete(
             &self.database,

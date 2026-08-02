@@ -341,7 +341,7 @@ pub async fn revive_fresh_no_authority_debt(
     max_date: &str,
 ) -> Result<Vec<(String, i32, i32)>, DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
-    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 24).max(1);
+    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 48).max(1);
     Ok(database
         .query_json(
             "WITH revived AS(UPDATE hourly_ingest_match_debt SET status='pending',\
@@ -363,6 +363,32 @@ pub async fn revive_fresh_no_authority_debt(
             ))
         })
         .collect())
+}
+
+pub async fn revive_recent_ranked_pipeline_debt(
+    database: &Database,
+    lookback_hours: i32,
+) -> Result<usize, DatabaseError> {
+    ensure_hourly_ingest_tables(database).await?;
+    let rows = database
+        .query_json(
+            "WITH revived AS(UPDATE hourly_ingest_match_debt debt SET status='pending',\
+             reason='48h full ranked pipeline recovery: '||COALESCE(debt.reason,''),next_retry_at=now(),updated_at=now() \
+             FROM match_count_discoveries discovery LEFT JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id \
+             WHERE debt.match_id=discovery.match_id AND discovery.queue_id=486 \
+             AND discovery.source_date+(discovery.source_hour*INTERVAL '1 hour')>=now()-($1::INT*INTERVAL '1 hour') \
+             AND (ingest.match_id IS NULL OR NOT(COALESCE(ingest.completed_stages,'{}'::TEXT[]) \
+               @> ARRAY['player_facts','match_bans']::TEXT[])) \
+             AND debt.status IN('complete','staged','unrecoverable') RETURNING debt.match_id) \
+             SELECT count(*)::INT AS revived FROM revived",
+            &[&lookback_hours],
+        )
+        .await?;
+    Ok(rows
+        .first()
+        .and_then(|row| integer(row, "revived"))
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or_default())
 }
 
 pub async fn due_match_debt_ids(

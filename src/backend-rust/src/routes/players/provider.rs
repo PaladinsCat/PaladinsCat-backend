@@ -337,7 +337,7 @@ async fn upsert_profile(
     transaction
         .execute(
             "INSERT INTO players (id,active_player_id,name,level,api_level,wins,losses,leaves,hours_played,minutes_played,mastery_level,region,platform,ret_msg,total_xp,total_worshippers,total_achievements,avatar_id,avatar_url,title,loading_frame,created_datetime,last_login_datetime,personal_status_message,team_id,team_name,merged_players,privacy_flag,kbm_name,kbm_points,kbm_tier,kbm_rank,kbm_wins,kbm_losses,kbm_leaves,kbm_trend,kbm_prev_rank,kbm_season,kbm_player_id,kbm_ret_msg,controller_name,controller_points,controller_tier,controller_rank,controller_wins,controller_losses,controller_leaves,controller_trend,controller_prev_rank,controller_season,controller_player_id,controller_ret_msg,conquest_name,conquest_points,conquest_tier,conquest_rank,conquest_wins,conquest_losses,conquest_leaves,conquest_trend,conquest_prev_rank,conquest_season,conquest_player_id,conquest_ret_msg,platform_name,hz_player_name,hz_gamer_tag,name_source,name_anomaly,name_anomaly_reason,name_anomaly_detected_at,first_seen,last_seen,last_updated,hirez_profile_refreshed_at) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$70,CASE WHEN $69 THEN now() ELSE NULL END,now(),now(),now(),now()) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::TEXT::TIMESTAMPTZ,$23::TEXT::TIMESTAMPTZ,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$70,CASE WHEN $69 THEN now() ELSE NULL END,now(),now(),now(),now()) \
              ON CONFLICT(id) DO UPDATE SET \
                active_player_id=EXCLUDED.active_player_id,name=CASE WHEN EXCLUDED.name_source<>'none' AND NULLIF(EXCLUDED.name,'') IS NOT NULL THEN EXCLUDED.name WHEN players.name~*'^(DummyPlayer[0-9]+|[0-9a-f]{20,}User-[0-9a-f]{6,})$' THEN 'Player '||players.id::text ELSE players.name END, \
                level=EXCLUDED.level,api_level=EXCLUDED.api_level,wins=EXCLUDED.wins,losses=EXCLUDED.losses,leaves=EXCLUDED.leaves,hours_played=EXCLUDED.hours_played,minutes_played=EXCLUDED.minutes_played,mastery_level=EXCLUDED.mastery_level, \
@@ -369,7 +369,7 @@ async fn upsert_profile(
             let merged_at = optional_text(row, &["mergeDatetime", "merge_datetime"]);
             transaction
                 .execute(
-                    "INSERT INTO player_profile_merged_players(player_id,merged_player_id,portal_id,merge_datetime,profile_refreshed_at) VALUES($1,$2,$3,$4,now()) \
+                    "INSERT INTO player_profile_merged_players(player_id,merged_player_id,portal_id,merge_datetime,profile_refreshed_at) VALUES($1,$2,$3,$4::TEXT::TIMESTAMPTZ,now()) \
                      ON CONFLICT(player_id,merged_player_id) DO UPDATE SET portal_id=EXCLUDED.portal_id,merge_datetime=EXCLUDED.merge_datetime,profile_refreshed_at=now()",
                     &[&player_id, &merged_id, &portal_id, &merged_at],
                 )

@@ -9,7 +9,9 @@ use time::OffsetDateTime;
 
 use super::{
     coordination::WorkerCoordinationRepository,
-    discovery_control::{due_debt_hours, revive_fresh_no_authority_debt},
+    discovery_control::{
+        due_debt_hours, revive_fresh_no_authority_debt, revive_recent_ranked_pipeline_debt,
+    },
     history_retention::cleanup_player_history_retention,
     live_tracker::detect_dropped_matches,
     maintenance::{
@@ -19,6 +21,7 @@ use super::{
     pipeline::CanonicalIngestPipeline,
     policy::{ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot},
     profile_enrichment::ProfileEnrichmentRepository,
+    ranked_projection::{RankedProjectionRepository, RankedProjectionResult},
     ranked_tracker::RankedTracker,
     scheduler::{ScheduledJob, StartupPolicy, scheduled_jobs_for},
     scheduler_runtime::SchedulerRuntimeExit,
@@ -308,13 +311,16 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let _ = revive_fresh_no_authority_debt(&services.database, 486, &min_date, &max_date)
         .await
         .map_err(|error| error.to_string())?;
+    let revived_ranked = revive_recent_ranked_pipeline_debt(&services.database, 48)
+        .await
+        .map_err(|error| error.to_string())?;
     let due = due_debt_hours(&services.database, 486, &min_date, &max_date)
         .await
         .map_err(|error| error.to_string())?;
     let limit = std::env::var("GAP_CHECKER_MAX_BACKFILL_PER_RUN")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(8_usize)
+        .unwrap_or(24_usize)
         .max(1);
     let pipeline = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
         .map_err(|error| error.to_string())?;
@@ -390,9 +396,40 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
             completed += 1;
         }
     }
+    let repaired_ranked = repair_recent_ranked_projections(&services.database, 48).await;
     Ok(
-        json!({"candidates":candidates.len(),"attempted":candidates.len().min(limit),"completed":completed}),
+        json!({"candidates":candidates.len(),"attempted":candidates.len().min(limit),"completed":completed,"revived_ranked_debt":revived_ranked,"repaired_ranked_projections":repaired_ranked}),
     )
+}
+
+async fn repair_recent_ranked_projections(database: &Database, hours: i32) -> usize {
+    let limit = std::env::var("RANKED_RECOVERY_MAX_PROJECTIONS_PER_RUN")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(250_i64)
+        .max(1);
+    let rows = database.query_json(
+        "SELECT mis.match_id FROM match_ingest_status mis JOIN matches m ON m.match_id=mis.match_id \
+         WHERE m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE AND m.entry_datetime>=now()-($1::INT*INTERVAL '1 hour') \
+         AND COALESCE(mis.completed_stages,'{}'::TEXT[]) @> ARRAY['player_facts','match_bans']::TEXT[] \
+         AND NOT(COALESCE(mis.completed_stages,'{}'::TEXT[]) @> ARRAY['ranked_stats']::TEXT[]) \
+         ORDER BY m.entry_datetime,m.match_id LIMIT $2",
+        &[&hours, &limit],
+    ).await.unwrap_or_default();
+    let repository = RankedProjectionRepository::new(database.clone());
+    let mut repaired = 0;
+    for row in rows {
+        let Some(match_id) = row.get("match_id").and_then(Value::as_i64) else {
+            continue;
+        };
+        if matches!(
+            repository.project_match(match_id).await,
+            Ok(RankedProjectionResult::Projected | RankedProjectionResult::AlreadyProjected)
+        ) {
+            repaired += 1;
+        }
+    }
+    repaired
 }
 
 fn profile_enrichment_max_calls() -> usize {
@@ -480,23 +517,16 @@ async fn bracketed_missing_presence_hours(
 }
 
 fn expected_elapsed_discovery_hours(now: OffsetDateTime) -> Vec<(String, i32)> {
-    let latest_tick_hour = if now.minute() >= 30 {
-        i32::from(now.hour())
-    } else {
-        i32::from(now.hour()) - 1
-    };
-    if latest_tick_hour < 0 {
-        return Vec::new();
-    }
-    (0..=latest_tick_hour)
-        .map(|fetch_hour| {
-            let target = now
-                .replace_hour(u8::try_from(fetch_hour).unwrap_or_default())
-                .and_then(|value| value.replace_minute(30))
-                .and_then(|value| value.replace_second(0))
-                .and_then(|value| value.replace_nanosecond(0))
-                .unwrap_or(now)
-                - time::Duration::hours(1);
+    let current_hour = now
+        .replace_minute(0)
+        .and_then(|value| value.replace_second(0))
+        .and_then(|value| value.replace_nanosecond(0))
+        .unwrap_or(now);
+    let latest = current_hour - time::Duration::hours(if now.minute() >= 30 { 1 } else { 2 });
+    (0..48)
+        .rev()
+        .map(|offset| {
+            let target = latest - time::Duration::hours(offset);
             (target.date().to_string(), i32::from(target.hour()))
         })
         .collect()
