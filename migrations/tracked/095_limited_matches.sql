@@ -20,3 +20,4 @@ ALTER TABLE match_ingest_status
 
 COMMENT ON TABLE match_ingest_status IS
   'Durable match ingest state. complete and limited are terminal; only complete matches are eligible for aggregate projections.';
+
