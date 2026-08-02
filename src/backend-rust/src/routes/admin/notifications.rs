@@ -181,7 +181,10 @@ pub(super) async fn delete(
     };
     let row = state
         .database
-        .one_json("DELETE FROM notifications WHERE id=$1 RETURNING id", &[&id])
+        .one_json(
+            "DELETE FROM notifications WHERE id=$1::BIGINT RETURNING id",
+            &[&id],
+        )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     if row.is_none() {

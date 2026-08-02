@@ -1366,7 +1366,7 @@ async fn champions(
                  (COALESCE(pc.wins,0)+COALESCE(pc.losses,0))::INTEGER AS matches_played, \
                  CASE WHEN COALESCE(pc.wins,0)+COALESCE(pc.losses,0)>0 \
                    THEN ROUND(COALESCE(pc.wins,0)::NUMERIC*100/(COALESCE(pc.wins,0)+COALESCE(pc.losses,0)),2) END AS win_rate, \
-                 pc.last_updated FROM champions c LEFT JOIN player_champions pc ON pc.player_id=$1 AND pc.champion_id=c.id \
+                 pc.last_updated FROM champions c LEFT JOIN player_champions pc ON pc.player_id=$1::BIGINT AND pc.champion_id=c.id \
                  WHERE c.id>0 ORDER BY CASE {role} WHEN 'Frontline' THEN 1 WHEN 'Damage' THEN 2 WHEN 'Flank' THEN 3 \
                    WHEN 'Support' THEN 4 ELSE 5 END,c.name ASC"
             ),
