@@ -11,7 +11,23 @@ use serde_json::{Value, json};
 
 use crate::{error::ApiError, request::RequestId};
 
-use super::{AdminState, require_auth};
+use super::AdminState;
+
+fn operator_denial(state: &AdminState, headers: &HeaderMap) -> Option<Response> {
+    if state
+        .foundation
+        .security
+        .is_operator_request(headers, false)
+    {
+        None
+    } else {
+        Some((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error":{"code":"OPERATOR_AUTH_REQUIRED","message":"Operator credentials are required for this endpoint."}})),
+        )
+            .into_response())
+    }
+}
 
 fn runtime(state: &AdminState) -> Value {
     json!({
@@ -23,10 +39,10 @@ fn runtime(state: &AdminState) -> Value {
 
 pub(super) async fn status(
     State(state): State<AdminState>,
-    Extension(request_id): Extension<RequestId>,
+    Extension(_request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Some(response) = operator_denial(&state, &headers) {
         return Ok(response);
     }
     Ok(Json(
@@ -53,11 +69,11 @@ fn input(body: &Value, phase: DeploymentPhase) -> DeploymentStateInput {
 
 pub(super) async fn set_state(
     State(state): State<AdminState>,
-    Extension(request_id): Extension<RequestId>,
+    Extension(_request_id): Extension<RequestId>,
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Some(response) = operator_denial(&state, &headers) {
         return Ok(response);
     }
     let Some(phase) = body
@@ -88,11 +104,11 @@ pub(super) async fn set_state(
 
 pub(super) async fn drain(
     State(state): State<AdminState>,
-    Extension(request_id): Extension<RequestId>,
+    Extension(_request_id): Extension<RequestId>,
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Some(response) = operator_denial(&state, &headers) {
         return Ok(response);
     }
     if body
@@ -147,11 +163,11 @@ pub(super) async fn drain(
 
 pub(super) async fn warm(
     State(state): State<AdminState>,
-    Extension(request_id): Extension<RequestId>,
+    Extension(_request_id): Extension<RequestId>,
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Some(response) = operator_denial(&state, &headers) {
         return Ok(response);
     }
     if body
