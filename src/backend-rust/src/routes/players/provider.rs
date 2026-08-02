@@ -503,7 +503,7 @@ pub(super) async fn global_stats(
             "SELECT COALESCE(SUM(wins),0)::BIGINT AS wins,COALESCE(SUM(losses),0)::BIGINT AS losses, \
                COALESCE(SUM(kills),0)::BIGINT AS kills,COALESCE(SUM(deaths),0)::BIGINT AS deaths, \
                COALESCE(SUM(assists),0)::BIGINT AS assists \
-             FROM player_champions WHERE player_id=$1 AND stats_populated",
+             FROM player_champions WHERE player_id=$1::BIGINT AND stats_populated",
             &[&player_id],
         )
         .await
@@ -525,7 +525,7 @@ async fn champion_freshness(
         .database
         .one_json(
             "SELECT MAX(last_updated)::text AS hirez_profile_refreshed_at,COUNT(*)>0 AS stats_populated \
-             FROM player_champions WHERE player_id=$1 AND stats_populated",
+             FROM player_champions WHERE player_id=$1::BIGINT AND stats_populated",
             &[&player_id],
         )
         .await

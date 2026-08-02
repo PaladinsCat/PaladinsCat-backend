@@ -33,20 +33,21 @@ pub struct MatchIngestGuardCounts {
 }
 
 pub async fn ensure_match_count_discovery_tables(database: &Database) -> Result<(), DatabaseError> {
-    database.query_json(
+    for statement in [
         "CREATE TABLE IF NOT EXISTS match_count_discoveries(\
           match_id BIGINT NOT NULL,queue_id INT NOT NULL,region VARCHAR(20) NOT NULL DEFAULT 'Unknown',\
           entry_datetime TIMESTAMPTZ,active_flag BOOLEAN NOT NULL DEFAULT FALSE,source_date DATE NOT NULL,\
           source_hour INT NOT NULL CHECK(source_hour BETWEEN 0 AND 23),first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),\
-          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(match_id,queue_id));\
-         CREATE INDEX IF NOT EXISTS idx_mcd_window_queue ON match_count_discoveries(source_date DESC,source_hour,queue_id);\
-         CREATE INDEX IF NOT EXISTS idx_mcd_queue_region_window ON match_count_discoveries(queue_id,region,source_date DESC,source_hour);\
-         CREATE TABLE IF NOT EXISTS match_count_discovery_region_hours(\
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(match_id,queue_id))",
+        "CREATE INDEX IF NOT EXISTS idx_mcd_window_queue ON match_count_discoveries(source_date DESC,source_hour,queue_id)",
+        "CREATE INDEX IF NOT EXISTS idx_mcd_queue_region_window ON match_count_discoveries(queue_id,region,source_date DESC,source_hour)",
+        "CREATE TABLE IF NOT EXISTS match_count_discovery_region_hours(\
           date DATE NOT NULL,hour INT NOT NULL CHECK(hour BETWEEN 0 AND 23),queue_id INT NOT NULL,region VARCHAR(20) NOT NULL,\
-          match_count INT NOT NULL DEFAULT 0,updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(date,hour,queue_id,region));\
-         CREATE INDEX IF NOT EXISTS idx_mcdrh_window_queue ON match_count_discovery_region_hours(date DESC,hour,queue_id)",
-        &[],
-    ).await?;
+          match_count INT NOT NULL DEFAULT 0,updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(date,hour,queue_id,region))",
+        "CREATE INDEX IF NOT EXISTS idx_mcdrh_window_queue ON match_count_discovery_region_hours(date DESC,hour,queue_id)",
+    ] {
+        database.query_json(statement, &[]).await?;
+    }
     Ok(())
 }
 
