@@ -388,9 +388,10 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
             .cmp(&(right.1 < recent_cutoff))
             .then((left.0 != 486).cmp(&(right.0 != 486)))
             .then(
-                left.1
-                    .cmp(&right.1)
-                    .then(left.2.cmp(&right.2))
+                right
+                    .1
+                    .cmp(&left.1)
+                    .then(right.2.cmp(&left.2))
                     .then(left.0.cmp(&right.0)),
             )
     });
