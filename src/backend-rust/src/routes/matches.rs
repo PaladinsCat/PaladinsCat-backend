@@ -2089,7 +2089,12 @@ async fn hourly_stats_payload(
         .await
         .map_err(|error| hourly_database_error(error, request_id, "nonranked daily rows"))?;
     let daily_players = if include_players {
-        state.database.query_json_params(
+        let daily_players_cache_key =
+            format!("route:matches:/matches/hourly-stats:daily-players:{week_start}:{today}");
+        if let Some(cached) = state.route_cache.get(&daily_players_cache_key).await {
+            cached.payload.as_array().cloned().unwrap_or_default()
+        } else {
+            let rows = state.database.query_json_params(
             "WITH observations AS MATERIALIZED (\
                SELECT (mp.entry_datetime AT TIME ZONE 'UTC')::date AS activity_date,\
                  $3::int AS queue_id,mp.player_id FROM match_players mp \
@@ -2108,8 +2113,19 @@ async fn hourly_stats_payload(
              ) SELECT activity_date::text AS date,queue_id,COUNT(DISTINCT player_id)::int AS players \
              FROM observations GROUP BY GROUPING SETS ((activity_date),(activity_date,queue_id)) \
              ORDER BY activity_date,queue_id NULLS FIRST",
-            &[QueryParam::Text(week_start.clone()),QueryParam::Text(today.clone()),QueryParam::Int32(RANKED_QUEUE_ID)],
-        ).await.map_err(|error| hourly_database_error(error,request_id,"daily player rows"))?
+                &[QueryParam::Text(week_start.clone()),QueryParam::Text(today.clone()),QueryParam::Int32(RANKED_QUEUE_ID)],
+            ).await.map_err(|error| hourly_database_error(error,request_id,"daily player rows"))?;
+            state
+                .route_cache
+                .store(
+                    &daily_players_cache_key,
+                    Value::Array(rows.clone()),
+                    600,
+                    1_200,
+                )
+                .await;
+            rows
+        }
     } else {
         Vec::new()
     };
