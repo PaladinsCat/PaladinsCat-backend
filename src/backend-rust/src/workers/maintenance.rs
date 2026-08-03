@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::atomic::AtomicBool;
 
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::Serialize;
@@ -33,9 +34,48 @@ pub struct ProjectionRefreshResult {
 
 pub async fn process_buffer_batch(
     database: &Database,
+    relay: Option<&super::relay::WorkerRelayClient>,
     batch_size: usize,
 ) -> Result<BufferBatchResult, super::raw_buffer::RawBufferError> {
-    let result = super::raw_buffer::process_raw_buffer_batch(database, batch_size).await?;
+    let result = match relay {
+        Some(relay) => {
+            super::raw_buffer::process_raw_buffer_batch_with_relay(database, relay, batch_size)
+                .await?
+        }
+        None => super::raw_buffer::process_raw_buffer_batch(database, batch_size).await?,
+    };
+    Ok(BufferBatchResult {
+        processed: result.processed,
+        failed: result.failed,
+        deferred: result.deferred,
+    })
+}
+
+pub async fn process_buffer_batch_until(
+    database: &Database,
+    relay: Option<&super::relay::WorkerRelayClient>,
+    batch_size: usize,
+    should_stop: &AtomicBool,
+) -> Result<BufferBatchResult, super::raw_buffer::RawBufferError> {
+    let result = match relay {
+        Some(relay) => {
+            super::raw_buffer::process_raw_buffer_batch_until_with_relay(
+                database,
+                relay,
+                batch_size,
+                Some(should_stop),
+            )
+            .await?
+        }
+        None => {
+            super::raw_buffer::process_raw_buffer_batch_until(
+                database,
+                batch_size,
+                Some(should_stop),
+            )
+            .await?
+        }
+    };
     Ok(BufferBatchResult {
         processed: result.processed,
         failed: result.failed,
@@ -55,9 +95,9 @@ pub async fn cleanup_raw_ingest_buffer_retention(
            oldest_processed_at TIMESTAMPTZ,newest_processed_at TIMESTAMPTZ)",
         &[],
     ).await?;
-    let processed_hours = env_i32("RAW_BUFFER_PROCESSED_RETENTION_HOURS", 168);
-    let failed_hours = env_i32("RAW_BUFFER_FAILED_RETENTION_HOURS", 720);
-    let limit = env_i32("RAW_BUFFER_RETENTION_BATCH_SIZE", 10_000);
+    let processed_hours = env_i32("RAW_BUFFER_PROCESSED_RETENTION_HOURS", 1);
+    let failed_hours = env_i32("RAW_BUFFER_FAILED_RETENTION_HOURS", 1);
+    let limit = env_i32("RAW_BUFFER_RETENTION_BATCH_SIZE", 5_000);
     let processed = delete_retained(database, "processed", processed_hours, limit, reason).await?;
     let failed = delete_retained(database, "failed", failed_hours, limit, reason).await?;
     Ok(RetentionResult {

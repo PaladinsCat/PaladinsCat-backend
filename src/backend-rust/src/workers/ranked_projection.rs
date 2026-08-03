@@ -1,6 +1,8 @@
 use paladinscat_core::database::{Database, DatabaseError};
 
-use super::projections::{project_performance, project_scalable};
+use super::projections::{
+    project_performance, project_performance_many, project_scalable, project_scalable_many,
+};
 use super::rating::{RatingApplicationResult, RatingRepository};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,6 +31,52 @@ pub struct RankedProjectionRepository {
 impl RankedProjectionRepository {
     pub fn new(database: Database) -> Self {
         Self { database }
+    }
+
+    pub async fn project_performance_batch(
+        &self,
+        match_ids: &[i64],
+    ) -> Result<(), RankedProjectionError> {
+        self.project_cumulative_batch(match_ids, "performance_projections")
+            .await
+    }
+
+    pub async fn project_scalable_batch(
+        &self,
+        match_ids: &[i64],
+    ) -> Result<(), RankedProjectionError> {
+        self.project_cumulative_batch(match_ids, "scalable_stats")
+            .await
+    }
+
+    async fn project_cumulative_batch(
+        &self,
+        match_ids: &[i64],
+        stage: &str,
+    ) -> Result<(), RankedProjectionError> {
+        if match_ids.is_empty() {
+            return Ok(());
+        }
+        let ids = match_ids.to_vec();
+        let mut client = self.database.connection().await?;
+        let transaction = client.transaction().await?;
+        match stage {
+            "performance_projections" => {
+                project_performance_many(&transaction, &ids).await?;
+            }
+            "scalable_stats" => {
+                project_scalable_many(&transaction, &ids).await?;
+            }
+            _ => unreachable!("fixed cumulative projection stage"),
+        }
+        transaction
+            .execute(
+                "UPDATE match_ingest_status SET completed_stages=array_append(completed_stages,$2),updated_at=now() WHERE match_id=ANY($1::BIGINT[]) AND NOT completed_stages@>ARRAY[$2]::TEXT[]",
+                &[&ids, &stage],
+            )
+            .await?;
+        transaction.commit().await?;
+        Ok(())
     }
 
     pub async fn project_match(
@@ -80,6 +128,26 @@ impl RankedProjectionRepository {
         }
         let stages = row.get::<_, Vec<String>>("completed_stages");
         if stages.iter().any(|stage| stage == "ranked_stats") {
+            let needs_performance = !stages
+                .iter()
+                .any(|stage| stage == "performance_projections");
+            let needs_scalable = !stages.iter().any(|stage| stage == "scalable_stats");
+            if needs_performance {
+                project_performance(&transaction, match_id).await?;
+            }
+            if needs_scalable {
+                project_scalable(&transaction, match_id).await?;
+            }
+            if needs_performance || needs_scalable {
+                transaction
+                    .execute(
+                        "UPDATE match_ingest_status SET completed_stages=(SELECT array_agg(DISTINCT stage ORDER BY stage) FROM unnest(completed_stages||ARRAY['performance_projections','scalable_stats']::TEXT[]) stage),status='complete',acquisition_state='complete',completed_at=COALESCE(completed_at,now()),lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE match_id=$1",
+                        &[&match_id],
+                    )
+                    .await?;
+                transaction.commit().await?;
+                return Ok(RankedProjectionResult::Projected);
+            }
             transaction.commit().await?;
             return Ok(RankedProjectionResult::AlreadyProjected);
         }

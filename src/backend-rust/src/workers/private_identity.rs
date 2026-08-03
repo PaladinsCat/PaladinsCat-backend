@@ -13,6 +13,11 @@ pub const PRIVATE_IDENTITY_LINK_THRESHOLD: i16 = 68;
 pub const PRIVATE_IDENTITY_MARGIN: i16 = 12;
 const PRIVATE_RESOLVER_LOCK: i64 = 812_240_583;
 const PRIVATE_ACCOUNT_NAME: &str = "PRIVATEACCOUNT";
+const PRIVATE_PLAYER_FACT_TABLES: [&str; 3] = [
+    "match_players",
+    "casual_match_players",
+    "special_match_players",
+];
 
 #[derive(Clone, Copy, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +50,7 @@ pub async fn backfill_private_account_identities(
             &[&PRIVATE_IDENTITY_VERSION],
         )
         .await?;
-    for table in ["casual_match_players", "special_match_players"] {
+    for table in PRIVATE_PLAYER_FACT_TABLES {
         database
             .query_json(
                 &format!(
@@ -111,6 +116,7 @@ pub async fn backfill_private_account_identities(
         };
         resolve_existing_private_match(database, match_id).await?;
     }
+    let merged_during_run = reconcile_split_private_identities(database).await?;
     repair_private_match_links(database).await?;
     let unresolved = database
         .one_json(
@@ -135,12 +141,151 @@ pub async fn backfill_private_account_identities(
         database,
         true,
         i32::try_from(match_rows.len()).unwrap_or(i32::MAX),
-        0,
+        merged_during_run,
     )
     .await
 }
 
-async fn resolve_existing_private_match(
+async fn reconcile_split_private_identities(database: &Database) -> Result<i32, DatabaseError> {
+    let mut client = database.connection().await?;
+    let transaction = client.transaction().await?;
+    transaction
+        .query_one(
+            "SELECT pg_advisory_xact_lock($1)",
+            &[&PRIVATE_RESOLVER_LOCK],
+        )
+        .await?;
+    let sources = transaction
+        .query(
+            "SELECT id FROM players_private WHERE tracking_version=$1 AND is_active AND verified_name IS NULL ORDER BY first_seen,id",
+            &[&PRIVATE_IDENTITY_VERSION],
+        )
+        .await?;
+    let mut merged = 0_i32;
+    for source in sources {
+        let source_id = source.get::<_, i32>("id");
+        if transaction
+            .query_opt(
+                "SELECT id FROM players_private WHERE id=$1 AND tracking_version=$2 AND is_active AND verified_name IS NULL FOR UPDATE",
+                &[&source_id, &PRIVATE_IDENTITY_VERSION],
+            )
+            .await?
+            .is_none()
+        {
+            continue;
+        }
+        let source_rows = transaction
+            .query(
+                "SELECT * FROM private_account_observations WHERE private_player_id=$1 ORDER BY entry_datetime,match_id,private_slot",
+                &[&source_id],
+            )
+            .await?;
+        let Some(first) = source_rows.first() else {
+            continue;
+        };
+        let incoming = observation_row(first).observation;
+        let grouped = candidate_observations(&transaction, &incoming).await?;
+        let mut ranked = grouped
+            .iter()
+            .filter(|(id, observations)| {
+                **id != source_id
+                    && observations
+                        .iter()
+                        .any(|observation| observation.entry_datetime <= incoming.entry_datetime)
+            })
+            .map(|(id, observations)| (*id, score_candidate(&incoming, observations)))
+            .filter(|(_, result)| !result.hard_conflict)
+            .collect::<Vec<_>>();
+        ranked.sort_by(|left, right| {
+            right
+                .1
+                .score
+                .cmp(&left.1.score)
+                .then_with(|| left.0.cmp(&right.0))
+        });
+        let Some((target_id, best)) = ranked.first() else {
+            continue;
+        };
+        if best.score < PRIVATE_IDENTITY_LINK_THRESHOLD
+            || ranked
+                .get(1)
+                .is_some_and(|(_, runner)| best.score - runner.score < PRIVATE_IDENTITY_MARGIN)
+        {
+            continue;
+        }
+        let target_observations = grouped.get(target_id).cloned().unwrap_or_default();
+        if source_rows.iter().any(|row| {
+            score_candidate(&observation_row(row).observation, &target_observations).hard_conflict
+        }) {
+            continue;
+        }
+        let collision = transaction
+            .query_one(
+                "SELECT EXISTS(SELECT 1 FROM private_account_observations source JOIN private_account_observations target ON target.match_id=source.match_id WHERE source.private_player_id=$1 AND target.private_player_id=$2) collision",
+                &[&source_id, target_id],
+            )
+            .await?
+            .get::<_, bool>("collision");
+        if collision {
+            continue;
+        }
+        let mut reasons = best.reasons.clone();
+        reasons.push(format!("merged_identity:{source_id}"));
+        let reasons = serde_json::to_string(&reasons).expect("merge reasons serialize");
+        for table in PRIVATE_PLAYER_FACT_TABLES {
+            transaction
+                .execute(
+                    &format!(
+                        "UPDATE {table} mp SET private_player_id=$2 WHERE mp.player_id=0 AND (mp.private_player_id=$1 OR EXISTS(SELECT 1 FROM private_account_observations o WHERE o.private_player_id=$1 AND o.match_id=mp.match_id AND o.private_slot=mp.private_slot))"
+                    ),
+                    &[&source_id, target_id],
+                )
+                .await?;
+        }
+        transaction
+            .execute(
+                "UPDATE players_private_history SET player_private_id=$2,resolution_confidence=GREATEST(COALESCE(resolution_confidence,0),$3),resolution_reasons=$4::TEXT::JSONB WHERE player_private_id=$1",
+                &[&source_id, target_id, &best.score, &reasons],
+            )
+            .await?;
+        transaction
+            .execute(
+                "UPDATE private_account_observations SET private_player_id=$2,resolution_status='linked',resolution_confidence=GREATEST(resolution_confidence,$3),resolution_reasons=$4::TEXT::JSONB,resolved_at=now(),updated_at=now() WHERE private_player_id=$1",
+                &[&source_id, target_id, &best.score, &reasons],
+            )
+            .await?;
+        transaction
+            .execute(
+                "INSERT INTO private_account_community_votes(private_player_id,user_id,vote_type,reason,created_at) SELECT $2,user_id,vote_type,reason,created_at FROM private_account_community_votes WHERE private_player_id=$1 ON CONFLICT(private_player_id,user_id,vote_type) DO NOTHING",
+                &[&source_id, target_id],
+            )
+            .await?;
+        transaction
+            .execute(
+                "DELETE FROM private_account_community_votes WHERE private_player_id=$1",
+                &[&source_id],
+            )
+            .await?;
+        transaction
+            .execute(
+                "UPDATE players_private target SET cheater=target.cheater OR source.cheater,sus_count=(SELECT COUNT(*)::INT FROM private_account_community_votes vote WHERE vote.private_player_id=target.id AND vote.vote_type='suspicious'),cheater_reason=CASE WHEN source.cheater AND NOT target.cheater THEN source.cheater_reason ELSE target.cheater_reason END,cheater_marked_at=CASE WHEN source.cheater AND NOT target.cheater THEN source.cheater_marked_at ELSE target.cheater_marked_at END,updated_at=now() FROM players_private source WHERE target.id=$2 AND source.id=$1",
+                &[&source_id, target_id],
+            )
+            .await?;
+        transaction
+            .execute(
+                "UPDATE players_private SET is_active=FALSE,merged_into_id=$2,identity_status='merged',updated_at=now() WHERE id=$1",
+                &[&source_id, target_id],
+            )
+            .await?;
+        refresh_identity(&transaction, *target_id).await?;
+        merged = merged.saturating_add(1);
+    }
+    transaction.commit().await?;
+    Ok(merged)
+}
+
+pub(super) async fn resolve_existing_private_match(
     database: &Database,
     match_id: i64,
 ) -> Result<(), DatabaseError> {
@@ -154,9 +299,12 @@ async fn resolve_existing_private_match(
         .await?;
     transaction.execute(
         "UPDATE private_account_observations observation SET party_member_ids=COALESCE((\
-           SELECT array_agg(DISTINCT player.player_id ORDER BY player.player_id) FROM match_players player \
-           WHERE player.match_id=observation.match_id AND player.player_id>0 AND observation.party_id>0 \
-             AND player.party_id=observation.party_id),'{}'::BIGINT[]),updated_at=now() \
+           SELECT array_agg(DISTINCT companion.player_id ORDER BY companion.player_id) FROM(\
+             SELECT player_id,party_id FROM match_players WHERE match_id=observation.match_id \
+             UNION ALL SELECT player_id,party_id FROM casual_match_players WHERE match_id=observation.match_id \
+             UNION ALL SELECT player_id,party_id FROM special_match_players WHERE match_id=observation.match_id\
+           ) companion WHERE companion.player_id>0 AND observation.party_id>0 \
+             AND companion.party_id=observation.party_id),'{}'::BIGINT[]),updated_at=now() \
          WHERE observation.match_id=$1",
         &[&match_id],
     ).await?;
@@ -663,12 +811,20 @@ pub async fn persist_and_resolve_private_identities(
             r#"
             UPDATE private_account_observations observation
             SET party_member_ids=COALESCE((
-                  SELECT array_agg(DISTINCT player.player_id ORDER BY player.player_id)
-                  FROM match_players player
-                  WHERE player.match_id=observation.match_id
-                    AND player.player_id>0
+                  SELECT array_agg(DISTINCT companion.player_id ORDER BY companion.player_id)
+                  FROM (
+                    SELECT player_id,party_id FROM match_players
+                    WHERE match_id=observation.match_id
+                    UNION ALL
+                    SELECT player_id,party_id FROM casual_match_players
+                    WHERE match_id=observation.match_id
+                    UNION ALL
+                    SELECT player_id,party_id FROM special_match_players
+                    WHERE match_id=observation.match_id
+                  ) companion
+                  WHERE companion.player_id>0
                     AND observation.party_id>0
-                    AND player.party_id=observation.party_id
+                    AND companion.party_id=observation.party_id
                 ),'{}'::bigint[]),
                 updated_at=now()
             WHERE observation.match_id=$1
@@ -1078,6 +1234,26 @@ async fn link_match_player(
             &[&match_id, &private_slot, &private_player_id],
         )
         .await?;
+    transaction
+        .execute(
+            r#"
+            UPDATE casual_match_players
+            SET private_player_id=$3
+            WHERE match_id=$1 AND participant_kind='private' AND private_slot=$2
+            "#,
+            &[&match_id, &private_slot, &private_player_id],
+        )
+        .await?;
+    transaction
+        .execute(
+            r#"
+            UPDATE special_match_players
+            SET private_player_id=$3
+            WHERE match_id=$1 AND participant_kind='private' AND private_slot=$2
+            "#,
+            &[&match_id, &private_slot, &private_player_id],
+        )
+        .await?;
     Ok(())
 }
 
@@ -1249,6 +1425,36 @@ async fn upsert_unresolved_presence(
 mod tests {
     use super::*;
     use time::format_description::well_known::Rfc3339;
+
+    #[test]
+    fn private_links_cover_every_typescript_fact_population() {
+        assert_eq!(
+            PRIVATE_PLAYER_FACT_TABLES,
+            [
+                "match_players",
+                "casual_match_players",
+                "special_match_players"
+            ]
+        );
+    }
+
+    #[test]
+    fn backfill_reconciles_split_identities_and_reports_merges() {
+        let source = include_str!("private_identity.rs");
+        let backfill = source
+            .split_once("pub async fn backfill_private_account_identities")
+            .unwrap()
+            .1
+            .split_once("pub(super) async fn resolve_existing_private_match")
+            .unwrap()
+            .0;
+        let reconcile = backfill.find("reconcile_split_private_identities").unwrap();
+        let repair_after = backfill[reconcile..]
+            .find("repair_private_match_links")
+            .unwrap();
+        let report = backfill[reconcile..].find("merged_during_run").unwrap();
+        assert!(repair_after < report);
+    }
 
     fn parsed_time(value: &str) -> OffsetDateTime {
         OffsetDateTime::parse(value, &Rfc3339).expect("test timestamp")

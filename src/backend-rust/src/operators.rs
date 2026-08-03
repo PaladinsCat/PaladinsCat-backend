@@ -401,7 +401,8 @@ pub async fn reference_ingest(services: &OperatorServices, kind: &str) -> Result
         .await?;
     }
     tx.commit().await?;
-    let processed = process_buffer_batch(&services.database, rows.len()).await?;
+    let processed =
+        process_buffer_batch(&services.database, Some(&services.relay), rows.len()).await?;
     Ok(
         json!({"received":rows.len(),"processed":processed.processed,
         "failed":processed.failed,"deferred":processed.deferred}),
@@ -416,7 +417,8 @@ pub async fn pipeline_process(
     let limit = option_usize(opts, "limit", 100)?;
     let (mut processed, mut failed, mut deferred) = (0, 0, 0);
     for _ in 0..limit {
-        let result = process_buffer_batch(&services.database, batch_size).await?;
+        let result =
+            process_buffer_batch(&services.database, Some(&services.relay), batch_size).await?;
         processed += result.processed;
         failed += result.failed;
         deferred += result.deferred;

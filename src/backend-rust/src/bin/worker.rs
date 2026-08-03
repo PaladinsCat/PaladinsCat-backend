@@ -1,6 +1,8 @@
 use paladinscat_backend::workers::{
-    coordination::SCHEDULER_KEYS, match_lifecycle::MatchLifecycleRepository,
-    scheduler_host::run_scheduler_domain, scheduler_runtime::SchedulerRuntimeExit,
+    coordination::SCHEDULER_KEYS,
+    match_lifecycle::MatchLifecycleRepository,
+    scheduler_host::{run_scheduler_domain, run_scheduler_job_once},
+    scheduler_runtime::SchedulerRuntimeExit,
 };
 use paladinscat_core::{config::BackendConfig, database::Database};
 
@@ -76,6 +78,17 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
     let Some(scheduler_key) = arguments.next() else {
         usage_exit();
     };
+    let once_job = match arguments.next().as_deref() {
+        None => None,
+        Some("--once") => Some(arguments.next().unwrap_or_else(|| {
+            eprintln!("--once requires an exact scheduler job key");
+            std::process::exit(64);
+        })),
+        Some(argument) => {
+            eprintln!("unknown argument: {argument}");
+            std::process::exit(64);
+        }
+    };
     if arguments.next().is_some() || !SCHEDULER_KEYS.contains(&scheduler_key.as_str()) {
         eprintln!("unknown scheduler {scheduler_key}");
         std::process::exit(64);
@@ -84,6 +97,13 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
         eprintln!(
             "native scheduler execution is disabled; set \
              PALADINSCAT_RUST_WORKER_ENABLE=true explicitly"
+        );
+        std::process::exit(78);
+    }
+    if once_job.is_some() && !environment_enabled("PALADINSCAT_SCHEDULER_CAPTURE_ENABLE") {
+        eprintln!(
+            "one-shot scheduler capture is disabled; set \
+             PALADINSCAT_SCHEDULER_CAPTURE_ENABLE=true explicitly"
         );
         std::process::exit(78);
     }
@@ -101,6 +121,25 @@ async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {
         std::process::id(),
         uuid::Uuid::new_v4(),
     );
+    if let Some(job_key) = once_job {
+        let executed = run_scheduler_job_once(
+            database,
+            std::sync::Arc::new(config),
+            scheduler_key.clone(),
+            job_key.clone(),
+            owner_id,
+        )
+        .await
+        .unwrap_or_else(|error| {
+            eprintln!("{scheduler_key} one-shot scheduler failed: {error}");
+            std::process::exit(1);
+        });
+        if !executed {
+            eprintln!("{job_key} did not execute: ownership, job identity, or lease unavailable");
+            std::process::exit(75);
+        }
+        return;
+    }
     let exit = run_scheduler_domain(
         database,
         std::sync::Arc::new(config),
@@ -228,7 +267,7 @@ fn environment_enabled(name: &str) -> bool {
 fn usage_exit() -> ! {
     eprintln!(
         "usage:\n  paladinscat-worker adopt-nonranked [--limit N] [--apply]\n  \
-         paladinscat-worker run-scheduler <ranked_tracker|auto_ingester|baseline_tracker|derived_projection_tracker|hourly_gap_checker|tier_stats>\n  \
+         paladinscat-worker run-scheduler <ranked_tracker|auto_ingester|baseline_tracker|derived_projection_tracker|hourly_gap_checker|tier_stats> [--once JOB_KEY]\n  \
          paladinscat-worker run-all-schedulers"
     );
     std::process::exit(64);

@@ -32,6 +32,7 @@ pub(crate) async fn record_raw_hirez_response(
         _ => None,
     };
 
+    let entity_id = (!input.entity_id.is_empty()).then_some(input.entity_id.as_str());
     database
         .one_json(
             "INSERT INTO hirez_raw_api_responses (\
@@ -44,7 +45,7 @@ pub(crate) async fn record_raw_hirez_response(
                 &input.endpoint,
                 &input.operation,
                 &input.entity_type,
-                &input.entity_id,
+                &entity_id,
                 &input.params,
                 input.raw_response,
                 &raw_text,

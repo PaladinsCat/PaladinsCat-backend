@@ -6,6 +6,9 @@ use paladinscat_core::{
     database::{Database, DatabaseError},
 };
 use serde_json::{Value, json};
+use tokio_postgres::types::ToSql;
+
+use crate::raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response};
 
 use super::{
     policy::{ACTIVITY_PROFILE_BATCH_SIZE, ACTIVITY_PROFILE_TTL_HOURS},
@@ -13,89 +16,64 @@ use super::{
 };
 
 const SEED_UNKNOWN_IDENTITIES_SQL: &str = r#"
-WITH candidate_profiles AS MATERIALIZED (
-  SELECT
-    presence.player_id,
-    COALESCE(NULLIF(BTRIM(resolved.platform), ''), '') AS platform,
-    COALESCE(NULLIF(BTRIM(resolved.region), ''), '') AS region
-  FROM player_presence_24h presence
-  LEFT JOIN LATERAL (
-    SELECT candidate.platform, candidate.region
-    FROM (
-      SELECT profile.platform, profile.region, 0 AS identity_priority
-      FROM players profile
-      WHERE profile.id = presence.player_id
-      UNION ALL
-      SELECT profile.platform, profile.region, 1 AS identity_priority
-      FROM players profile
-      WHERE profile.active_player_id = presence.player_id
-        AND profile.active_player_id > 0
-        AND profile.id <> presence.player_id
-    ) candidate
-    ORDER BY candidate.identity_priority
-    LIMIT 1
-  ) resolved ON TRUE
-  WHERE presence.last_observed_at >= now() - interval '24 hours'
+INSERT INTO player_activity_profile_refresh (player_id)
+SELECT player_id
+FROM player_presence_24h
+WHERE last_observed_at >= now() - interval '24 hours'
+ON CONFLICT (player_id) DO NOTHING
+"#;
+
+const RECONCILE_PRESENCE_SQL: &str = r#"
+WITH recent_discoveries AS MATERIALIZED (
+  SELECT d.match_id,d.queue_id,q.queue_name,q.stats_scope,q.participant_model,
+    (COALESCE(d.entry_datetime AT TIME ZONE 'UTC',d.source_date+(d.source_hour*interval '1 hour')) AT TIME ZONE 'UTC') observed_at
+  FROM match_count_discoveries d JOIN queue_types q ON q.queue_id=d.queue_id
+  WHERE d.source_date>=((now() AT TIME ZONE 'UTC')-interval '25 hours')::date
+    AND COALESCE(d.entry_datetime AT TIME ZONE 'UTC',d.source_date+(d.source_hour*interval '1 hour'))>=(now() AT TIME ZONE 'UTC')-interval '24 hours'
+    AND q.track_presence=TRUE
+),roster_evidence AS MATERIALIZED (
+  SELECT mp.player_id,mp.match_id,d.queue_id,d.stats_scope,d.observed_at,
+    CASE WHEN mp.player_id>0 THEN 'human' WHEN UPPER(COALESCE(mp.player_name,''))='PRIVATEACCOUNT' OR COALESCE(mp.private_slot,0)>0 THEN 'private' ELSE 'unknown' END participant_kind
+  FROM recent_discoveries d JOIN match_players mp ON mp.match_id=d.match_id
+  WHERE mp.entry_datetime>=now()-interval '25 hours' AND COALESCE(mp.source,'direct') IN('direct','recovered')
+  UNION ALL
+  SELECT cmp.player_id,cmp.match_id,d.queue_id,d.stats_scope,d.observed_at,COALESCE(cmp.participant_kind,'human')
+  FROM recent_discoveries d JOIN casual_match_players cmp ON cmp.match_id=d.match_id
+  UNION ALL
+  SELECT smp.player_id,smp.match_id,d.queue_id,d.stats_scope,d.observed_at,COALESCE(smp.participant_kind,'human')
+  FROM recent_discoveries d JOIN special_match_players smp ON smp.match_id=d.match_id
+),participation AS MATERIALIZED (
+  SELECT player_id,match_id,queue_id,stats_scope,observed_at FROM roster_evidence
+  WHERE player_id>0 AND participant_kind='human'
+),deduplicated_participation AS MATERIALIZED (
+  SELECT DISTINCT player_id,match_id,queue_id,stats_scope,observed_at FROM participation
+),global_rows AS MATERIALIZED (
+  SELECT DISTINCT ON(player_id) player_id,MIN(observed_at) OVER(PARTITION BY player_id) first_observed_at,
+    observed_at last_observed_at,match_id last_match_id,queue_id last_queue_id,stats_scope last_stats_scope
+  FROM deduplicated_participation ORDER BY player_id,observed_at DESC,match_id DESC,queue_id DESC
+),queue_rows AS MATERIALIZED (
+  SELECT DISTINCT ON(player_id,queue_id) player_id,queue_id,stats_scope,
+    MIN(observed_at) OVER(PARTITION BY player_id,queue_id) first_observed_at,
+    observed_at last_observed_at,match_id last_match_id
+  FROM deduplicated_participation ORDER BY player_id,queue_id,observed_at DESC,match_id DESC
+),global_upsert AS (
+  INSERT INTO player_presence_24h(player_id,first_observed_at,last_observed_at,last_match_id,last_queue_id,last_stats_scope)
+  SELECT player_id,first_observed_at,last_observed_at,last_match_id,last_queue_id,last_stats_scope FROM global_rows
+  ON CONFLICT(player_id) DO UPDATE SET
+    first_observed_at=LEAST(player_presence_24h.first_observed_at,EXCLUDED.first_observed_at),
+    last_observed_at=GREATEST(player_presence_24h.last_observed_at,EXCLUDED.last_observed_at),
+    last_match_id=CASE WHEN EXCLUDED.last_observed_at>=player_presence_24h.last_observed_at THEN EXCLUDED.last_match_id ELSE player_presence_24h.last_match_id END,
+    last_queue_id=CASE WHEN EXCLUDED.last_observed_at>=player_presence_24h.last_observed_at THEN EXCLUDED.last_queue_id ELSE player_presence_24h.last_queue_id END,
+    last_stats_scope=CASE WHEN EXCLUDED.last_observed_at>=player_presence_24h.last_observed_at THEN EXCLUDED.last_stats_scope ELSE player_presence_24h.last_stats_scope END,
+    updated_at=now() RETURNING player_id
 )
-INSERT INTO player_activity_profile_refresh (
-  player_id, needs_platform, needs_region, status, updated_at
-)
-SELECT
-  player_id,
-  LOWER(platform) IN ('', 'unknown', 'unavailable'),
-  LOWER(region) IN ('', 'unknown', 'unavailable'),
-  CASE
-    WHEN LOWER(platform) NOT IN ('', 'unknown', 'unavailable')
-      AND LOWER(region) NOT IN ('', 'unknown', 'unavailable')
-    THEN 'success'
-    ELSE 'pending'
-  END,
-  now()
-FROM candidate_profiles
-ON CONFLICT (player_id) DO UPDATE SET
-  needs_platform = EXCLUDED.needs_platform,
-  needs_region = EXCLUDED.needs_region,
-  status = CASE
-    WHEN NOT EXCLUDED.needs_platform AND NOT EXCLUDED.needs_region
-      THEN 'success'
-    WHEN (
-      player_activity_profile_refresh.needs_platform IS DISTINCT FROM EXCLUDED.needs_platform
-      OR player_activity_profile_refresh.needs_region IS DISTINCT FROM EXCLUDED.needs_region
-    ) THEN 'pending'
-    ELSE player_activity_profile_refresh.status
-  END,
-  claim_owner = CASE
-    WHEN NOT EXCLUDED.needs_platform AND NOT EXCLUDED.needs_region
-      OR (
-        player_activity_profile_refresh.needs_platform IS DISTINCT FROM EXCLUDED.needs_platform
-        OR player_activity_profile_refresh.needs_region IS DISTINCT FROM EXCLUDED.needs_region
-      )
-    THEN NULL
-    ELSE player_activity_profile_refresh.claim_owner
-  END,
-  lease_until = CASE
-    WHEN NOT EXCLUDED.needs_platform AND NOT EXCLUDED.needs_region
-      OR (
-        player_activity_profile_refresh.needs_platform IS DISTINCT FROM EXCLUDED.needs_platform
-        OR player_activity_profile_refresh.needs_region IS DISTINCT FROM EXCLUDED.needs_region
-      )
-    THEN NULL
-    ELSE player_activity_profile_refresh.lease_until
-  END,
-  next_retry_at = CASE
-    WHEN (
-      player_activity_profile_refresh.needs_platform IS DISTINCT FROM EXCLUDED.needs_platform
-      OR player_activity_profile_refresh.needs_region IS DISTINCT FROM EXCLUDED.needs_region
-    )
-    THEN NULL
-    ELSE player_activity_profile_refresh.next_retry_at
-  END,
-  updated_at = CASE
-    WHEN player_activity_profile_refresh.needs_platform IS DISTINCT FROM EXCLUDED.needs_platform
-      OR player_activity_profile_refresh.needs_region IS DISTINCT FROM EXCLUDED.needs_region
-    THEN now()
-    ELSE player_activity_profile_refresh.updated_at
-  END
+INSERT INTO player_queue_presence_24h(player_id,queue_id,stats_scope,first_observed_at,last_observed_at,last_match_id)
+SELECT player_id,queue_id,stats_scope,first_observed_at,last_observed_at,last_match_id FROM queue_rows
+ON CONFLICT(player_id,queue_id) DO UPDATE SET
+  first_observed_at=LEAST(player_queue_presence_24h.first_observed_at,EXCLUDED.first_observed_at),
+  last_observed_at=GREATEST(player_queue_presence_24h.last_observed_at,EXCLUDED.last_observed_at),
+  last_match_id=CASE WHEN EXCLUDED.last_observed_at>=player_queue_presence_24h.last_observed_at THEN EXCLUDED.last_match_id ELSE player_queue_presence_24h.last_match_id END,
+  stats_scope=EXCLUDED.stats_scope,updated_at=now()
 "#;
 
 const CLAIM_UNKNOWN_IDENTITIES_SQL: &str = r#"
@@ -114,9 +92,8 @@ WITH due AS (
              profile.hirez_profile_refreshed_at DESC NULLS LAST
     LIMIT 1
   ) profile ON TRUE
-  WHERE (refresh.needs_platform OR refresh.needs_region)
-    AND (profile.hirez_profile_refreshed_at IS NULL
-      OR profile.hirez_profile_refreshed_at < now() - ($4::int * interval '1 hour'))
+  WHERE (profile.hirez_profile_refreshed_at IS NULL
+      OR profile.hirez_profile_refreshed_at < now() - ($3::int * interval '1 hour'))
     AND (
       refresh.status = 'pending'
       OR (refresh.status = 'failed' AND refresh.next_retry_at <= now())
@@ -129,65 +106,19 @@ WITH due AS (
 )
 UPDATE player_activity_profile_refresh refresh
 SET status = 'fetching',
-    claim_owner = $2,
-    lease_until = now() + ($3::int * interval '1 second'),
+    lease_until = now() + ($2::int * interval '1 second'),
     error_message = NULL,
     updated_at = now()
 FROM due
 WHERE refresh.player_id = due.player_id
-RETURNING refresh.player_id, refresh.needs_platform, refresh.needs_region
+RETURNING refresh.player_id, false AS needs_platform, false AS needs_region
 "#;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PlayerIdentityState {
-    pub player_id: i64,
-    pub platform: Option<String>,
-    pub region: Option<String>,
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimedPlayerIdentity {
     pub player_id: i64,
     pub needs_platform: bool,
     pub needs_region: bool,
-}
-
-impl PlayerIdentityState {
-    pub fn needs_platform(&self) -> bool {
-        unknown_identity_value(self.platform.as_deref())
-    }
-
-    pub fn needs_region(&self) -> bool {
-        unknown_identity_value(self.region.as_deref())
-    }
-
-    pub fn needs_enrichment(&self) -> bool {
-        self.needs_platform() || self.needs_region()
-    }
-}
-
-pub fn unknown_identity_value(value: Option<&str>) -> bool {
-    value.is_none_or(|value| {
-        let normalized = value.trim();
-        normalized.is_empty()
-            || normalized.eq_ignore_ascii_case("unknown")
-            || normalized.eq_ignore_ascii_case("unavailable")
-    })
-}
-
-pub fn unknown_identity_batches(
-    players: impl IntoIterator<Item = PlayerIdentityState>,
-) -> Vec<Vec<PlayerIdentityState>> {
-    let mut seen = BTreeSet::new();
-    let candidates: Vec<_> = players
-        .into_iter()
-        .filter(PlayerIdentityState::needs_enrichment)
-        .filter(|player| player.player_id > 0 && seen.insert(player.player_id))
-        .collect();
-    candidates
-        .chunks(ACTIVITY_PROFILE_BATCH_SIZE)
-        .map(<[PlayerIdentityState]>::to_vec)
-        .collect()
 }
 
 #[derive(Clone)]
@@ -202,17 +133,22 @@ const FAILED_RETRY_MINUTES: i32 = 60;
 pub struct ProfileEnrichmentResult {
     pub calls: usize,
     pub claimed: usize,
-    pub updated: usize,
+    pub refreshed: usize,
     pub unavailable: usize,
+    pub skipped_recent: usize,
     pub failed: usize,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfileEnrichmentError {
+    #[error("Hi-Rez returned no usable player profile")]
+    InvalidProfile,
     #[error(transparent)]
     Database(#[from] DatabaseError),
     #[error(transparent)]
     Relay(#[from] WorkerRelayError),
+    #[error(transparent)]
+    Query(#[from] tokio_postgres::Error),
 }
 
 impl ProfileEnrichmentRepository {
@@ -223,7 +159,6 @@ impl ProfileEnrichmentRepository {
     pub async fn claim_unknown_batches(
         &self,
         max_calls: usize,
-        owner: &str,
         lease: Duration,
     ) -> Result<Vec<Vec<ClaimedPlayerIdentity>>, DatabaseError> {
         if max_calls == 0 {
@@ -240,7 +175,7 @@ impl ProfileEnrichmentRepository {
         let rows = transaction
             .query(
                 CLAIM_UNKNOWN_IDENTITIES_SQL,
-                &[&limit, &owner, &lease_seconds, &ACTIVITY_PROFILE_TTL_HOURS],
+                &[&limit, &lease_seconds, &ACTIVITY_PROFILE_TTL_HOURS],
             )
             .await?;
         transaction.commit().await?;
@@ -262,22 +197,29 @@ impl ProfileEnrichmentRepository {
         &self,
         config: &BackendConfig,
         max_calls: usize,
-        owner: &str,
+        reason: &str,
     ) -> Result<ProfileEnrichmentResult, ProfileEnrichmentError> {
+        self.database
+            .query_json(RECONCILE_PRESENCE_SQL, &[])
+            .await?;
         let batches = self
-            .claim_unknown_batches(max_calls, owner, PROFILE_CLAIM_LEASE)
+            .claim_unknown_batches(max_calls, PROFILE_CLAIM_LEASE)
             .await?;
         let relay = WorkerRelayClient::new(config)?;
         let mut result = ProfileEnrichmentResult::default();
         for (index, batch) in batches.iter().enumerate() {
             result.claimed += batch.len();
-            let ids = batch.iter().map(|row| row.player_id).collect::<Vec<_>>();
+            let claimed_ids = batch.iter().map(|row| row.player_id).collect::<Vec<_>>();
+            let (ids, recent) = self.filter_still_stale(&claimed_ids).await?;
+            if !recent.is_empty() {
+                self.mark_skipped_recent(&recent).await?;
+                result.skipped_recent += recent.len();
+            }
+            if ids.is_empty() {
+                continue;
+            }
             let response = relay
-                .call_value(
-                    "getPlayerBatch",
-                    vec![json!(ids)],
-                    "rust_profile_enrichment",
-                )
+                .call_value("getPlayerBatch", vec![json!(ids)], "backend_unattributed")
                 .await;
             let payload = match response {
                 Ok(payload) => payload,
@@ -286,7 +228,7 @@ impl ProfileEnrichmentRepository {
                     self.database
                         .query_json(
                             "UPDATE player_activity_profile_refresh SET status='failed',attempts=attempts+1,\
-                             last_attempt_at=now(),error_message=$2,claim_owner=NULL,lease_until=NULL,\
+                             last_attempt_at=now(),error_message=$2,lease_until=NULL,\
                              next_retry_at=now()+($3::int*INTERVAL '1 minute'),updated_at=now() \
                              WHERE player_id=ANY($1::BIGINT[])",
                             &[&ids, &message, &FAILED_RETRY_MINUTES],
@@ -306,84 +248,86 @@ impl ProfileEnrichmentRepository {
                 }
             };
             result.calls += 1;
-            let rows = payload.as_array().cloned().unwrap_or_default();
-            let returned = rows
-                .iter()
-                .filter_map(|row| {
-                    let player_id = value_i64(row, &["player_id", "Id"])?;
-                    (player_id > 0).then_some((player_id, row))
-                })
-                .collect::<std::collections::BTreeMap<_, _>>();
+            if let Err(error) = record_raw_hirez_response(
+                &self.database,
+                RawHirezAudit {
+                    endpoint: "getplayerbatch",
+                    operation: "getPlayerBatch",
+                    entity_type: "player_activity_profile_enrichment",
+                    entity_id: String::new(),
+                    params: json!({"playerIds":ids,"reason":reason}),
+                    raw_response: &payload,
+                    source: "player-activity-profile-enrichment",
+                },
+            )
+            .await
+            {
+                let message = error.to_string();
+                self.database
+                    .query_json(
+                        "UPDATE player_activity_profile_refresh SET status='failed',attempts=attempts+1,last_attempt_at=now(),error_message=$2,lease_until=NULL,next_retry_at=now()+($3::int*INTERVAL '1 minute'),updated_at=now() WHERE player_id=ANY($1::BIGINT[])",
+                        &[&ids, &message, &FAILED_RETRY_MINUTES],
+                    )
+                    .await?;
+                result.failed += ids.len();
+                for unprocessed in batches.iter().skip(index + 1) {
+                    self.release_unprocessed(
+                        &unprocessed
+                            .iter()
+                            .map(|claim| claim.player_id)
+                            .collect::<Vec<_>>(),
+                    )
+                    .await?;
+                }
+                break;
+            }
+            let mut rows = Vec::new();
+            for profile in payload.as_array().into_iter().flatten() {
+                if !value_text(profile, &["ret_msg"])
+                    .unwrap_or_default()
+                    .is_empty()
+                {
+                    continue;
+                }
+                match persist_player_profile(&self.database, profile).await {
+                    Ok(_) => rows.push(profile.clone()),
+                    Err(error) => tracing::error!(%error, "profile enrichment persistence failed"),
+                }
+            }
+            let requested = ids.iter().copied().collect::<BTreeSet<_>>();
+            let mut returned = std::collections::BTreeMap::new();
+            for profile in &rows {
+                for player_id in profile_identity_ids(profile) {
+                    if requested.contains(&player_id) {
+                        returned.insert(player_id, profile);
+                    }
+                }
+            }
             for claim in batch {
-                let Some(profile) = returned.get(&claim.player_id) else {
-                    self.finish_unavailable(claim.player_id, "player absent from getplayerbatch")
-                        .await?;
+                if !ids.contains(&claim.player_id) {
+                    continue;
+                }
+                let Some(_) = returned.get(&claim.player_id) else {
+                    self.finish_unavailable(
+                        claim.player_id,
+                        "Hi-Rez getplayerbatch returned no usable profile for this player ID.",
+                    )
+                    .await?;
                     result.unavailable += 1;
                     continue;
                 };
-                let platform = value_text(profile, &["platform", "Platform", "portal"])
-                    .filter(|value| !unknown_identity_value(Some(value)));
-                let region = value_text(profile, &["region", "Region"])
-                    .filter(|value| !unknown_identity_value(Some(value)));
-                let player_name = value_text(
-                    profile,
-                    &[
-                        "hz_player_name",
-                        "hz_gamer_tag",
-                        "player_name",
-                        "Name",
-                        "name",
-                    ],
-                )
-                .unwrap_or_else(|| format!("Player #{}", claim.player_id));
-                // Presence can contain a public identity before any profile row
-                // exists. Create its minimal profile row so this successful
-                // enrichment actually removes the Unknown platform/region.
                 self.database
                     .query_json(
-                        "INSERT INTO players (id,name,platform,region,hirez_profile_refreshed_at,last_updated) \
-                         VALUES($1,$2,NULLIF($3,''),NULLIF($4,''),now(),now()) ON CONFLICT(id) DO NOTHING",
-                        &[&claim.player_id, &player_name, &platform.clone().unwrap_or_default(), &region.clone().unwrap_or_default()],
-                    )
-                    .await?;
-                self.database
-                    .query_json(
-                        "UPDATE players SET platform=CASE WHEN $2<>'' AND lower(COALESCE(platform,'')) IN('','unknown','unavailable') THEN $2 ELSE platform END,\
-                         region=CASE WHEN $3<>'' AND lower(COALESCE(region,'')) IN('','unknown','unavailable') THEN $3 ELSE region END,\
-                         hirez_profile_refreshed_at=now(),last_updated=now() WHERE id=$1 OR active_player_id=$1",
-                        &[
-                            &claim.player_id,
-                            &platform.clone().unwrap_or_default(),
-                            &region.clone().unwrap_or_default(),
-                        ],
-                    )
-                    .await?;
-                let needs_platform = claim.needs_platform && platform.is_none();
-                let needs_region = claim.needs_region && region.is_none();
-                let status = if needs_platform || needs_region {
-                    "unavailable"
-                } else {
-                    "success"
-                };
-                self.database
-                    .query_json(
-                        "UPDATE player_activity_profile_refresh SET needs_platform=$2,needs_region=$3,status=$4,\
-                         attempts=attempts+1,last_attempt_at=now(),\
-                         last_success_at=CASE WHEN $4='success' THEN now() ELSE last_success_at END,\
-                         claim_owner=NULL,lease_until=NULL,\
-                         error_message=CASE WHEN $4='success' THEN NULL ELSE 'Hi-Rez getplayerbatch returned no usable profile for this player ID.' END,\
-                         next_retry_at=NULL,updated_at=now() \
+                        "UPDATE player_activity_profile_refresh SET status='success',attempts=attempts+1,last_attempt_at=now(),\
+                         last_success_at=now(),lease_until=NULL,error_message=NULL,next_retry_at=NULL,updated_at=now() \
                          WHERE player_id=$1",
-                        &[&claim.player_id, &needs_platform, &needs_region, &status],
+                        &[&claim.player_id],
                     )
                     .await?;
-                if status == "success" {
-                    result.updated += 1;
-                } else {
-                    result.unavailable += 1;
-                }
+                result.refreshed += 1;
             }
         }
+        self.cleanup_old_state().await?;
         Ok(result)
     }
 
@@ -391,9 +335,57 @@ impl ProfileEnrichmentRepository {
         self.database
             .query_json(
                 "UPDATE player_activity_profile_refresh SET status='unavailable',attempts=attempts+1,\
-                 last_attempt_at=now(),error_message=$2,claim_owner=NULL,lease_until=NULL,next_retry_at=NULL,updated_at=now() \
+                 last_attempt_at=now(),error_message=$2,lease_until=NULL,next_retry_at=NULL,updated_at=now() \
                  WHERE player_id=$1",
                 &[&player_id, &reason],
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn filter_still_stale(
+        &self,
+        player_ids: &[i64],
+    ) -> Result<(Vec<i64>, Vec<i64>), DatabaseError> {
+        if player_ids.is_empty() {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let rows = self
+            .database
+            .query_json(
+                "SELECT requested.player_id,COALESCE(resolved.hirez_profile_refreshed_at>=now()-($2::int*INTERVAL '1 hour'),FALSE) is_recent \
+                 FROM unnest($1::BIGINT[]) requested(player_id) LEFT JOIN LATERAL(\
+                   SELECT candidate.hirez_profile_refreshed_at FROM(\
+                     SELECT profile.hirez_profile_refreshed_at,0 identity_priority FROM players profile WHERE profile.id=requested.player_id \
+                     UNION ALL SELECT profile.hirez_profile_refreshed_at,1 identity_priority FROM players profile WHERE profile.active_player_id=requested.player_id AND profile.active_player_id>0 AND profile.id<>requested.player_id\
+                   ) candidate ORDER BY candidate.identity_priority,candidate.hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1\
+                 ) resolved ON TRUE",
+                &[&player_ids, &ACTIVITY_PROFILE_TTL_HOURS],
+            )
+            .await?;
+        let recent = rows
+            .iter()
+            .filter(|row| {
+                row.get("is_recent")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            })
+            .filter_map(|row| value_i64(row, &["player_id"]))
+            .collect::<Vec<_>>();
+        let recent_set = recent.iter().copied().collect::<BTreeSet<_>>();
+        let stale = player_ids
+            .iter()
+            .copied()
+            .filter(|player_id| !recent_set.contains(player_id))
+            .collect();
+        Ok((stale, recent))
+    }
+
+    async fn mark_skipped_recent(&self, player_ids: &[i64]) -> Result<(), DatabaseError> {
+        self.database
+            .query_json(
+                "UPDATE player_activity_profile_refresh SET status='skipped_recent',last_success_at=now(),next_retry_at=NULL,lease_until=NULL,error_message=NULL,updated_at=now() WHERE player_id=ANY($1::BIGINT[])",
+                &[&player_ids],
             )
             .await?;
         Ok(())
@@ -405,9 +397,25 @@ impl ProfileEnrichmentRepository {
         }
         self.database
             .query_json(
-                "UPDATE player_activity_profile_refresh SET status='pending',claim_owner=NULL,lease_until=NULL,\
+                "UPDATE player_activity_profile_refresh SET status='pending',lease_until=NULL,\
                  error_message=NULL,next_retry_at=now(),updated_at=now() WHERE player_id=ANY($1::BIGINT[])",
                 &[&player_ids],
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn cleanup_old_state(&self) -> Result<(), DatabaseError> {
+        self.database
+            .query_json(
+                "DELETE FROM player_queue_presence_24h WHERE last_observed_at<now()-INTERVAL '7 days'",
+                &[],
+            )
+            .await?;
+        self.database
+            .query_json(
+                "DELETE FROM player_activity_profile_refresh refresh WHERE refresh.updated_at<now()-INTERVAL '7 days' AND NOT EXISTS(SELECT 1 FROM player_presence_24h presence WHERE presence.player_id=refresh.player_id AND presence.last_observed_at>=now()-INTERVAL '24 hours')",
+                &[],
             )
             .await?;
         Ok(())
@@ -422,6 +430,20 @@ fn value_i64(value: &Value, keys: &[&str]) -> Option<i64> {
     })
 }
 
+fn profile_identity_ids(value: &Value) -> BTreeSet<i64> {
+    [
+        "player_id",
+        "Id",
+        "id",
+        "ActivePlayerId",
+        "active_player_id",
+    ]
+    .into_iter()
+    .filter_map(|key| value_i64(value, &[key]))
+    .filter(|player_id| *player_id > 0)
+    .collect()
+}
+
 fn value_text(value: &Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         value
@@ -429,8 +451,223 @@ fn value_text(value: &Value, keys: &[&str]) -> Option<String> {
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(str::to_owned)
+            .map(|value| value.replace('\0', "").replace("\\u0000", ""))
     })
+}
+
+fn synthetic_name(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    (lower.starts_with("dummyplayer")
+        && lower["dummyplayer".len()..]
+            .chars()
+            .all(|character| character.is_ascii_digit()))
+        || (lower.len() >= 27
+            && lower.contains("user-")
+            && lower.split("user-").next().is_some_and(|prefix| {
+                prefix.len() >= 20
+                    && prefix
+                        .chars()
+                        .all(|character| character.is_ascii_hexdigit())
+            }))
+}
+
+fn normalized_region(value: Option<String>) -> String {
+    let value = value.unwrap_or_default();
+    match value.trim().to_ascii_lowercase().as_str() {
+        "north america" | "na" => "North America".to_owned(),
+        "europe" | "eu" => "Europe".to_owned(),
+        "brazil" | "br" => "Brazil".to_owned(),
+        "latin america north" | "latam north" => "Latin America North".to_owned(),
+        "latin america south" | "latam south" => "Latin America South".to_owned(),
+        "southeast asia" | "sea" => "Southeast Asia".to_owned(),
+        "australia" | "oceania" => "Australia".to_owned(),
+        "japan" => "Japan".to_owned(),
+        "" => "Unknown".to_owned(),
+        _ => value.trim().to_owned(),
+    }
+}
+
+fn calculated_level(total_xp: i64, api_level: i64) -> i64 {
+    if total_xp <= 0 {
+        return api_level.max(0);
+    }
+    ((((1.0 + 4.0 * total_xp as f64 / 10_000.0).sqrt() + 1.0) / 2.0).floor() as i64).max(api_level)
+}
+
+pub(super) async fn persist_player_profile(
+    database: &Database,
+    raw: &Value,
+) -> Result<i64, ProfileEnrichmentError> {
+    let mut client = database.connection().await?;
+    let transaction = client.transaction().await?;
+    let player_id = persist_player_profile_in_transaction(&transaction, raw).await?;
+    transaction.commit().await?;
+    Ok(player_id)
+}
+
+pub(super) async fn persist_player_profile_in_transaction(
+    transaction: &tokio_postgres::Transaction<'_>,
+    raw: &Value,
+) -> Result<i64, ProfileEnrichmentError> {
+    let player_id = value_i64(raw, &["Id", "ActivePlayerId"]).unwrap_or_default();
+    if player_id <= 0 {
+        return Err(ProfileEnrichmentError::InvalidProfile);
+    }
+    let platform_name = value_text(raw, &["Name"]);
+    let hz_player_name = value_text(raw, &["hz_player_name"]);
+    let hz_gamer_tag = value_text(raw, &["hz_gamer_tag"]);
+    let (name_source, name) = [
+        ("hz_player_name", hz_player_name.as_deref()),
+        ("hz_gamer_tag", hz_gamer_tag.as_deref()),
+        ("name", platform_name.as_deref()),
+    ]
+    .into_iter()
+    .find(|(_, value)| value.is_some_and(|value| !synthetic_name(value)))
+    .map(|(source, value)| (source.to_owned(), value.unwrap_or_default().to_owned()))
+    .unwrap_or_else(|| ("none".to_owned(), format!("Player {player_id}")));
+    let anomaly = [
+        platform_name.as_ref(),
+        hz_player_name.as_ref(),
+        hz_gamer_tag.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|value| synthetic_name(value));
+    let api_level = value_i64(raw, &["Level", "level"]).unwrap_or_default();
+    let total_xp = value_i64(raw, &["Total_XP", "total_xp"]).unwrap_or_default();
+    let active_id = value_i64(raw, &["ActivePlayerId", "Id"]).unwrap_or(player_id);
+    let ranked = |field: &str| {
+        raw.get(field)
+            .filter(|value| value.is_object())
+            .unwrap_or(&Value::Null)
+    };
+    let mut owned: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(70);
+    macro_rules! param {
+        ($value:expr) => {
+            owned.push(Box::new($value));
+        };
+    }
+    param!(player_id);
+    param!(active_id);
+    param!(name);
+    param!(i32::try_from(calculated_level(total_xp, api_level)).unwrap_or_default());
+    param!(i32::try_from(api_level).unwrap_or_default());
+    for field in [
+        "Wins",
+        "Losses",
+        "Leaves",
+        "HoursPlayed",
+        "MinutesPlayed",
+        "MasteryLevel",
+    ] {
+        param!(i32::try_from(value_i64(raw, &[field]).unwrap_or_default()).unwrap_or_default());
+    }
+    param!(normalized_region(value_text(raw, &["Region"])));
+    param!(value_text(raw, &["Platform"]));
+    param!(value_text(raw, &["ret_msg"]));
+    param!(total_xp);
+    param!(value_i64(raw, &["Total_Worshippers"]).unwrap_or_default());
+    param!(
+        i32::try_from(value_i64(raw, &["Total_Achievements"]).unwrap_or_default())
+            .unwrap_or_default()
+    );
+    param!(i32::try_from(value_i64(raw, &["AvatarId"]).unwrap_or_default()).unwrap_or_default());
+    param!(value_text(raw, &["AvatarURL"]));
+    param!(value_text(raw, &["Title"]).unwrap_or_default());
+    param!(value_text(raw, &["LoadingFrame"]).unwrap_or_default());
+    param!(value_text(raw, &["Created_Datetime"]));
+    param!(value_text(raw, &["Last_Login_Datetime"]));
+    param!(value_text(raw, &["Personal_Status_Message"]).unwrap_or_default());
+    param!(i32::try_from(value_i64(raw, &["TeamId"]).unwrap_or_default()).unwrap_or_default());
+    param!(value_text(raw, &["Team_Name"]).unwrap_or_default());
+    param!(
+        raw.get("MergedPlayers")
+            .and_then(Value::as_array)
+            .map(|rows| rows
+                .iter()
+                .filter_map(|row| value_i64(row, &["playerId", "player_id"]))
+                .filter(|id| *id > 0)
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>())
+    );
+    param!(if value_text(raw, &["privacy_flag"])
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("y")
+    {
+        "y".to_owned()
+    } else {
+        "n".to_owned()
+    });
+    for (queue, fallback) in [
+        (
+            ranked("RankedKBM"),
+            value_i64(raw, &["Tier_RankedKBM"]).unwrap_or_default(),
+        ),
+        (
+            ranked("RankedController"),
+            value_i64(raw, &["Tier_RankedController"]).unwrap_or_default(),
+        ),
+        (
+            ranked("RankedConquest"),
+            value_i64(raw, &["Tier_Conquest"]).unwrap_or_default(),
+        ),
+    ] {
+        param!(value_text(queue, &["Name"]).unwrap_or_default());
+        param!(
+            i32::try_from(value_i64(queue, &["Points"]).unwrap_or_default()).unwrap_or_default()
+        );
+        param!(
+            i32::try_from(
+                value_i64(queue, &["Tier"])
+                    .unwrap_or_default()
+                    .max(fallback)
+            )
+            .unwrap_or_default()
+        );
+        for field in [
+            "Rank", "Wins", "Losses", "Leaves", "Trend", "PrevRank", "Season",
+        ] {
+            param!(
+                i32::try_from(value_i64(queue, &[field]).unwrap_or_default()).unwrap_or_default()
+            );
+        }
+        param!(value_i64(queue, &["player_id"]).filter(|value| *value > 0));
+        param!(value_text(queue, &["ret_msg"]));
+    }
+    param!(platform_name);
+    param!(hz_player_name);
+    param!(hz_gamer_tag);
+    param!(name_source);
+    param!(anomaly);
+    param!(anomaly.then(|| "profile contained a synthetic display identity".to_owned()));
+    let fields = owned
+        .iter()
+        .map(|value| value.as_ref() as &(dyn ToSql + Sync))
+        .collect::<Vec<_>>();
+    transaction.execute(
+        "INSERT INTO players (id,active_player_id,name,level,api_level,wins,losses,leaves,hours_played,minutes_played,mastery_level,region,platform,ret_msg,total_xp,total_worshippers,total_achievements,avatar_id,avatar_url,title,loading_frame,created_datetime,last_login_datetime,personal_status_message,team_id,team_name,merged_players,privacy_flag,kbm_name,kbm_points,kbm_tier,kbm_rank,kbm_wins,kbm_losses,kbm_leaves,kbm_trend,kbm_prev_rank,kbm_season,kbm_player_id,kbm_ret_msg,controller_name,controller_points,controller_tier,controller_rank,controller_wins,controller_losses,controller_leaves,controller_trend,controller_prev_rank,controller_season,controller_player_id,controller_ret_msg,conquest_name,conquest_points,conquest_tier,conquest_rank,conquest_wins,conquest_losses,conquest_leaves,conquest_trend,conquest_prev_rank,conquest_season,conquest_player_id,conquest_ret_msg,platform_name,hz_player_name,hz_gamer_tag,name_source,name_anomaly,name_anomaly_reason,name_anomaly_detected_at,first_seen,last_seen,last_updated,hirez_profile_refreshed_at) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::TEXT::TIMESTAMPTZ,$23::TEXT::TIMESTAMPTZ,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$70,CASE WHEN $69 THEN now() ELSE NULL END,now(),now(),now(),now()) \
+         ON CONFLICT(id) DO UPDATE SET active_player_id=EXCLUDED.active_player_id,name=CASE WHEN EXCLUDED.name_source<>'none' AND NULLIF(EXCLUDED.name,'') IS NOT NULL THEN EXCLUDED.name WHEN players.name~*'^(DummyPlayer[0-9]+|[0-9a-f]{20,}User-[0-9a-f]{6,})$' THEN 'Player '||players.id::text ELSE players.name END,level=EXCLUDED.level,api_level=EXCLUDED.api_level,wins=EXCLUDED.wins,losses=EXCLUDED.losses,leaves=EXCLUDED.leaves,hours_played=EXCLUDED.hours_played,minutes_played=EXCLUDED.minutes_played,mastery_level=EXCLUDED.mastery_level,region=CASE WHEN NULLIF(BTRIM(EXCLUDED.region),'') IS NOT NULL AND UPPER(EXCLUDED.region)<>'UNKNOWN' THEN EXCLUDED.region ELSE players.region END,platform=CASE WHEN NULLIF(BTRIM(EXCLUDED.platform),'') IS NOT NULL AND UPPER(EXCLUDED.platform)<>'UNKNOWN' THEN EXCLUDED.platform ELSE players.platform END,ret_msg=EXCLUDED.ret_msg,total_xp=EXCLUDED.total_xp,total_worshippers=EXCLUDED.total_worshippers,total_achievements=EXCLUDED.total_achievements,avatar_id=EXCLUDED.avatar_id,avatar_url=EXCLUDED.avatar_url,title=EXCLUDED.title,loading_frame=EXCLUDED.loading_frame,created_datetime=EXCLUDED.created_datetime,last_login_datetime=EXCLUDED.last_login_datetime,personal_status_message=EXCLUDED.personal_status_message,team_id=EXCLUDED.team_id,team_name=EXCLUDED.team_name,merged_players=EXCLUDED.merged_players,privacy_flag=EXCLUDED.privacy_flag,kbm_name=EXCLUDED.kbm_name,kbm_points=EXCLUDED.kbm_points,kbm_tier=EXCLUDED.kbm_tier,kbm_rank=EXCLUDED.kbm_rank,kbm_wins=EXCLUDED.kbm_wins,kbm_losses=EXCLUDED.kbm_losses,kbm_leaves=EXCLUDED.kbm_leaves,kbm_trend=EXCLUDED.kbm_trend,kbm_prev_rank=EXCLUDED.kbm_prev_rank,kbm_season=EXCLUDED.kbm_season,kbm_player_id=EXCLUDED.kbm_player_id,kbm_ret_msg=EXCLUDED.kbm_ret_msg,controller_name=EXCLUDED.controller_name,controller_points=EXCLUDED.controller_points,controller_tier=EXCLUDED.controller_tier,controller_rank=EXCLUDED.controller_rank,controller_wins=EXCLUDED.controller_wins,controller_losses=EXCLUDED.controller_losses,controller_leaves=EXCLUDED.controller_leaves,controller_trend=EXCLUDED.controller_trend,controller_prev_rank=EXCLUDED.controller_prev_rank,controller_season=EXCLUDED.controller_season,controller_player_id=EXCLUDED.controller_player_id,controller_ret_msg=EXCLUDED.controller_ret_msg,conquest_name=EXCLUDED.conquest_name,conquest_points=EXCLUDED.conquest_points,conquest_tier=EXCLUDED.conquest_tier,conquest_rank=EXCLUDED.conquest_rank,conquest_wins=EXCLUDED.conquest_wins,conquest_losses=EXCLUDED.conquest_losses,conquest_leaves=EXCLUDED.conquest_leaves,conquest_trend=EXCLUDED.conquest_trend,conquest_prev_rank=EXCLUDED.conquest_prev_rank,conquest_season=EXCLUDED.conquest_season,conquest_player_id=EXCLUDED.conquest_player_id,conquest_ret_msg=EXCLUDED.conquest_ret_msg,platform_name=EXCLUDED.platform_name,hz_player_name=EXCLUDED.hz_player_name,hz_gamer_tag=EXCLUDED.hz_gamer_tag,name_source=CASE WHEN EXCLUDED.name_source<>'none' THEN EXCLUDED.name_source ELSE players.name_source END,name_anomaly=EXCLUDED.name_anomaly,name_anomaly_reason=CASE WHEN EXCLUDED.name_anomaly THEN EXCLUDED.name_anomaly_reason ELSE players.name_anomaly_reason END,name_anomaly_detected_at=CASE WHEN EXCLUDED.name_anomaly THEN COALESCE(players.name_anomaly_detected_at,now()) ELSE players.name_anomaly_detected_at END,hirez_profile_refreshed_at=now(),last_seen=now(),last_updated=now()",
+        &fields,
+    ).await?;
+    transaction
+        .execute(
+            "DELETE FROM player_profile_merged_players WHERE player_id=$1",
+            &[&player_id],
+        )
+        .await?;
+    if let Some(rows) = raw.get("MergedPlayers").and_then(Value::as_array) {
+        for row in rows {
+            let merged_id = value_i64(row, &["playerId", "player_id"]).unwrap_or_default();
+            if merged_id <= 0 {
+                continue;
+            }
+            let portal_id = value_i64(row, &["portalId", "portal_id"]).filter(|value| *value > 0);
+            let merged_at = value_text(row, &["mergeDatetime", "merge_datetime"]);
+            transaction.execute("INSERT INTO player_profile_merged_players(player_id,merged_player_id,portal_id,merge_datetime,profile_refreshed_at) VALUES($1,$2,$3,$4::TEXT::TIMESTAMPTZ,now()) ON CONFLICT(player_id,merged_player_id) DO UPDATE SET portal_id=EXCLUDED.portal_id,merge_datetime=EXCLUDED.merge_datetime,profile_refreshed_at=now()", &[&player_id,&merged_id,&portal_id,&merged_at]).await?;
+        }
+    }
+    Ok(player_id)
 }
 
 #[cfg(test)]
@@ -438,61 +675,60 @@ mod tests {
     use super::*;
     use paladinscat_core::config::BackendConfig;
 
-    fn player(player_id: i64, platform: Option<&str>, region: Option<&str>) -> PlayerIdentityState {
-        PlayerIdentityState {
-            player_id,
-            platform: platform.map(str::to_owned),
-            region: region.map(str::to_owned),
-        }
-    }
-
-    #[test]
-    fn known_platform_and_region_are_never_fetched() {
-        let batches = unknown_identity_batches([
-            player(1, Some("Steam"), Some("North America")),
-            player(2, Some("Xbox"), Some("Europe")),
-        ]);
-        assert!(batches.is_empty());
-    }
-
-    #[test]
-    fn either_unknown_field_makes_player_eligible() {
-        let batches = unknown_identity_batches([
-            player(1, Some("Steam"), None),
-            player(2, None, Some("Europe")),
-            player(3, Some("Unknown"), Some("Unknown")),
-        ]);
-        assert_eq!(batches.len(), 1);
-        assert_eq!(
-            batches[0]
-                .iter()
-                .map(|player| player.player_id)
-                .collect::<Vec<_>>(),
-            vec![1, 2, 3]
-        );
-    }
-
-    #[test]
-    fn deduplicates_globally_and_batches_exactly_twenty() {
-        let players = (1..=41)
-            .flat_map(|player_id| [player(player_id, None, None), player(player_id, None, None)])
-            .collect::<Vec<_>>();
-        let batches = unknown_identity_batches(players);
-        assert_eq!(
-            batches.iter().map(Vec::len).collect::<Vec<_>>(),
-            vec![20, 20, 1]
-        );
-    }
-
     #[test]
     fn preserves_typescript_claim_and_retry_windows() {
         assert_eq!(PROFILE_CLAIM_LEASE, Duration::from_secs(30 * 60));
         assert_eq!(FAILED_RETRY_MINUTES, 60);
     }
 
+    #[test]
+    fn accepts_merged_profile_identity_as_the_requested_id() {
+        let profile = json!({ "Id": 42, "ActivePlayerId": 7 });
+        assert_eq!(profile_identity_ids(&profile), BTreeSet::from([7, 42]));
+    }
+
+    #[test]
+    fn seeds_and_claims_by_profile_ttl_not_unknown_fields() {
+        assert!(SEED_UNKNOWN_IDENTITIES_SQL.contains("ON CONFLICT (player_id) DO NOTHING"));
+        assert!(!SEED_UNKNOWN_IDENTITIES_SQL.contains("needs_platform"));
+        assert!(!CLAIM_UNKNOWN_IDENTITIES_SQL.contains("refresh.needs_platform"));
+        assert!(CLAIM_UNKNOWN_IDENTITIES_SQL.contains("hirez_profile_refreshed_at"));
+        assert!(!CLAIM_UNKNOWN_IDENTITIES_SQL.contains("claim_owner"));
+        assert!(CLAIM_UNKNOWN_IDENTITIES_SQL.contains("false AS needs_platform"));
+        assert!(CLAIM_UNKNOWN_IDENTITIES_SQL.contains("false AS needs_region"));
+    }
+
+    #[test]
+    fn scheduled_profile_call_uses_typescript_attribution_and_audit_shape() {
+        let source = include_str!("profile_enrichment.rs")
+            .split_once("#[cfg(test)]")
+            .unwrap()
+            .0;
+        assert!(source.contains("\"backend_unattributed\""));
+        assert!(source.contains("entity_id: String::new()"));
+        assert!(source.contains("\"reason\":reason"));
+        assert!(!source.contains("rust_profile_enrichment"));
+    }
+
+    #[test]
+    fn presence_reconciliation_uses_all_current_fact_populations() {
+        assert!(RECONCILE_PRESENCE_SQL.contains("JOIN match_players"));
+        assert!(RECONCILE_PRESENCE_SQL.contains("JOIN casual_match_players"));
+        assert!(RECONCILE_PRESENCE_SQL.contains("JOIN special_match_players"));
+        assert!(RECONCILE_PRESENCE_SQL.contains("participant_kind='human'"));
+    }
+
+    #[test]
+    fn profile_normalization_matches_current_typescript_basics() {
+        assert_eq!(normalized_region(Some("NA".to_owned())), "North America");
+        assert_eq!(calculated_level(0, 999), 999);
+        assert!(synthetic_name("DummyPlayer1234"));
+        assert!(!synthetic_name("Real Player"));
+    }
+
     #[tokio::test]
     #[ignore = "requires PALADINSCAT_TEST_DATABASE_URL with migration 108"]
-    async fn live_repository_claims_only_unknown_identities_in_twenty_player_batches() {
+    async fn live_repository_claims_stale_active_identities_in_twenty_player_batches() {
         let database_url =
             std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
         let config = BackendConfig::from_lookup(|name| match name {
@@ -513,8 +749,8 @@ mod tests {
             .await
             .expect("refresh fixture cleanup");
         for player_id in base_id..=base_id + 22 {
-            // The final fixture intentionally has presence but no players row.
-            // That is the production Unknown-platform/region shape.
+            // TS claims active identities by profile TTL, including known
+            // platform/region rows and rows without a profile yet.
             if player_id != base_id + 22 {
                 client
                     .execute(
@@ -553,9 +789,9 @@ mod tests {
         drop(client);
 
         let batches = repository
-            .claim_unknown_batches(2, "profile-worker", Duration::from_secs(60))
+            .claim_unknown_batches(2, Duration::from_secs(60))
             .await
-            .expect("claim unknown");
+            .expect("claim stale");
         assert_eq!(
             batches.iter().map(Vec::len).collect::<Vec<_>>(),
             vec![20, 2]
@@ -564,13 +800,7 @@ mod tests {
             batches
                 .iter()
                 .flatten()
-                .all(|player| player.player_id != base_id)
-        );
-        assert!(
-            batches
-                .iter()
-                .flatten()
-                .all(|player| player.needs_platform && player.needs_region)
+                .any(|player| player.player_id == base_id)
         );
         assert!(
             batches
@@ -591,13 +821,11 @@ mod tests {
             )
             .await
             .expect("known identity state");
-        assert_eq!(known.get::<_, String>("status"), "success");
-        assert!(!known.get::<_, bool>("needs_platform"));
-        assert!(!known.get::<_, bool>("needs_region"));
+        assert_eq!(known.get::<_, String>("status"), "fetching");
         assert!(
             known
                 .get::<_, Option<time::OffsetDateTime>>("lease_until")
-                .is_none()
+                .is_some()
         );
         client
             .execute(

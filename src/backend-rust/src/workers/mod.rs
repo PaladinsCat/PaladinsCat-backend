@@ -9,6 +9,7 @@ pub mod loadouts;
 pub mod maintenance;
 pub mod match_facts;
 pub mod match_lifecycle;
+pub mod nonranked_acquisition;
 pub mod outage;
 pub mod pipeline;
 pub mod policy;

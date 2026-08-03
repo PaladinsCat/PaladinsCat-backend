@@ -1,3 +1,4 @@
+use paladinscat_core::database::{Database, DatabaseError};
 use tokio_postgres::Transaction;
 
 const ROLE_NAME_SQL: &str = r#"CASE
@@ -24,22 +25,96 @@ fn role_id_sql() -> String {
     )
 }
 
+pub async fn refresh_performance_metric_stats(database: &Database) -> Result<u64, DatabaseError> {
+    let mut client = database.connection().await?;
+    let transaction = client.transaction().await?;
+    let locked = transaction
+        .query_one(
+            "SELECT pg_try_advisory_xact_lock(hashtext('baseline:refresh')) locked",
+            &[],
+        )
+        .await?
+        .get::<_, bool>("locked");
+    if !locked {
+        transaction.rollback().await?;
+        return Ok(0);
+    }
+    transaction
+        .execute("DELETE FROM performance_metric_stats", &[])
+        .await?;
+    let inserted = transaction
+        .execute(
+            r#"
+            WITH histogram AS (
+              SELECT queue_id,role_id,role_name,metric,value,sample_count::BIGINT sample_count,
+                sum(sample_count) OVER(PARTITION BY queue_id,role_id,metric ORDER BY value) cumulative,
+                sum(sample_count) OVER(PARTITION BY queue_id,role_id,metric) sample_size
+              FROM performance_metric_histogram WHERE sample_count>0
+            ), groups AS (
+              SELECT queue_id,role_id,max(role_name) role_name,metric,max(sample_size) sample_size,
+                min(value) min_value,max(value) max_value,
+                sum(value*sample_count)/sum(sample_count) mean_value
+              FROM histogram GROUP BY queue_id,role_id,metric
+            ), fractions(fraction,name) AS (
+              VALUES (0.5::DOUBLE PRECISION,'median'),(0.1,'p10'),(0.25,'p25'),(0.75,'p75'),(0.9,'p90')
+            ), percentile_values AS (
+              SELECT g.queue_id,g.role_id,g.metric,f.name,
+                lower_row.value+(upper_row.value-lower_row.value)*
+                  (((g.sample_size-1)*f.fraction)-floor((g.sample_size-1)*f.fraction)) value
+              FROM groups g CROSS JOIN fractions f
+              JOIN LATERAL(SELECT h.value FROM histogram h WHERE h.queue_id=g.queue_id AND h.role_id=g.role_id AND h.metric=g.metric AND h.cumulative>floor((g.sample_size-1)*f.fraction) ORDER BY h.value LIMIT 1) lower_row ON TRUE
+              JOIN LATERAL(SELECT h.value FROM histogram h WHERE h.queue_id=g.queue_id AND h.role_id=g.role_id AND h.metric=g.metric AND h.cumulative>ceil((g.sample_size-1)*f.fraction) ORDER BY h.value LIMIT 1) upper_row ON TRUE
+            ), modes AS (
+              SELECT DISTINCT ON(queue_id,role_id,metric) queue_id,role_id,metric,mode_value
+              FROM(SELECT queue_id,role_id,metric,CASE WHEN metric='kda' THEN round(value::NUMERIC,1)::DOUBLE PRECISION ELSE round(value::NUMERIC,0)::DOUBLE PRECISION END mode_value,sum(sample_count) mode_count FROM histogram GROUP BY 1,2,3,4) counts
+              ORDER BY queue_id,role_id,metric,mode_count DESC,mode_value
+            )
+            INSERT INTO performance_metric_stats(queue_id,role_id,role_name,metric,min_value,max_value,mean_value,median_value,mode_value,p10_value,p25_value,p75_value,p90_value,sample_size,updated_at)
+            SELECT g.queue_id,g.role_id,g.role_name,g.metric,round(g.min_value::NUMERIC,2),round(g.max_value::NUMERIC,2),round(g.mean_value::NUMERIC,2),
+              round(max(p.value) FILTER(WHERE p.name='median')::NUMERIC,2),round(m.mode_value::NUMERIC,2),
+              round(max(p.value) FILTER(WHERE p.name='p10')::NUMERIC,2),round(max(p.value) FILTER(WHERE p.name='p25')::NUMERIC,2),
+              round(max(p.value) FILTER(WHERE p.name='p75')::NUMERIC,2),round(max(p.value) FILTER(WHERE p.name='p90')::NUMERIC,2),g.sample_size,now()
+            FROM groups g JOIN percentile_values p USING(queue_id,role_id,metric) JOIN modes m USING(queue_id,role_id,metric)
+            GROUP BY g.queue_id,g.role_id,g.role_name,g.metric,g.min_value,g.max_value,g.mean_value,m.mode_value,g.sample_size
+            "#,
+            &[],
+        )
+        .await?;
+    transaction.commit().await?;
+    Ok(inserted)
+}
+
 pub async fn project_performance(
     transaction: &Transaction<'_>,
     match_id: i64,
 ) -> Result<bool, tokio_postgres::Error> {
-    let claimed = transaction
-        .query_opt(
+    Ok(project_performance_many(transaction, &[match_id]).await? > 0)
+}
+
+pub async fn project_performance_many(
+    transaction: &Transaction<'_>,
+    match_ids: &[i64],
+) -> Result<usize, tokio_postgres::Error> {
+    if match_ids.is_empty() {
+        return Ok(0);
+    }
+    let requested_ids = match_ids.to_vec();
+    let claimed_ids: Vec<i64> = transaction
+        .query(
             "INSERT INTO performance_projection_matches(match_id,projected_at) \
-             SELECT m.match_id,now() FROM matches m \
-             WHERE m.match_id=$1 AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE \
+             SELECT requested.match_id,now() \
+             FROM unnest($1::BIGINT[]) AS requested(match_id) \
+             JOIN matches m ON m.match_id=requested.match_id \
+             WHERE COALESCE(m.limited,FALSE)=FALSE \
              ON CONFLICT(match_id) DO NOTHING RETURNING match_id",
-            &[&match_id],
+            &[&requested_ids],
         )
         .await?
-        .is_some();
-    if !claimed {
-        return Ok(false);
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    if claimed_ids.is_empty() {
+        return Ok(0);
     }
 
     let role_name = ROLE_NAME_SQL;
@@ -58,7 +133,7 @@ pub async fn project_performance(
                 FROM match_players mp
                 JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime
                 JOIN champions c ON c.id=mp.champion_id
-                WHERE m.match_id=$1 AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE
+                WHERE m.match_id=ANY($1::BIGINT[]) AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE
                   AND (NOT COALESCE(m.broken,FALSE) OR COALESCE(m.recovered,FALSE))
                   AND COALESCE(mp.source,'direct') IN('direct','recovered')
                   AND mp.player_id>0 AND mp.champion_id>0 AND mp.task_force IN(1,2)
@@ -71,7 +146,7 @@ pub async fn project_performance(
                   dpm=EXCLUDED.dpm,hpm=EXCLUDED.hpm,mpm=EXCLUDED.mpm
                 "#
             ),
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
 
@@ -98,7 +173,7 @@ pub async fn project_performance(
                     ('mpm'::TEXT,mp.mitigation_per_minute::DOUBLE PRECISION),
                     ('kda'::TEXT,mp.kda::DOUBLE PRECISION)
                   )metric(metric,value)
-                  WHERE m.match_id=$1 AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE
+                  WHERE m.match_id=ANY($1::BIGINT[]) AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE
                     AND (NOT COALESCE(m.broken,FALSE) OR COALESCE(m.recovered,FALSE))
                     AND COALESCE(mp.source,'direct') IN('direct','recovered')
                     AND mp.player_id>0 AND mp.champion_id>0 AND mp.task_force IN(1,2)
@@ -127,7 +202,7 @@ pub async fn project_performance(
                   updated_at=now()
                 "#
             ),
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
 
@@ -142,7 +217,7 @@ pub async fn project_performance(
               count(*) FILTER(WHERE lower(COALESCE(mp.win_status,'')) IN('loser','loss'))::BIGINT,now()
             FROM match_players mp
             JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime
-            WHERE mp.match_id=$1 AND m.queue_id=486 AND mp.player_id>0 AND mp.champion_id>0
+            WHERE mp.match_id=ANY($1::BIGINT[]) AND m.queue_id=486 AND mp.player_id>0 AND mp.champion_id>0
               AND COALESCE(mp.source,'direct') IN('direct','recovered')
               AND lower(COALESCE(mp.win_status,'')) IN('winner','win','loser','loss')
             GROUP BY m.queue_id,mp.player_id
@@ -151,7 +226,7 @@ pub async fn project_performance(
               total_wins=player_queue_rating_summary.total_wins+EXCLUDED.total_wins,
               total_losses=player_queue_rating_summary.total_losses+EXCLUDED.total_losses,updated_at=now()
             "#,
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
     transaction
@@ -166,7 +241,7 @@ pub async fn project_performance(
               max(m.entry_datetime),now()
             FROM match_players mp
             JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime
-            WHERE mp.match_id=$1 AND m.queue_id=486 AND mp.player_id>0 AND mp.champion_id>0
+            WHERE mp.match_id=ANY($1::BIGINT[]) AND m.queue_id=486 AND mp.player_id>0 AND mp.champion_id>0
               AND COALESCE(mp.source,'direct') IN('direct','recovered')
               AND lower(COALESCE(mp.win_status,'')) IN('winner','win','loser','loss')
             GROUP BY m.queue_id,mp.player_id,mp.champion_id
@@ -177,7 +252,7 @@ pub async fn project_performance(
               last_match_at=GREATEST(player_champion_outcome_summary.last_match_at,EXCLUDED.last_match_at),
               updated_at=now()
             "#,
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
 
@@ -188,12 +263,12 @@ pub async fn project_performance(
             USING(
               SELECT DISTINCT player_id
               FROM match_players
-              WHERE match_id=$1 AND player_id>0
+              WHERE match_id=ANY($1::BIGINT[]) AND player_id>0
             ) affected
             WHERE best.queue_id=486
               AND best.player_id=affected.player_id
             "#,
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
 
@@ -211,7 +286,7 @@ pub async fn project_performance(
                     AND outcomes.champion_id=pcr.champion_id
                   JOIN champions c ON c.id=pcr.champion_id
                   WHERE outcomes.total_matches>0
-                    AND pcr.player_id IN(SELECT player_id FROM match_players WHERE match_id=$1 AND player_id>0)
+                    AND pcr.player_id IN(SELECT player_id FROM match_players WHERE match_id=ANY($1::BIGINT[]) AND player_id>0)
                 ),scoped AS(
                   SELECT candidates.*,scope.role_id,scope.role_name FROM candidates
                   CROSS JOIN LATERAL(VALUES
@@ -235,10 +310,10 @@ pub async fn project_performance(
                   losses=EXCLUDED.losses,updated_at=now()
                 "#
             ),
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
-    Ok(true)
+    Ok(claimed_ids.len())
 }
 
 pub async fn rebuild_best_champion_ratings(
@@ -295,17 +370,31 @@ pub async fn project_scalable(
     transaction: &Transaction<'_>,
     match_id: i64,
 ) -> Result<bool, tokio_postgres::Error> {
-    let claimed = transaction
-        .query_opt(
+    Ok(project_scalable_many(transaction, &[match_id]).await? > 0)
+}
+
+pub async fn project_scalable_many(
+    transaction: &Transaction<'_>,
+    match_ids: &[i64],
+) -> Result<usize, tokio_postgres::Error> {
+    if match_ids.is_empty() {
+        return Ok(0);
+    }
+    let requested_ids = match_ids.to_vec();
+    let claimed_ids: Vec<i64> = transaction
+        .query(
             "INSERT INTO stats_projection_matches(projection_version,match_id) \
-             SELECT 1,m.match_id FROM matches m WHERE m.match_id=$1 AND m.queue_id=486 \
+             SELECT 1,requested.match_id FROM unnest($1::BIGINT[]) AS requested(match_id) \
+             JOIN matches m ON m.match_id=requested.match_id WHERE m.queue_id=486 \
              AND COALESCE(m.limited,FALSE)=FALSE ON CONFLICT DO NOTHING RETURNING match_id",
-            &[&match_id],
+            &[&requested_ids],
         )
         .await?
-        .is_some();
-    if !claimed {
-        return Ok(false);
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    if claimed_ids.is_empty() {
+        return Ok(0);
     }
     let scope = r#"
       SELECT m.match_id,m.entry_datetime,m.queue_id,
@@ -313,7 +402,7 @@ pub async fn project_scalable(
         COALESCE(NULLIF(m.map,''),'Unknown') map_name,m.duration_seconds
       FROM matches m LEFT JOIN match_lobby_tiers mlt
         ON mlt.match_id=m.match_id AND mlt.entry_datetime=m.entry_datetime
-      WHERE m.match_id=$1 AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE
+      WHERE m.match_id=ANY($1::BIGINT[]) AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE
     "#;
 
     transaction
@@ -327,12 +416,12 @@ pub async fn project_scalable(
           count(*)::BIGINT,COALESCE(sum(m.duration_seconds),0)::BIGINT,now()
         FROM matches m LEFT JOIN match_lobby_tiers mlt
           ON mlt.match_id=m.match_id AND mlt.entry_datetime=m.entry_datetime
-        WHERE m.match_id=$1 GROUP BY 1,2,3,4,5
+        WHERE m.match_id=ANY($1::BIGINT[]) GROUP BY 1,2,3,4,5
         ON CONFLICT(queue_id,lobby_tier,stat_date,region,map_name) DO UPDATE SET
           match_count=stats_match_aggregate.match_count+EXCLUDED.match_count,
           duration_sum=stats_match_aggregate.duration_sum+EXCLUDED.duration_sum,updated_at=now()
         "#,
-            &[&match_id],
+            &[&claimed_ids],
         )
         .await?;
 
@@ -377,7 +466,7 @@ pub async fn project_scalable(
           mpm_sum=stats_player_aggregate.mpm_sum+EXCLUDED.mpm_sum,
           egpm_sum=stats_player_aggregate.egpm_sum+EXCLUDED.egpm_sum,
           metric_samples=stats_player_aggregate.metric_samples+EXCLUDED.metric_samples,updated_at=now()
-    "#),&[&match_id]).await?;
+    "#),&[&claimed_ids]).await?;
 
     let projections = [
         format!(
@@ -502,16 +591,16 @@ pub async fn project_scalable(
         ),
     ];
     for sql in projections {
-        transaction.execute(&sql, &[&match_id]).await?;
+        transaction.execute(&sql, &[&claimed_ids]).await?;
     }
 
-    project_metric_histograms(transaction, match_id, scope).await?;
-    Ok(true)
+    project_metric_histograms(transaction, &claimed_ids, scope).await?;
+    Ok(claimed_ids.len())
 }
 
 async fn project_metric_histograms(
     transaction: &Transaction<'_>,
-    match_id: i64,
+    match_ids: &[i64],
     scope: &str,
 ) -> Result<(), tokio_postgres::Error> {
     let eligible = format!(
@@ -557,7 +646,7 @@ async fn project_metric_histograms(
         ON CONFLICT(queue_id,lobby_tier,role_id,metric,value) DO UPDATE SET
           sample_count=stats_metric_histogram.sample_count+EXCLUDED.sample_count,updated_at=now()"#
     );
-    transaction.execute(&global, &[&match_id]).await?;
+    transaction.execute(&global, &[&match_ids]).await?;
     let champion = format!(
         r#"{eligible},metric_values AS(
           SELECT e.queue_id,e.lobby_tier,e.champion_id,metric.metric,
@@ -577,6 +666,65 @@ async fn project_metric_histograms(
         ON CONFLICT(queue_id,lobby_tier,champion_id,metric,value) DO UPDATE SET
           sample_count=stats_champion_metric_histogram.sample_count+EXCLUDED.sample_count,updated_at=now()"#
     );
-    transaction.execute(&champion, &[&match_id]).await?;
+    transaction.execute(&champion, &[&match_ids]).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    const SOURCE: &str = include_str!("projections.rs");
+
+    fn between(start: &str, end: &str) -> &'static str {
+        let body = SOURCE.split_once(start).expect("start marker").1;
+        body.split_once(end).expect("end marker").0
+    }
+
+    #[test]
+    fn performance_batch_is_one_claim_plus_six_set_based_mutations() {
+        let body = between(
+            "pub async fn project_performance_many",
+            "pub async fn rebuild_best_champion_ratings",
+        );
+        assert!(body.contains("unnest($1::BIGINT[])"));
+        assert_eq!(body.matches(".query(").count(), 1);
+        assert_eq!(body.matches(".execute(").count(), 6);
+        assert!(!body.contains("WHERE m.match_id=$1"));
+    }
+
+    #[test]
+    fn scalable_batch_has_exact_ts_statement_count_and_array_scope() {
+        let body = between(
+            "pub async fn project_scalable_many",
+            "async fn project_metric_histograms",
+        );
+        let projections = body
+            .split_once("let projections = [")
+            .expect("projection array")
+            .1
+            .split_once("];\n")
+            .expect("projection array end")
+            .0;
+        assert!(body.contains("unnest($1::BIGINT[])"));
+        assert!(body.contains("m.match_id=ANY($1::BIGINT[])"));
+        assert_eq!(projections.matches("format!(").count(), 6);
+        // claim + match aggregate + player aggregate + six aggregate families
+        // + two metric histograms, matching projectMatchesWithClient.
+        assert_eq!(1 + 1 + 1 + 6 + 2, 11);
+        assert!(!body.contains("WHERE m.match_id=$1"));
+    }
+
+    #[test]
+    fn cumulative_stage_order_is_performance_then_scalable() {
+        let raw = include_str!("raw_buffer.rs");
+        let body = raw
+            .split_once("async fn apply_adaptive_ranked_projection_batches")
+            .expect("batch function")
+            .1
+            .split_once("enum CumulativeProjectionStage")
+            .expect("batch function end")
+            .0;
+        let performance = body.find("CumulativeProjectionStage::Performance").unwrap();
+        let scalable = body.find("CumulativeProjectionStage::Scalable").unwrap();
+        assert!(performance < scalable);
+    }
 }
