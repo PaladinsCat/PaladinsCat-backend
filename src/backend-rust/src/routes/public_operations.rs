@@ -11,6 +11,8 @@ use time::OffsetDateTime;
 
 use crate::{error::ApiError, request::RequestId};
 
+pub const ROUTE_COUNT: usize = 1;
+
 const ACTIVE_USER_WINDOW_SECONDS: i32 = 5 * 60;
 const LIVE_SESSION_HEARTBEAT_SECONDS: i32 = 60;
 const PUBLIC_CACHE_CONTROL: &str = "public, max-age=30, s-maxage=60, stale-while-revalidate=120";

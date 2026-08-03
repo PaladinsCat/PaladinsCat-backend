@@ -13,6 +13,8 @@ use serde_json::{Value, json};
 
 use crate::{error::ApiError, request::RequestId};
 
+pub const ROUTE_COUNT: usize = 7;
+
 pub fn router(database: Database) -> Router {
     Router::new()
         .route("/coplay/parties", get(parties))

@@ -61,18 +61,21 @@ async fn main() {
             std::process::exit(78);
         });
     foundation.initialize().await;
+    eprintln!("[init] foundation.initialize done");
     let address: SocketAddr = format!("{}:{}", config.api_host, config.api_port)
         .parse()
         .unwrap_or_else(|error| {
             eprintln!("invalid native candidate listen address: {error}");
             std::process::exit(78);
         });
+    eprintln!("[init] address parsed: {}", address);
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .unwrap_or_else(|error| {
             eprintln!("failed to bind native candidate: {error}");
             std::process::exit(1);
         });
+    eprintln!("[init] listener bound on {}", address);
     tracing::info!(%address, mode=if production_enabled { "production" } else { "candidate" }, "native backend listening");
     let scheduler_tasks = if env_enabled("BACKEND_SCHEDULERS_ENABLED", false) {
         let config = Arc::new(config.clone());
@@ -221,9 +224,11 @@ fn env_enabled(name: &str, fallback: bool) -> bool {
 async fn shutdown_signal() -> &'static str {
     #[cfg(unix)]
     {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
+        let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .unwrap_or_else(|error| {
+                eprintln!("Failed to install SIGTERM handler: {error}");
+                std::process::exit(78);
+            });
         tokio::select! {
             _ = tokio::signal::ctrl_c() => "SIGINT",
             _ = terminate.recv() => "SIGTERM",

@@ -15,6 +15,8 @@ use time::{OffsetDateTime, format_description::FormatItem, macros::format_descri
 
 use crate::{error::ApiError, request::RequestId};
 
+pub const ROUTE_COUNT: usize = 2;
+
 static VISITOR_ID: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]{16,128}$").expect("valid visitor regex"));
 static DATE_FORMAT: &[FormatItem<'static>] = format_description!("[year]-[month]-[day]");

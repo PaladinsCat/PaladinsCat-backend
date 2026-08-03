@@ -14,6 +14,8 @@ use crate::{error::ApiError, request::RequestId};
 
 use super::identity::{as_i64, json_response, parse_id, require_session, simple_error};
 
+pub const ROUTE_COUNT: usize = 4;
+
 #[derive(Clone)]
 struct BuildsState {
     database: Database,

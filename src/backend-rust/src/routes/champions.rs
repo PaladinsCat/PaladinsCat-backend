@@ -25,6 +25,8 @@ use super::{
 
 const CACHE_TTL_SECONDS: u64 = 300;
 
+pub const ROUTE_COUNT: usize = 9;
+
 #[derive(Clone)]
 struct ChampionsState {
     database: Database,

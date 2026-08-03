@@ -4,7 +4,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use paladinscat_core::{cache::RedisCache, database::Database};
+
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -145,4 +145,3 @@ pub(super) async fn update(
     Ok(Json(map_entry(row)).into_response())
 }
 
-pub(super) fn _redis_type(_: &RedisCache, _: &Database) {}

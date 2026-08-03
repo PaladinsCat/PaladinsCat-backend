@@ -6,6 +6,8 @@ mod notifications;
 mod operations;
 mod private_accounts;
 
+pub const ROUTE_COUNT: usize = 29;
+
 use std::time::Duration;
 
 use axum::{

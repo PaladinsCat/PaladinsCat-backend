@@ -23,6 +23,8 @@ use crate::{
 mod moderation;
 mod provider;
 
+pub const ROUTE_COUNT: usize = 28;
+
 const RANKED_QUEUE_ID: i32 = 486;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE

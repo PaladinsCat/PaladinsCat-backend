@@ -103,7 +103,12 @@ pub(super) async fn verify_name(
     }
     if evidence_sha256
         .as_ref()
-        .is_some_and(|value| !Regex::new("^[0-9a-f]{64}$").unwrap().is_match(value))
+        .is_some_and(|value| {
+            let Some(re) = Regex::new("^[0-9a-f]{64}$").ok() else {
+                return true;
+            };
+            !re.is_match(value)
+        })
     {
         return Ok(super::coded_error(
             StatusCode::BAD_REQUEST,

@@ -26,6 +26,8 @@ use crate::{
     workers::relay::WorkerRelayClient,
 };
 
+pub const ROUTE_COUNT: usize = 3;
+
 #[derive(Clone)]
 struct SearchState {
     database: Database,

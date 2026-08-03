@@ -63,15 +63,17 @@ async fn run_adoption(mut arguments: impl Iterator<Item = String>) {
         eprintln!("non-ranked adoption failed: {error}");
         std::process::exit(1);
     });
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "mode": if apply { "apply" } else { "preview" },
-            "limit": limit,
-            "summary": summary,
-        }))
-        .expect("serialize adoption summary")
-    );
+    match serde_json::to_string_pretty(&serde_json::json!({
+        "mode": if apply { "apply" } else { "preview" },
+        "limit": limit,
+        "summary": summary,
+    })) {
+        Ok(s) => println!("{}", s),
+        Err(error) => {
+            eprintln!("Failed to serialize adoption summary: {error}");
+            std::process::exit(1);
+        }
+    }
 }
 
 async fn run_scheduler(mut arguments: impl Iterator<Item = String>) {

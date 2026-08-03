@@ -12,6 +12,8 @@ use serde_json::json;
 
 use crate::{error::ApiError, request::RequestId};
 
+pub const ROUTE_COUNT: usize = 6;
+
 pub fn router(database: Database) -> Router {
     Router::new()
         .route("/api/hirez-raw-responses", get(list_hirez_raw_responses))

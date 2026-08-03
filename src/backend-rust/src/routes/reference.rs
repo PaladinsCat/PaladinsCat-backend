@@ -16,6 +16,9 @@ use crate::{
     request::{EffectiveUri, RequestId},
 };
 
+// 1 generic_lookup + 12 specs * 2 (list + by_id) = 25
+pub const ROUTE_COUNT: usize = 1 + 12 * 2;
+
 const REFERENCE_CACHE_TTL_SECONDS: u64 = 3_600;
 const VALID_REFERENCE_TYPES: &str = "champions, items, bounty-items, maps, tiers, regions, talents, queues, patches, cards, skins, abilities";
 

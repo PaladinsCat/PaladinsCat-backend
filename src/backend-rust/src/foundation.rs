@@ -104,12 +104,15 @@ impl FoundationState {
     }
 
     pub async fn initialize(&self) {
+        eprintln!("[init] starting deployment.initialize");
         self.deployment
             .initialize(Duration::from_millis(
                 self.config.deployment_redis_startup_timeout_ms,
             ))
             .await;
+        eprintln!("[init] deployment.initialize done, starting search.initialize_indices");
         self.search.initialize_indices().await;
+        eprintln!("[init] search.initialize_indices done");
     }
 
     pub async fn dependency_health(&self) -> DependencyHealth {
@@ -469,10 +472,11 @@ pub async fn application_foundation(
                     true,
                 );
             }
-            developer_headers = Some(DeveloperLimitHeaders(developer_limit));
+            let dev_limit = DeveloperLimitHeaders(developer_limit);
+            developer_headers = Some(dev_limit);
             request
                 .extensions_mut()
-                .insert(developer_headers.expect("set"));
+                .insert(dev_limit);
             if !acquire_developer_slot(
                 &state.developer_active_requests,
                 state.security.developer_api_concurrency_limit,
@@ -762,7 +766,7 @@ fn request_security_error(
 ) -> Response {
     let retry_after = retry_after_seconds(result);
     let mut response = (
-        StatusCode::from_u16(status).expect("request security status"),
+        StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
         Json(json!({
             "error": {
                 "code": code,
@@ -802,7 +806,7 @@ fn developer_error(
     request_id: &RequestId,
 ) -> Response {
     (
-        StatusCode::from_u16(status).expect("developer API status"),
+        StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
         Json(json!({
             "error": {
                 "code": code,
@@ -822,7 +826,7 @@ fn developer_error_with_details(
     details: Value,
 ) -> Response {
     (
-        StatusCode::from_u16(status).expect("developer API status"),
+        StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
         Json(json!({
             "error": {
                 "code": code,

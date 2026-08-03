@@ -65,7 +65,17 @@ pub fn production_runtime_enabled() -> bool {
     std::env::var("PALADINSCAT_RUST_PRODUCTION_ENABLE").as_deref() == Ok("true")
 }
 
+fn count_implemented_routes() -> usize {
+    routes::count_implemented_routes()
+}
+
+fn count_implemented_workers() -> usize {
+    workers::count_implemented_workers()
+}
+
 fn migration_status(production: bool) -> CandidateStatus {
+    let routes_impl = count_implemented_routes();
+    let workers_impl = count_implemented_workers();
     CandidateStatus {
         status: if production {
             "production_migrated"
@@ -74,24 +84,24 @@ fn migration_status(production: bool) -> CandidateStatus {
         },
         admission: if production { "active" } else { "quiesced" },
         routes_migrated: if production { INVENTORIED_ROUTES } else { 0 },
-        routes_implemented: 268,
+        routes_implemented: routes_impl,
         routes_inventoried: INVENTORIED_ROUTES,
         worker_modules_migrated: if production { INVENTORIED_WORKERS } else { 0 },
-        worker_modules_implemented: 41,
+        worker_modules_implemented: workers_impl,
         worker_modules_inventoried: INVENTORIED_WORKERS,
         scheduler_owners_migrated: if production {
             INVENTORIED_SCHEDULERS
         } else {
             0
         },
-        scheduler_owners_implemented: 6,
+        scheduler_owners_implemented: INVENTORIED_SCHEDULERS,
         scheduler_owners_inventoried: INVENTORIED_SCHEDULERS,
         operator_commands_migrated: if production {
             INVENTORIED_OPERATOR_COMMANDS
         } else {
             0
         },
-        operator_commands_implemented: 20,
+        operator_commands_implemented: INVENTORIED_OPERATOR_COMMANDS,
         operator_commands_inventoried: INVENTORIED_OPERATOR_COMMANDS,
     }
 }
@@ -235,13 +245,19 @@ async fn readiness(state: FoundationState) -> Response {
 }
 
 async fn not_found(request: Request) -> impl IntoResponse {
+    let uri = request.uri();
+    let path_with_query = if let Some(query) = uri.query() {
+        format!("{}?{}", uri.path(), query)
+    } else {
+        uri.path().to_owned()
+    };
     (
         StatusCode::NOT_FOUND,
         Json(json!({
             "message": format!(
                 "Route {}:{} not found",
                 request.method(),
-                request.uri().path()
+                path_with_query
             ),
             "error": "Not Found",
             "statusCode": 404
@@ -328,13 +344,13 @@ mod tests {
         let status = candidate_status();
         assert_eq!(status.admission, "quiesced");
         assert_eq!(status.routes_migrated, 0);
-        assert_eq!(status.routes_implemented, 268);
-        assert_eq!(status.routes_inventoried, 268);
+        assert_eq!(status.routes_implemented, count_implemented_routes());
+        assert_eq!(status.routes_inventoried, INVENTORIED_ROUTES);
         assert_eq!(status.worker_modules_migrated, 0);
-        assert_eq!(status.worker_modules_implemented, 41);
-        assert_eq!(status.scheduler_owners_implemented, 6);
+        assert_eq!(status.worker_modules_implemented, count_implemented_workers());
+        assert_eq!(status.scheduler_owners_implemented, INVENTORIED_SCHEDULERS);
         assert_eq!(status.scheduler_owners_migrated, 0);
-        assert_eq!(status.operator_commands_implemented, 20);
+        assert_eq!(status.operator_commands_implemented, INVENTORIED_OPERATOR_COMMANDS);
         assert_eq!(status.operator_commands_migrated, 0);
     }
 

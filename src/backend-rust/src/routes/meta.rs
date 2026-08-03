@@ -24,6 +24,8 @@ use crate::{
 
 use super::lobby_tier::parse_tier_bounds;
 
+pub const ROUTE_COUNT: usize = 9;
+
 const CHANGELOG_FRESH_TTL_SECONDS: u64 = 300;
 const CHANGELOG_STALE_TTL_SECONDS: u64 = 900;
 

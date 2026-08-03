@@ -15,6 +15,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{error::ApiError, request::RequestId};
 
+pub const ROUTE_COUNT: usize = 9;
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerExtQuery {

@@ -14,6 +14,8 @@ use crate::{error::ApiError, request::RequestId};
 
 use super::identity::{as_i64, json_response, parse_id, require_session, simple_error};
 
+pub const ROUTE_COUNT: usize = 3;
+
 const SELECT: &str = "SELECT p.id,p.user_id,p.title,p.content,p.likes,p.view_count,p.created_at, \
   u.username,u.linked_player_id,(SELECT COUNT(*)::int FROM comments cmt WHERE cmt.post_id=p.id) AS comment_count, \
   COALESCE(jsonb_agg(jsonb_build_object('championId',e.champion_id,'championName',c.name,'tier',e.tier,'position',e.position) \

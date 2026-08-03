@@ -25,6 +25,8 @@ use crate::{
 
 use super::identity::{as_i64, json_response, parse_id, simple_error};
 
+pub const ROUTE_COUNT: usize = 15;
+
 const SESSION_TTL_HOURS: i64 = 72;
 const LINK_COOLDOWN_SECONDS: i32 = 30;
 const LINK_MAX_ATTEMPTS: i32 = 5;
@@ -214,14 +216,18 @@ async fn register(
             "Missing required fields: username, email, password",
         ));
     }
-    let username_re = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").expect("username regex");
+    let Some(username_re) = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok() else {
+        return Err(ApiError::internal(&request_id));
+    };
     if !username_re.is_match(&username) {
         return Ok(simple_error(
             StatusCode::BAD_REQUEST,
             "Username must be 3-32 characters and use only letters, numbers, underscore, or dash",
         ));
     }
-    let email_re = Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").expect("email regex");
+    let Some(email_re) = Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").ok() else {
+        return Err(ApiError::internal(&request_id));
+    };
     if !email_re.is_match(&email) {
         return Ok(simple_error(
             StatusCode::BAD_REQUEST,

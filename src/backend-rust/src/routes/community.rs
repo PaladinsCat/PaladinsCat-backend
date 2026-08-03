@@ -20,6 +20,8 @@ use crate::{error::ApiError, request::RequestId};
 
 use super::identity::{Session, as_i64, json_response, parse_id, require_session, simple_error};
 
+pub const ROUTE_COUNT: usize = 7;
+
 #[derive(Clone)]
 struct CommunityState {
     database: Database,

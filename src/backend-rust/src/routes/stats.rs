@@ -27,6 +27,9 @@ mod performance;
 mod presence;
 mod summary;
 
+// 12 parent routes + 10 catalog + 4 maps + 2 performance + 4 presence + 7 summary
+pub const ROUTE_COUNT: usize = 12 + 10 + 4 + 2 + 4 + 7;
+
 const DEFAULT_FRESH_TTL_SECONDS: u64 = 300;
 const TIER_POPULATION_FRESH_TTL_SECONDS: u64 = 900;
 const CASUAL_ITEM_SCOPES: &[&str] = &[

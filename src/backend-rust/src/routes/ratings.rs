@@ -13,6 +13,8 @@ use serde_json::{Value, json};
 
 use crate::{error::ApiError, request::RequestId, sql_compat::DISPLAY_NAME_SQL};
 
+pub const ROUTE_COUNT: usize = 8;
+
 pub fn router(database: Database) -> Router {
     Router::new()
         .route("/ratings/queue/{player_id}", get(queue_ratings))

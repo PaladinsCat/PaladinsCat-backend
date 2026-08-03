@@ -83,7 +83,7 @@ pub(super) async fn set_state(
     else {
         return Ok((
             StatusCode::BAD_REQUEST,
-            Json(json!({"error":"Invalid deployment phase"})),
+            Json(json!({"error":{"code":"VALIDATION","message":"Invalid deployment phase"}})),
         )
             .into_response());
     };
@@ -96,7 +96,7 @@ pub(super) async fn set_state(
         Ok(value) => Ok(Json(json!(value)).into_response()),
         Err(_) => Ok((
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({"error":"Deployment state could not be persisted"})),
+            Json(json!({"error":{"code":"PERSISTENCE_ERROR","message":"Deployment state could not be persisted"}})),
         )
             .into_response()),
     }
@@ -120,7 +120,7 @@ pub(super) async fn drain(
     {
         return Ok((
             StatusCode::BAD_REQUEST,
-            Json(json!({"error":"Deployment id is required"})),
+            Json(json!({"error":{"code":"VALIDATION","message":"Deployment id is required"}})),
         )
             .into_response());
     }
@@ -134,7 +134,7 @@ pub(super) async fn drain(
         Err(_) => {
             return Ok((
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error":"Backend drain failed"})),
+                Json(json!({"error":{"code":"OPERATION_FAILED","message":"Backend drain failed"}})),
             )
                 .into_response());
         }
@@ -179,7 +179,7 @@ pub(super) async fn warm(
     {
         return Ok((
             StatusCode::BAD_REQUEST,
-            Json(json!({"error":"Deployment id is required"})),
+            Json(json!({"error":{"code":"VALIDATION","message":"Deployment id is required"}})),
         )
             .into_response());
     }
@@ -193,12 +193,12 @@ pub(super) async fn warm(
         Err(_) => {
             return Ok((
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error":"Backend warm-up failed"})),
+                Json(json!({"error":{"code":"OPERATION_FAILED","message":"Backend warm-up failed"}})),
             )
                 .into_response());
         }
     };
-    state.foundation.search.initialize_indices().await;
+    let _ = state.foundation.search.initialize_indices().await;
     let warmer = match crate::workers::cache_warmer::CacheWarmer::new(
         state.database.clone(),
         &state.foundation.config,
@@ -207,7 +207,7 @@ pub(super) async fn warm(
         Err(_) => {
             return Ok((
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error":"Backend cache warmer could not start"})),
+                Json(json!({"error":{"code":"INITIALIZATION_FAILED","message":"Backend cache warmer could not start"}})),
             )
                 .into_response());
         }
@@ -215,7 +215,7 @@ pub(super) async fn warm(
     if warmer.warm_deployment_critical().await.is_err() {
         return Ok((
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({"error":"Deployment-critical cache warm-up failed"})),
+            Json(json!({"error":{"code":"OPERATION_FAILED","message":"Deployment-critical cache warm-up failed"}})),
         )
             .into_response());
     }

@@ -32,6 +32,8 @@ use crate::{
 const RANKED_QUEUE_ID: i32 = 486;
 const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
 
+pub const ROUTE_COUNT: usize = 21;
+
 #[derive(Clone)]
 struct MatchesState {
     database: Database,
@@ -1175,7 +1177,7 @@ async fn pull(
     let hour = from[11..13]
         .parse::<i32>()
         .map_err(|_| ApiError::validation("Invalid queueId or from timestamp"))?;
-    discover_window(&state, &request_id, queue_id.unwrap(), &date, hour, false).await
+    discover_window(&state, &request_id, queue_id.unwrap_or(0), &date, hour, false).await
 }
 
 async fn discover(

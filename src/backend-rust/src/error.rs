@@ -87,9 +87,44 @@ impl ApiError {
 
 impl ApiError {
     pub fn database(error: DatabaseError, request_id: &RequestId) -> Self {
-        tracing::error!(error = ?error, "database request failed");
-        Self::internal(request_id)
+        let message = match &error {
+            DatabaseError::Query(postgres_error) => {
+                // Parse the message from the Debug repr: ...message: "..."...
+                let debug = format!("{:?}", postgres_error);
+                extract_pg_message(&debug).unwrap_or_else(|| error.to_string())
+            }
+            _ => error.to_string(),
+        };
+        tracing::error!(error = %message, "database request failed");
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "INTERNAL_ERROR",
+            message,
+            details: None,
+            request_id: Some(request_id.0.clone()),
+            retry_after: None,
+        }
     }
+}
+
+fn extract_pg_message(debug: &str) -> Option<String> {
+    let prefix = "message: \"";
+    if let Some(start) = debug.find(prefix) {
+        let rest = &debug[start + prefix.len()..];
+        // Handle escaped quotes in the message
+        let mut i = 0;
+        let bytes = rest.as_bytes();
+        while i < bytes.len() {
+            if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'"' {
+                i += 2;
+            } else if bytes[i] == b'"' {
+                return Some(rest[..i].replace("\\\"", "\""));
+            } else {
+                i += 1;
+            }
+        }
+    }
+    None
 }
 
 impl IntoResponse for ApiError {
@@ -98,18 +133,14 @@ impl IntoResponse for ApiError {
             "code": self.code,
             "message": self.message,
         });
-        if let Some(details) = self.details {
-            error
-                .as_object_mut()
-                .expect("error object")
-                .insert("details".to_owned(), *details);
-        }
-        if let Some(request_id) = self.request_id {
-            error
-                .as_object_mut()
-                .expect("error object")
-                .insert("requestId".to_owned(), Value::String(request_id));
-        }
+        if let Some(details) = self.details
+            && let Some(obj) = error.as_object_mut() {
+                obj.insert("details".to_owned(), *details);
+            }
+        if let Some(request_id) = self.request_id
+            && let Some(obj) = error.as_object_mut() {
+                obj.insert("requestId".to_owned(), Value::String(request_id));
+            }
         let mut response = (self.status, Json(json!({ "error": error }))).into_response();
         if let Some(retry_after) = self.retry_after
             && let Ok(value) = HeaderValue::from_str(&retry_after.to_string())

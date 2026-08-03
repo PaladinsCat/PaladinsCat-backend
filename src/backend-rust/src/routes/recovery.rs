@@ -14,6 +14,8 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{error::ApiError, request::RequestId};
 
+pub const ROUTE_COUNT: usize = 5;
+
 #[derive(Clone)]
 struct RecoveryState {
     database: Database,

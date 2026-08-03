@@ -30,6 +30,8 @@ use crate::{
 
 use super::identity::{as_i64, json_response, simple_error};
 
+pub const ROUTE_COUNT: usize = 9;
+
 #[derive(Clone)]
 struct SystemState {
     database: Database,

@@ -21,6 +21,8 @@ use crate::{
     workers::relay::WorkerRelayClient,
 };
 
+pub const ROUTE_COUNT: usize = 5;
+
 const LIVE_LOOKUP_TTL_SECONDS: u64 = 30;
 const LIVE_PENDING_TTL_SECONDS: u64 = 10;
 

@@ -16,6 +16,8 @@ use crate::{
     route_cache::{ColdMissLease, RouteCache, canonical_route_cache_url, now_millis},
 };
 
+pub const ROUTE_COUNT: usize = 2;
+
 const FRESH_TTL_SECONDS: u64 = 60;
 const STALE_TTL_SECONDS: u64 = 180;
 

@@ -130,10 +130,13 @@ async fn dispatch(arguments: &[String]) -> anyhow::Result<()> {
 }
 
 fn print_json(value: impl serde::Serialize) {
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&value).expect("serialize output")
-    );
+    match serde_json::to_string_pretty(&value) {
+        Ok(s) => println!("{}", s),
+        Err(error) => {
+            eprintln!("Failed to serialize JSON: {error}");
+            std::process::exit(1);
+        }
+    }
 }
 
 async fn deployment_request(phase: Option<String>, payload_b64: Option<String>) {
