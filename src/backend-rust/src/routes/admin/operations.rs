@@ -198,7 +198,7 @@ pub(super) async fn process_buffer(
         .and_then(Value::as_u64)
         .unwrap_or(50)
         .clamp(1, 500) as usize;
-    let result = process_buffer_batch(&state.database, batch)
+    let result = process_buffer_batch(&state.database, state.relay.as_ref(), batch)
         .await
         .map_err(|error| {
             tracing::error!(%error, "manual raw-buffer processing failed");
