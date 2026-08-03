@@ -773,6 +773,25 @@ impl GapCandidate {
     }
 }
 
+const RANKED_GAP_STATES_SQL: &str = r#"SELECT state.date::TEXT,state.hour,state.status,state.raw_match_count,
+         state.next_retry_at<=now() retry_due,state.lease_until<=now() lease_due,
+         COALESCE(counts.total_matches,0) total_matches,COALESCE(debt.open_count,0) open_count,
+         COALESCE(debt.terminal_count,0) terminal_count
+         FROM hourly_ingest_state state
+         LEFT JOIN hourly_match_counts counts ON counts.date=state.date AND counts.hour=state.hour AND counts.queue_id=state.queue_id
+         LEFT JOIN (SELECT date,hour,COUNT(*) FILTER(WHERE status='unrecoverable')::INT terminal_count,
+          COUNT(*) FILTER(WHERE status IN('pending','staged'))::INT open_count FROM hourly_ingest_match_debt
+          WHERE queue_id=486 AND date>=$1::TEXT::DATE AND date<=$2::TEXT::DATE GROUP BY date,hour) debt
+          ON debt.date=state.date AND debt.hour=state.hour
+         WHERE state.queue_id=486 AND state.date>=$1::TEXT::DATE AND state.date<=$2::TEXT::DATE"#;
+
+const RANKED_GAP_COUNTS_SQL: &str = r#"SELECT date::TEXT,hour,total_matches FROM hourly_match_counts
+         WHERE queue_id=486 AND date>=$1::TEXT::DATE AND date<=$2::TEXT::DATE"#;
+
+const PRESENCE_GAP_STATES_SQL: &str = r#"SELECT date::TEXT,hour,queue_id,status,next_retry_at<=now() retry_due,lease_until<=now() lease_due
+         FROM hourly_ingest_state WHERE queue_id=ANY($1::INT[])
+         AND date>=$2::TEXT::DATE AND date<=$3::TEXT::DATE"#;
+
 async fn ranked_gap_candidates(
     database: &Database,
     now: OffsetDateTime,
@@ -780,26 +799,11 @@ async fn ranked_gap_candidates(
     due_debt: Vec<(String, i32)>,
 ) -> Result<Vec<GapCandidate>, DatabaseError> {
     let max_date = now.date().to_string();
-    let states = database.query_json(
-        "SELECT state.date::TEXT,state.hour,state.status,state.raw_match_count,\
-         state.next_retry_at<=now() retry_due,state.lease_until<=now() lease_due,\
-         COALESCE(counts.total_matches,0) total_matches,COALESCE(debt.open_count,0) open_count,\
-         COALESCE(debt.terminal_count,0) terminal_count\
-         FROM hourly_ingest_state state\
-         LEFT JOIN hourly_match_counts counts ON counts.date=state.date AND counts.hour=state.hour AND counts.queue_id=state.queue_id\
-         LEFT JOIN (SELECT date,hour,COUNT(*) FILTER(WHERE status='unrecoverable')::INT terminal_count,\
-          COUNT(*) FILTER(WHERE status IN('pending','staged'))::INT open_count FROM hourly_ingest_match_debt\
-          WHERE queue_id=486 AND date>=$1::TEXT::DATE AND date<=$2::TEXT::DATE GROUP BY date,hour) debt\
-          ON debt.date=state.date AND debt.hour=state.hour\
-         WHERE state.queue_id=486 AND state.date>=$1::TEXT::DATE AND state.date<=$2::TEXT::DATE",
-        &[&min_date, &max_date],
-    ).await?;
+    let states = database
+        .query_json(RANKED_GAP_STATES_SQL, &[&min_date, &max_date])
+        .await?;
     let counts = database
-        .query_json(
-            "SELECT date::TEXT,hour,total_matches FROM hourly_match_counts\
-         WHERE queue_id=486 AND date>=$1::TEXT::DATE AND date<=$2::TEXT::DATE",
-            &[&min_date, &max_date],
-        )
+        .query_json(RANKED_GAP_COUNTS_SQL, &[&min_date, &max_date])
         .await?;
     let mut states_by_key = BTreeMap::new();
     for row in states {
@@ -853,12 +857,12 @@ async fn presence_gap_candidates(
         .filter(|queue| queue.track_presence && !queue.ranked)
         .map(|queue| queue.queue_id)
         .collect::<Vec<_>>();
-    let rows = database.query_json(
-        "SELECT date::TEXT,hour,queue_id,status,next_retry_at<=now() retry_due,lease_until<=now() lease_due\
-         FROM hourly_ingest_state WHERE queue_id=ANY($1::INT[])\
-         AND date>=$2::TEXT::DATE AND date<=$3::TEXT::DATE",
-        &[&queue_ids.as_slice(), &min_date, &max_date],
-    ).await?;
+    let rows = database
+        .query_json(
+            PRESENCE_GAP_STATES_SQL,
+            &[&queue_ids.as_slice(), &min_date, &max_date],
+        )
+        .await?;
     let mut states = BTreeMap::new();
     for row in rows {
         let Some((date, hour)) = row_key(&row) else {
@@ -1285,6 +1289,15 @@ mod tests {
     fn bracketed_gap_scan_binds_string_dates_as_text() {
         assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$2::TEXT::DATE"));
         assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$3::TEXT::DATE"));
+    }
+
+    #[test]
+    fn gap_candidate_queries_preserve_sql_token_boundaries() {
+        assert!(RANKED_GAP_STATES_SQL.contains("terminal_count\n         FROM"));
+        assert!(RANKED_GAP_STATES_SQL.contains("hourly_ingest_match_debt\n          WHERE"));
+        assert!(RANKED_GAP_STATES_SQL.contains(") debt\n          ON"));
+        assert!(RANKED_GAP_COUNTS_SQL.contains("hourly_match_counts\n         WHERE"));
+        assert!(PRESENCE_GAP_STATES_SQL.contains("lease_due\n         FROM"));
     }
 
     #[test]
