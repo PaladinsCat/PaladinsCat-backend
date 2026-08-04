@@ -6,7 +6,7 @@ mod notifications;
 mod operations;
 mod private_accounts;
 
-pub const ROUTE_COUNT: usize = 29;
+pub const ROUTE_COUNT: usize = 30;
 
 use std::time::Duration;
 
@@ -87,6 +87,10 @@ pub fn router(foundation: FoundationState) -> Router {
         .route("/admin/deployment/state", post(deployment::set_state))
         .route("/admin/deployment/drain", post(deployment::drain))
         .route("/admin/deployment/warm", post(deployment::warm))
+        .route(
+            "/admin/deployment/version",
+            post(deployment::record_version),
+        )
         .route(
             "/admin/private-accounts/reconcile",
             post(private_accounts::reconcile),

@@ -102,6 +102,161 @@ pub(super) async fn set_state(
     }
 }
 
+/// Record/backfill a stack_versions stamp.
+///
+/// The OVH backend container has no git checkout, so the version stamp
+/// (git_commit, changelog, release significance, …) cannot be derived
+/// server-side — it must be supplied by the caller (the deploy pipeline
+/// computes it from the workstation HEAD and POSTs it here). Mirrors the
+/// semantics of the legacy Deploy-PaladinsCatVps.ps1 stamping SQL: writes one
+/// `stack` row plus one row per declared service plus a `database` row.
+pub(super) async fn record_version(
+    State(state): State<AdminState>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    if let Some(response) = operator_denial(&state, &headers) {
+        return Ok(response);
+    }
+
+    let required = |name: &str| -> Option<String> {
+        body.get(name).and_then(Value::as_str).map(str::to_owned)
+    };
+    let git_commit = required("gitCommit").filter(|v| !v.trim().is_empty());
+    let version = required("version").filter(|v| !v.trim().is_empty());
+    let environment = required("environment").unwrap_or_else(|| "production".to_owned());
+    if git_commit.is_none() {
+        return Ok(super::coded_error(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION",
+            "gitCommit is required",
+        ));
+    }
+    let git_commit = git_commit.unwrap();
+    let version = version.unwrap_or_else(|| "v0.0.0".to_owned());
+    let git_short = required("gitCommitShort").unwrap_or_default();
+    let git_branch = required("gitBranch").unwrap_or_default();
+    let git_dirty = body.get("gitDirty").and_then(Value::as_bool).unwrap_or(true);
+    let build_timestamp = required("buildTimestamp");
+    let deployment_id = required("deploymentId").unwrap_or_default();
+    let compose_mode = required("composeMode").unwrap_or_else(|| "production".to_owned());
+    let remote_project_dir = required("remoteProjectDir").unwrap_or_default();
+    let release_type = required("releaseType").unwrap_or_else(|| "patch".to_owned());
+    let change_count = body.get("changeCount").and_then(Value::as_u64).unwrap_or(0);
+    let changelog = body.get("changelog").and_then(Value::as_str).map(str::to_owned);
+
+    let mut components: Vec<String> = body
+        .get("services")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    components.push("database".to_owned());
+
+    let metadata_json = json!({
+        "composeMode": compose_mode,
+        "services": components.join(","),
+        "remoteProjectDir": remote_project_dir,
+        "deploymentId": deployment_id,
+        "changeCount": change_count,
+        "releaseType": release_type,
+    })
+    .to_string();
+
+    let db_schema_version = state
+        .database
+        .one_json(
+            "SELECT MAX(version) AS version FROM schema_migrations",
+            &[],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?
+        .and_then(|row| row.get("version").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_else(|| "038_baseline".to_owned());
+
+    let mut client = state
+        .database
+        .connection()
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?;
+    let transaction = client
+        .transaction()
+        .await
+        .map_err(|error| ApiError::database(error.into(), &request_id))?;
+
+    let stack_row = transaction
+        .query_one(
+            "INSERT INTO stack_versions (component, environment, version, git_commit, git_commit_short, \
+                    git_branch, git_dirty, build_timestamp, deployed_at, db_schema_version, source, metadata, changelog) \
+             VALUES ('stack', $1, $2, $3, $4, $5, $6, $7, now(), $8, 'deploy-script', $9, $10) \
+             RETURNING id",
+            &[
+                &environment,
+                &version,
+                &git_commit,
+                &git_short,
+                &git_branch,
+                &git_dirty,
+                &build_timestamp.as_deref(),
+                &db_schema_version,
+                &metadata_json,
+                &changelog.as_deref(),
+            ],
+        )
+        .await
+        .map_err(|error| ApiError::database(error.into(), &request_id))?;
+    let stack_id: i64 = stack_row.get(0);
+
+    for component in &components {
+        transaction
+            .execute(
+                "INSERT INTO stack_versions (component, environment, version, git_commit, git_commit_short, \
+                        git_branch, git_dirty, build_timestamp, deployed_at, db_schema_version, source, metadata) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9, 'deploy-script', \
+                         jsonb_build_object('stackVersionId', $10))",
+                &[
+                    &component,
+                    &environment,
+                    &version,
+                    &git_commit,
+                    &git_short,
+                    &git_branch,
+                    &git_dirty,
+                    &build_timestamp.as_deref(),
+                    &db_schema_version,
+                    &stack_id,
+                ],
+            )
+            .await
+            .map_err(|error| ApiError::database(error.into(), &request_id))?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| ApiError::database(error.into(), &request_id))?;
+
+    Ok((StatusCode::CREATED, Json(json!({
+        "recorded": true,
+        "component": "stack",
+        "environment": environment,
+        "version": version,
+        "gitCommit": git_commit,
+        "gitCommitShort": git_short,
+        "gitDirty": git_dirty,
+        "releaseType": release_type,
+        "changeCount": change_count,
+        "components": components,
+        "stackVersionId": stack_id,
+    }))).into_response())
+}
+
 pub(super) async fn drain(
     State(state): State<AdminState>,
     Extension(_request_id): Extension<RequestId>,
