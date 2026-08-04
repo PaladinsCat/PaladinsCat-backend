@@ -554,12 +554,14 @@ async fn encrypt_key(
     )
 }
 
-fn effective_limit(dev_id: &str, reported: i64) -> i64 {
-    let configured = if dev_id == "2116" { 15_000 } else { 7_500 };
+fn effective_limit(_dev_id: &str, reported: i64) -> i64 {
+    // No arbitrary per-key limits: trust the authoritative reported limit
+    // verbatim. Only fall back to a single uniform default when the API has
+    // not yet reported a limit.
     if reported > 0 {
-        reported.min(configured)
+        reported
     } else {
-        configured
+        7_500
     }
 }
 

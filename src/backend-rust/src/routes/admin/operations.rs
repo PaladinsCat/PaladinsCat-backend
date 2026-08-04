@@ -393,8 +393,10 @@ pub(super) async fn reset_api_key_budgets(
             let actual = response.get("Total_Requests_Today").and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
                 .ok_or_else(|| ApiError::internal(&request_id))?;
             let reported = response.get("Request_Limit_Daily").and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok())).unwrap_or_default();
-            let configured = if dev_id == "2116" { 15_000 } else { 7_500 };
-            let limit = if reported > 0 { configured.min(reported) } else { configured };
+            // No arbitrary per-key limits: trust the authoritative reported limit
+            // verbatim (matching hirez-relay key_pool). Only fall back to a single
+            // uniform default when the API has not yet reported a limit.
+            let limit = if reported > 0 { reported } else { 7_500 };
             state.database.query_json(
                 "UPDATE api_keys SET total_24h=$1,daily_limit=$2,\
                  status=CASE WHEN ($2-$1)>500 THEN 'healthy' ELSE 'limited' END,\
