@@ -7,6 +7,7 @@ use axum::{
     response::Response,
     routing::{get, post},
 };
+use paladinscat_core::cache::RedisCache;
 use paladinscat_core::database::Database;
 use serde_json::{Value, json};
 
@@ -19,15 +20,16 @@ pub const ROUTE_COUNT: usize = 4;
 #[derive(Clone)]
 struct BuildsState {
     database: Database,
+    redis: RedisCache,
 }
 
-pub fn router(database: Database) -> Router {
+pub fn router(database: Database, redis: RedisCache) -> Router {
     Router::new()
         .route("/builds", get(list).post(create))
         .route("/builds/", get(list).post(create))
         .route("/builds/{id}", get(detail))
         .route("/builds/{id}/like", post(like))
-        .with_state(BuildsState { database })
+        .with_state(BuildsState { database, redis })
 }
 
 fn select_sql() -> &'static str {
@@ -43,7 +45,7 @@ async fn select_build(
 ) -> Result<Option<Value>, ApiError> {
     state
         .database
-        .one_json(&format!("{} WHERE b.id=$1", select_sql()), &[&id])
+        .one_json(&format!("{} WHERE b.id=$1::BIGINT", select_sql()), &[&id])
         .await
         .map_err(|error| ApiError::database(error, request_id))
 }
@@ -233,14 +235,9 @@ async fn detail(
     let Some(build) = select_build(&state, id, &request_id).await? else {
         return Ok(simple_error(StatusCode::NOT_FOUND, "Build not found"));
     };
-    state
-        .database
-        .query_json(
-            "UPDATE builds SET view_count=view_count+1 WHERE id=$1 RETURNING id",
-            &[&id],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
+    // Best-effort out-of-band view count: increment in Redis (never 500s the GET).
+    // The read-write activity worker drains `viewcount:builds:*` into builds.view_count.
+    let _ = state.redis.incr(&format!("viewcount:builds:{}", id)).await;
     Ok(json_response(StatusCode::OK, build))
 }
 
@@ -268,7 +265,7 @@ async fn like(
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     let existing = transaction
         .query_opt(
-            "SELECT 1 FROM user_build_likes WHERE user_id=$1 AND build_id=$2 FOR UPDATE",
+            "SELECT 1 FROM user_build_likes WHERE user_id=$1 AND build_id=$2::BIGINT FOR UPDATE",
             &[&session.user_id, &id],
         )
         .await
@@ -277,14 +274,14 @@ async fn like(
     let row = if existing {
         transaction
             .execute(
-                "DELETE FROM user_build_likes WHERE user_id=$1 AND build_id=$2",
+                "DELETE FROM user_build_likes WHERE user_id=$1 AND build_id=$2::BIGINT",
                 &[&session.user_id, &id],
             )
             .await
             .map_err(|error| ApiError::database(error.into(), &request_id))?;
         transaction
             .query_opt(
-                "UPDATE builds SET likes=GREATEST(likes-1,0) WHERE id=$1 RETURNING likes",
+                "UPDATE builds SET likes=GREATEST(likes-1,0) WHERE id=$1::BIGINT RETURNING likes",
                 &[&id],
             )
             .await
@@ -293,13 +290,13 @@ async fn like(
         transaction
             .execute(
                 "INSERT INTO user_build_likes(user_id,build_id) VALUES($1,$2)",
-                &[&session.user_id, &id],
+                &[&session.user_id, &i32::try_from(id).unwrap_or_default()],
             )
             .await
             .map_err(|error| ApiError::database(error.into(), &request_id))?;
         transaction
             .query_opt(
-                "UPDATE builds SET likes=likes+1 WHERE id=$1 RETURNING likes",
+                "UPDATE builds SET likes=likes+1 WHERE id=$1::BIGINT RETURNING likes",
                 &[&id],
             )
             .await

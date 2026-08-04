@@ -254,6 +254,44 @@ impl RedisCache {
         true
     }
 
+    pub async fn scan_keys(&self, pattern: &str) -> Option<Vec<String>> {
+        let mut connection = self.connection().await?;
+        let mut cursor = 0_u64;
+        let mut keys = Vec::new();
+        loop {
+            let result: redis::RedisResult<(u64, Vec<String>)> = match tokio::time::timeout(
+                self.command_timeout,
+                redis::cmd("SCAN")
+                    .arg(cursor)
+                    .arg("MATCH")
+                    .arg(pattern)
+                    .arg("COUNT")
+                    .arg(500)
+                    .query_async(&mut connection),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => {
+                    self.mark_failed().await;
+                    return None;
+                }
+            };
+            let (next, batch) = match result {
+                Ok(value) => value,
+                Err(_) => {
+                    self.mark_failed().await;
+                    return None;
+                }
+            };
+            keys.extend(batch);
+            cursor = next;
+            if cursor == 0 {
+                return Some(keys);
+            }
+        }
+    }
+
     pub async fn delete_pattern(&self, pattern: &str) -> Option<u64> {
         let mut connection = self.connection().await?;
         let mut cursor = 0_u64;

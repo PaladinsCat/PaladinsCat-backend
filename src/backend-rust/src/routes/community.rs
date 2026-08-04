@@ -11,6 +11,7 @@ use axum::{
     response::Response,
     routing::{get, post, put},
 };
+use paladinscat_core::cache::RedisCache;
 use paladinscat_core::database::Database;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -25,6 +26,7 @@ pub const ROUTE_COUNT: usize = 7;
 #[derive(Clone)]
 struct CommunityState {
     database: Database,
+    redis: RedisCache,
     twitch: TwitchClient,
 }
 
@@ -196,7 +198,7 @@ impl TwitchClient {
     }
 }
 
-pub fn router(database: Database) -> Router {
+pub fn router(database: Database, redis: RedisCache) -> Router {
     Router::new()
         .route("/community/streams", get(streams))
         .route("/community/posts", get(posts).post(create_post))
@@ -212,6 +214,7 @@ pub fn router(database: Database) -> Router {
         .route("/community/posts/{id}/like", post(like_post))
         .with_state(CommunityState {
             database,
+            redis,
             twitch: TwitchClient::new(),
         })
 }
@@ -283,7 +286,7 @@ async fn create_post(
         .database
         .one_json(
             "INSERT INTO posts(user_id,title,content,build_id) VALUES($1,$2,$3,$4) RETURNING *",
-            &[&session.user_id, &title, &content, &build_id],
+            &[&session.user_id, &title, &content, &build_id.map(|v| i32::try_from(v).unwrap_or_default())],
         )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
@@ -312,20 +315,23 @@ async fn post_detail(
     let post = state
         .database
         .one_json(
-            "UPDATE posts p SET view_count=p.view_count+1 FROM users u WHERE p.id=$1 AND u.id=p.user_id \
-             RETURNING p.*,u.username,u.linked_player_id,(SELECT tl.post_id FROM tier_lists tl WHERE tl.post_id=p.id) AS tier_list_id",
+            "SELECT p.*,u.username,u.linked_player_id,(SELECT tl.post_id FROM tier_lists tl WHERE tl.post_id=p.id) AS tier_list_id \
+             FROM posts p JOIN users u ON u.id=p.user_id WHERE p.id=$1::BIGINT",
             &[&id],
         )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
+    // Best-effort out-of-band view count: increment in Redis (never 500s the GET).
+    // The read-write activity worker drains `viewcount:posts:*` into posts.view_count.
+    let _ = state.redis.incr(&format!("viewcount:posts:{}", id)).await;
     let Some(post) = post else {
         return Ok(simple_error(StatusCode::NOT_FOUND, "Post not found"));
     };
     let comments = state
         .database
         .query_json(
-            "SELECT c.*,u.username,u.linked_player_id FROM comments c JOIN users u ON u.id=c.user_id \
-             WHERE c.post_id=$1 ORDER BY c.created_at",
+            "SELECT c.*,u.username,u.linked_player_id FROM comments c JOIN users u ON u.id=c.user_id
+             WHERE c.post_id=$1::BIGINT ORDER BY c.created_at",
             &[&id],
         )
         .await
@@ -346,7 +352,7 @@ async fn edit_permission(
     let label = if table == "posts" { "Post" } else { "Comment" };
     let row = state
         .database
-        .one_json(&format!("SELECT user_id FROM {table} WHERE id=$1"), &[&id])
+        .one_json(&format!("SELECT user_id FROM {table} WHERE id=$1::BIGINT"), &[&id])
         .await
         .map_err(|error| ApiError::database(error, request_id))?;
     let Some(row) = row else {
@@ -392,7 +398,7 @@ async fn update_post(
     let post = state
         .database
         .one_json(
-            "UPDATE posts p SET title=$2,content=$3 FROM users u WHERE p.id=$1 AND u.id=p.user_id RETURNING p.*,u.username",
+            "UPDATE posts p SET title=$2,content=$3 FROM users u WHERE p.id=$1::BIGINT AND u.id=p.user_id RETURNING p.*,u.username",
             &[&id, &title, &content],
         )
         .await
@@ -419,7 +425,7 @@ async fn delete_post(
     }
     state
         .database
-        .query_json("DELETE FROM posts WHERE id=$1 RETURNING id", &[&id])
+        .query_json("DELETE FROM posts WHERE id=$1::BIGINT RETURNING id", &[&id])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     Ok(json_response(
@@ -455,7 +461,7 @@ async fn create_comment(
         .and_then(|value| as_i64(Some(value)));
     let post = state
         .database
-        .one_json("SELECT id,user_id FROM posts WHERE id=$1", &[&id])
+        .one_json("SELECT id,user_id FROM posts WHERE id=$1::BIGINT", &[&id])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     let Some(post) = post else {
@@ -465,7 +471,7 @@ async fn create_comment(
         .database
         .one_json(
             "INSERT INTO comments(post_id,user_id,parent_id,content) VALUES($1,$2,$3,$4) RETURNING *",
-            &[&id, &session.user_id, &parent_id, &content],
+            &[&i32::try_from(id).unwrap_or_default(), &session.user_id, &parent_id.map(|v| i32::try_from(v).unwrap_or_default()), &content],
         )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
@@ -478,7 +484,7 @@ async fn create_comment(
             .query_json(
                 "INSERT INTO user_notifications(user_id,actor_user_id,type,post_id,comment_id) \
                  VALUES($1,$2,'community_comment',$3,$4) ON CONFLICT(user_id,comment_id) DO NOTHING",
-                &[&owner, &session.user_id, &id, &comment_id],
+                &[&i32::try_from(owner).unwrap_or_default(), &session.user_id, &i32::try_from(id).unwrap_or_default(), &i32::try_from(comment_id).unwrap_or_default()],
             )
             .await
             .map_err(|error| ApiError::database(error, &request_id))?;
@@ -523,7 +529,7 @@ async fn update_comment(
     let comment = state
         .database
         .one_json(
-            "UPDATE comments c SET content=$2 FROM users u WHERE c.id=$1 AND u.id=c.user_id RETURNING c.*,u.username,u.linked_player_id",
+            "UPDATE comments c SET content=$2 FROM users u WHERE c.id=$1::BIGINT AND u.id=c.user_id RETURNING c.*,u.username,u.linked_player_id",
             &[&id, &content],
         )
         .await
@@ -550,7 +556,7 @@ async fn delete_comment(
     }
     state
         .database
-        .query_json("DELETE FROM comments WHERE id=$1 RETURNING id", &[&id])
+        .query_json("DELETE FROM comments WHERE id=$1::BIGINT RETURNING id", &[&id])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     Ok(json_response(
@@ -574,7 +580,7 @@ async fn like_post(
     };
     if state
         .database
-        .one_json("SELECT id FROM posts WHERE id=$1", &[&id])
+        .one_json("SELECT id FROM posts WHERE id=$1::BIGINT", &[&id])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
         .is_none()
@@ -592,7 +598,7 @@ async fn like_post(
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     let existing = transaction
         .query_opt(
-            "SELECT 1 FROM user_post_likes WHERE user_id=$1 AND post_id=$2 FOR UPDATE",
+            "SELECT 1 FROM user_post_likes WHERE user_id=$1 AND post_id=$2::BIGINT FOR UPDATE",
             &[&session.user_id, &id],
         )
         .await
@@ -601,7 +607,7 @@ async fn like_post(
     if existing {
         transaction
             .execute(
-                "DELETE FROM user_post_likes WHERE user_id=$1 AND post_id=$2",
+                "DELETE FROM user_post_likes WHERE user_id=$1 AND post_id=$2::BIGINT",
                 &[&session.user_id, &id],
             )
             .await
@@ -610,7 +616,7 @@ async fn like_post(
         transaction
             .execute(
                 "INSERT INTO user_post_likes(user_id,post_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
-                &[&session.user_id, &id],
+                &[&session.user_id, &i32::try_from(id).unwrap_or_default()],
             )
             .await
             .map_err(|error| ApiError::database(error.into(), &request_id))?;
@@ -618,9 +624,9 @@ async fn like_post(
     let row = transaction
         .query_one(
             if existing {
-                "UPDATE posts SET likes=GREATEST(likes-1,0) WHERE id=$1 RETURNING likes"
+                "UPDATE posts SET likes=GREATEST(likes-1,0) WHERE id=$1::BIGINT RETURNING likes"
             } else {
-                "UPDATE posts SET likes=likes+1 WHERE id=$1 RETURNING likes"
+                "UPDATE posts SET likes=likes+1 WHERE id=$1::BIGINT RETURNING likes"
             },
             &[&id],
         )

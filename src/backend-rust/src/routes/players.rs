@@ -1502,16 +1502,16 @@ async fn card_winrates(
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction
         .execute(
-            "INSERT INTO player_loadout_cards(player_id,champion_id,card_id,card_level,matches_played,wins,losses,win_rate,last_updated) \
+            "INSERT INTO player_loadout_cards(player_id,champion_id,card_id,card_level,times_used,wins,losses,win_rate,updated_at) \
              SELECT mp.player_id,mp.champion_id,mpc.card_id,mpc.card_level,COUNT(*)::INT, \
                COUNT(*) FILTER(WHERE lower(COALESCE(mp.win_status,'')) IN ('winner','win'))::INT, \
                COUNT(*) FILTER(WHERE lower(COALESCE(mp.win_status,'')) IN ('loser','loss'))::INT, \
                ROUND(100.0*COUNT(*) FILTER(WHERE lower(COALESCE(mp.win_status,'')) IN ('winner','win'))::NUMERIC/NULLIF(COUNT(*),0),2),now() \
              FROM match_players mp JOIN match_player_cards mpc ON mpc.match_id=mp.match_id AND mpc.player_id=mp.player_id \
              WHERE mp.player_id=$1 GROUP BY mp.player_id,mp.champion_id,mpc.card_id,mpc.card_level \
-             ON CONFLICT(player_id,champion_id,card_id,card_level) DO UPDATE SET \
-               matches_played=EXCLUDED.matches_played,wins=EXCLUDED.wins,losses=EXCLUDED.losses, \
-               win_rate=EXCLUDED.win_rate,last_updated=now()",
+             ON CONFLICT(player_id,champion_id,card_id) DO UPDATE SET \
+               card_level=EXCLUDED.card_level,times_used=EXCLUDED.times_used,wins=EXCLUDED.wins,losses=EXCLUDED.losses, \
+               win_rate=EXCLUDED.win_rate,updated_at=now()",
             &[&player_id],
         )
         .await
@@ -1524,9 +1524,9 @@ async fn card_winrates(
         state
             .database
             .query_json(
-                "SELECT champion_id,card_id,card_level,matches_played,wins,losses,win_rate,last_updated \
+                "SELECT champion_id,card_id,card_level,times_used,wins,losses,win_rate,updated_at \
                  FROM player_loadout_cards WHERE player_id=$1 AND champion_id=$2 \
-                 ORDER BY matches_played DESC,win_rate DESC,card_id,card_level",
+                 ORDER BY times_used DESC,win_rate DESC,card_id,card_level",
                 &[&player_id, &champion_id],
             )
             .await

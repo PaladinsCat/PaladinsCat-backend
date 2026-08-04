@@ -157,8 +157,8 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             foundation.config.clone(),
         ))
         .merge(routes::admin::router(foundation.clone()))
-        .merge(routes::builds::router(database.clone()))
-        .merge(routes::community::router(database.clone()))
+        .merge(routes::builds::router(database.clone(), foundation.redis.clone()))
+        .merge(routes::community::router(database.clone(), foundation.redis.clone()))
         .merge(routes::tierlists::router(database.clone()))
         .merge(routes::site_analytics::router(database.clone()))
         .merge(routes::system::router(

@@ -146,7 +146,7 @@ async fn detail(
     let rows = state
         .database
         .query_json(
-            &format!("{SELECT} WHERE p.id=$1 GROUP BY p.id,u.username,u.linked_player_id"),
+            &format!("{SELECT} WHERE p.id=$1::BIGINT GROUP BY p.id,u.username,u.linked_player_id"),
             &[&id],
         )
         .await
@@ -241,7 +241,7 @@ async fn create(
     transaction
         .execute(
             "INSERT INTO tier_lists(post_id,user_id) VALUES($1,$2)",
-            &[&post_id, &session.user_id],
+            &[&i32::try_from(post_id).unwrap_or_default(), &session.user_id],
         )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
@@ -251,7 +251,7 @@ async fn create(
             "INSERT INTO tier_list_entries(post_id,champion_id,tier,position) \
              SELECT $1,entry.\"championId\",entry.tier,entry.position FROM jsonb_to_recordset($2::jsonb) \
              AS entry(\"championId\" integer,tier text,position integer)",
-            &[&post_id, &serialized],
+            &[&i32::try_from(post_id).unwrap_or_default(), &serialized],
         )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
@@ -284,7 +284,7 @@ async fn update(
     };
     let existing = state
         .database
-        .one_json("SELECT user_id FROM tier_lists WHERE post_id=$1", &[&id])
+        .one_json("SELECT user_id FROM tier_lists WHERE post_id=$1::BIGINT", &[&id])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     let Some(existing) = existing else {
@@ -312,20 +312,20 @@ async fn update(
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction
         .execute(
-            "UPDATE posts SET title=$2,content=$3,updated_at=now() WHERE id=$1",
+            "UPDATE posts SET title=$2,content=$3,updated_at=now() WHERE id=$1::BIGINT",
             &[&id, &title, &description],
         )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction
         .execute(
-            "UPDATE tier_lists SET updated_at=now() WHERE post_id=$1",
+            "UPDATE tier_lists SET updated_at=now() WHERE post_id=$1::BIGINT",
             &[&id],
         )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction
-        .execute("DELETE FROM tier_list_entries WHERE post_id=$1", &[&id])
+        .execute("DELETE FROM tier_list_entries WHERE post_id=$1::BIGINT", &[&id])
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction
@@ -333,7 +333,7 @@ async fn update(
             "INSERT INTO tier_list_entries(post_id,champion_id,tier,position) \
              SELECT $1,entry.\"championId\",entry.tier,entry.position FROM jsonb_to_recordset($2::jsonb) \
              AS entry(\"championId\" integer,tier text,position integer)",
-            &[&id, &serialized],
+            &[&i32::try_from(id).unwrap_or_default(), &serialized],
         )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;

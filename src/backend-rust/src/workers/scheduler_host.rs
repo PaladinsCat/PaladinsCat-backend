@@ -10,6 +10,7 @@ use std::{
 };
 
 use paladinscat_core::{
+    cache::RedisCache,
     config::BackendConfig,
     database::{Database, DatabaseError},
 };
@@ -617,6 +618,12 @@ async fn dispatch(
                 .map_err(|error| error.to_string())?;
             Ok(json!(result))
         }
+        "auto-ingester:view-count-drain" => {
+            let result = drain_view_counts(&services.database, &services.config)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(json!(result))
+        }
         "baseline-tracker:refresh" => {
             let result = refresh_baselines_with_job(&services.database, "scheduler")
                 .await
@@ -638,6 +645,62 @@ async fn dispatch(
         .map_err(|error| error.to_string()),
         _ => Err(format!("unknown scheduled job {job_key}")),
     }
+}
+
+async fn drain_view_counts(
+    database: &Database,
+    config: &BackendConfig,
+) -> Result<Value, String> {
+    let redis = RedisCache::new(&config.redis_url).map_err(|error| error.to_string())?;
+    let mut posts = 0_u64;
+    let mut builds = 0_u64;
+    if let Some(keys) = redis.scan_keys("viewcount:posts:*").await {
+        for key in keys {
+            let Some(id) = key.strip_prefix("viewcount:posts:").and_then(|s| s.parse::<i64>().ok()) else {
+                continue;
+            };
+            let Some(count) = redis.incr_get(&key).await else {
+                continue;
+            };
+            if count > 0 {
+                // view_count is an INT4 column; bind the increment as i32 to satisfy
+                // tokio-postgres type-safety (an i64 would raise WrongType Int4/i64).
+                let incr = i32::try_from(count).unwrap_or(i32::MAX);
+                let _ = database
+                    .query_json(
+                        "UPDATE posts SET view_count=view_count+$2 WHERE id=$1::BIGINT",
+                        &[&id, &incr],
+                    )
+                    .await;
+                posts = posts.saturating_add(count as u64);
+            }
+            let _ = redis.del(&key).await;
+        }
+    }
+    if let Some(keys) = redis.scan_keys("viewcount:builds:*").await {
+        for key in keys {
+            let Some(id) = key.strip_prefix("viewcount:builds:").and_then(|s| s.parse::<i64>().ok()) else {
+                continue;
+            };
+            let Some(count) = redis.incr_get(&key).await else {
+                continue;
+            };
+            if count > 0 {
+                // view_count is an INT4 column; bind the increment as i32 to satisfy
+                // tokio-postgres type-safety (an i64 would raise WrongType Int4/i64).
+                let incr = i32::try_from(count).unwrap_or(i32::MAX);
+                let _ = database
+                    .query_json(
+                        "UPDATE builds SET view_count=view_count+$2 WHERE id=$1::BIGINT",
+                        &[&id, &incr],
+                    )
+                    .await;
+                builds = builds.saturating_add(count as u64);
+            }
+            let _ = redis.del(&key).await;
+        }
+    }
+    Ok(json!({ "postsIncremented": posts, "buildsIncremented": builds }))
 }
 
 async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
