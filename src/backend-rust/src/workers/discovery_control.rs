@@ -288,14 +288,76 @@ pub async fn mark_match_debt_retryable(
     }
     let retry = retry_minutes
         .unwrap_or_else(|| env_i32("HOURLY_INGEST_MATCH_DEBT_RETRY_MINUTES", 10).max(5));
+    // TS parity (markHourlyIngestMatchDebtPending): graduated backoff for
+    // "no authoritative payload" debt. Fresh debt retries quickly; once old
+    // and past the attempt threshold it settles into a slow retry to stop
+    // hammering the Hi-Rez API while preserving recoverability.
+    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 6).max(1);
+    let slow_after_attempts = env_i32("NO_AUTH_PAYLOAD_SLOW_RETRY_AFTER_ATTEMPTS", 5).max(1);
+    let slow_minutes = env_i32("NO_AUTH_PAYLOAD_SLOW_RETRY_MINUTES", 180).max(retry);
+    let fresh_minutes = env_i32("HOURLY_INGEST_NO_AUTH_FRESH_RETRY_MINUTES", 5).max(1);
+    // Only the two TS batch-only reasons are ever parked unrecoverable.
+    // "no authoritative payload" / non-authoritative / dropped-corrupt are
+    // NEVER parked — they stay retryable (slowly) exactly as TS does.
+    // TS reads both aliases: HOURLY_INGEST_BATCH_ONLY_NO_AUTHORITY_MAX_ATTEMPTS
+    // || HOURLY_INGEST_BATCH_ONLY_PROFILE_ONLY_MAX_ATTEMPTS || 2.
+    let max_attempts = std::env::var("HOURLY_INGEST_BATCH_ONLY_NO_AUTHORITY_MAX_ATTEMPTS")
+        .ok()
+        .and_then(|value| value.parse::<i32>().ok())
+        .or_else(|| {
+            std::env::var("HOURLY_INGEST_BATCH_ONLY_PROFILE_ONLY_MAX_ATTEMPTS")
+                .ok()
+                .and_then(|value| value.parse::<i32>().ok())
+        })
+        .unwrap_or(2)
+        .max(1);
+    let is_batch_only_no_authority = reason_implies_batch_only_no_authority(reason);
+    let is_no_authority = reason_implies_no_authority_payload(reason);
     database.query_json(
-        "UPDATE hourly_ingest_match_debt SET status=CASE WHEN status='complete' THEN status ELSE 'pending' END,\
-         reason=CASE WHEN status='complete' THEN reason ELSE $2 END,next_retry_at=CASE WHEN status='complete' THEN next_retry_at \
-         ELSE now()+($3::INT*INTERVAL '1 minute') END,updated_at=now() WHERE match_id=$1 AND status<>'unrecoverable'",
-        &[&match_id, &reason, &retry],
-    ).await?;
+        "UPDATE hourly_ingest_match_debt SET \
+         status=CASE \
+           WHEN status='complete' THEN status \
+           WHEN status='unrecoverable' THEN status \
+           WHEN $4::BOOLEAN AND first_seen_at<now()-($5::INT*INTERVAL '1 hour') AND attempts+1>=$6::INT \
+             THEN 'unrecoverable' \
+           ELSE 'pending' END,\
+         reason=CASE WHEN status='complete' OR status='unrecoverable' THEN reason ELSE $2 END,\
+         attempts=attempts+1,last_attempt_at=now(),\
+         next_retry_at=CASE WHEN status='complete' THEN next_retry_at \
+           WHEN $4::BOOLEAN AND first_seen_at<now()-($5::INT*INTERVAL '1 hour') AND attempts+1>=$6::INT \
+             THEN NULL \
+           WHEN $7::BOOLEAN AND first_seen_at<now()-($5::INT*INTERVAL '1 hour') AND attempts+1>=$8::INT \
+             THEN now()+($9::INT*INTERVAL '1 minute') \
+           WHEN $7::BOOLEAN THEN now()+($10::INT*INTERVAL '1 minute') \
+           ELSE now()+($3::INT*INTERVAL '1 minute') END,updated_at=now() \
+         WHERE match_id=$1 AND status<>'unrecoverable'",
+        &[
+            &match_id,
+            &reason,
+            &retry,
+            &is_batch_only_no_authority,
+            &fresh_hours,
+            &max_attempts,
+            &is_no_authority,
+            &slow_after_attempts,
+            &slow_minutes,
+            &fresh_minutes,
+        ],
+    )
+    .await?;
     Ok(())
 }
+
+fn reason_implies_batch_only_no_authority(reason: &str) -> bool {
+    let r = reason.to_ascii_lowercase();
+    // TS parks ONLY these two reasons as unrecoverable (via $MAX_ATTEMPTS fuse).
+    r.contains("batch-only profile-only") || r.contains("batch-only non-authoritative")
+}
+
+fn reason_implies_no_authority_payload(reason: &str) -> bool {
+    reason.to_ascii_lowercase().contains("no authoritative payload")
+}
+
 
 pub async fn mark_match_debt_unrecoverable(
     database: &Database,
@@ -341,7 +403,7 @@ pub async fn revive_fresh_no_authority_debt(
     max_date: &str,
 ) -> Result<Vec<(String, i32, i32)>, DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
-    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 48).max(1);
+    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 6).max(1);
     Ok(database
         .query_json(
             "WITH revived AS(UPDATE hourly_ingest_match_debt SET status='pending',\
@@ -484,3 +546,52 @@ impl RegexLike {
         value.contains("budget exhausted") || value.contains("massive drop")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reason_classifier_parks_batch_only_no_authority() {
+        // Mirrors the TS $MAX_ATTEMPTS fuse triggers: ONLY the two batch-only
+        // reasons may be parked unrecoverable.
+        assert!(reason_implies_batch_only_no_authority(
+            "batch-only non-authoritative roster missing"
+        ));
+        assert!(reason_implies_batch_only_no_authority(
+            "batch-only profile-only no player anchors"
+        ));
+        // Graduated-backoff reasons must NEVER be parked (TS keeps them
+        // retryable via the slow-retry escalation).
+        assert!(!reason_implies_batch_only_no_authority(
+            "no authoritative payload: Server_Regions temp-table failure"
+        ));
+        assert!(!reason_implies_batch_only_no_authority("dropped/corrupt: bad payload"));
+        assert!(!reason_implies_batch_only_no_authority(
+            "non-authoritative aggregate"
+        ));
+        // Non-productive reasons must stay retryable, not get parked.
+        assert!(!reason_implies_batch_only_no_authority(
+            "canonical singleton returned no outcome"
+        ));
+        assert!(!reason_implies_batch_only_no_authority(
+            "discovered by hourly ingest"
+        ));
+        assert!(!reason_implies_batch_only_no_authority("hourly discovery plus unresolved debt retry"));
+    }
+
+    #[test]
+    fn reason_classifier_no_authority_payload() {
+        assert!(reason_implies_no_authority_payload(
+            "no authoritative payload: Server_Regions temp-table failure"
+        ));
+        assert!(reason_implies_no_authority_payload(
+            "no authoritative payload: RetMsg malformed"
+        ));
+        assert!(!reason_implies_no_authority_payload(
+            "batch-only profile-only no player anchors"
+        ));
+        assert!(!reason_implies_no_authority_payload("canonical singleton returned no outcome"));
+    }
+}
+

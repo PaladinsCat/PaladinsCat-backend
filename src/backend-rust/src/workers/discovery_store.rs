@@ -139,7 +139,7 @@ pub async fn record_match_count_discovery_result(
 pub async fn filter_already_handled_match_ids(
     database: &Database,
     match_ids: &[i64],
-    queue_id: i32,
+    _queue_id: i32,
     include_raw_buffer: bool,
     include_pull_list: bool,
 ) -> Result<MatchIngestGuardResult, DatabaseError> {
@@ -175,13 +175,17 @@ pub async fn filter_already_handled_match_ids(
         })
         .collect::<HashMap<_, _>>();
     let terminal = |id: i64| {
-        statuses.get(&id).is_some_and(|(status, ranked_complete)| {
-            if queue_id == 486 {
-                status == "complete" && *ranked_complete
-            } else {
+        // TS parity (ingest-guards.ts isCompleteOrLegacy): a durable row counts
+        // as handled when status is 'complete'/'limited' OR when no
+        // match_ingest_status row exists at all (legacy / pre-migration data).
+        // No queue-486 ranked_complete special case: TS never requires
+        // completed_stages to consider a match terminal.
+        match statuses.get(&id) {
+            Some((status, _ranked_complete)) => {
                 matches!(status.as_str(), "complete" | "limited")
             }
-        })
+            None => true,
+        }
     };
     let matches = database
         .query_json(

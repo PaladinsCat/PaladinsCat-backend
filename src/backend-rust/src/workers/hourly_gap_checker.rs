@@ -29,7 +29,9 @@ pub async fn scan_hourly_gaps(
     database: &Database,
     lookback_hours: i32,
 ) -> Result<GapScanResult, HourlyGapCheckerError> {
-    let queue_ids: Vec<i32> = vec![486, 424, 452, 469, 10332];
+    // Align with policy::MATCH_COUNT_QUEUE_DEFINITIONS (all 12 queues) so this
+    // path would not silently drop presence/ranked queues if it were wired up.
+    let queue_ids: Vec<i32> = vec![424, 425, 452, 453, 469, 486, 10297, 10332, 10348, 10362, 10367, 10369];
     let params: Box<[&(dyn tokio_postgres::types::ToSql + Sync)]> = Box::new([&lookback_hours, &queue_ids]);
     let rows = database
         .query_json(

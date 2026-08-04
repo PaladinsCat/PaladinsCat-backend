@@ -43,19 +43,29 @@ pub async fn get_api_headroom(
 pub async fn check_api_budget(
     database: &Database,
 ) -> Result<bool, ApiHeadroomError> {
-    let snapshot = get_api_headroom(database, 100).await?;
+    let reserve = std::env::var("API_KEY_RESERVE_CALLS")
+        .ok()
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(100)
+        .max(0);
+    let snapshot = get_api_headroom(database, reserve).await?;
     Ok(snapshot.has_usable_keys)
 }
 
 pub async fn get_api_budget_summary(
     database: &Database,
 ) -> Result<Vec<ApiHeadroomSnapshot>, ApiHeadroomError> {
+    let reserve = std::env::var("API_KEY_RESERVE_CALLS")
+        .ok()
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(100)
+        .max(0);
     let row = database
         .one_json(
             "SELECT COUNT(*) AS total_keys,\
-             COUNT(*) FILTER(WHERE status NOT IN('limited','unhealthy','exhausted') AND GREATEST(daily_limit-total_24h,0)>100) AS usable_keys,\
-             COALESCE(SUM(GREATEST(daily_limit-total_24h-100,0)),0) AS total_usable_before_reserve FROM api_keys",
-            &[],
+             COUNT(*) FILTER(WHERE status NOT IN('limited','unhealthy','exhausted') AND GREATEST(daily_limit-total_24h,0)>$1) AS usable_keys,\
+             COALESCE(SUM(GREATEST(daily_limit-total_24h-$1,0)),0) AS total_usable_before_reserve FROM api_keys",
+            &[&reserve],
         )
         .await?
         .unwrap_or(Value::Null);

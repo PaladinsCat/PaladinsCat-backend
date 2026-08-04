@@ -57,12 +57,17 @@ pub async fn get_background_allowance(
     database: &Database,
     worst_case_calls_per_match: u64,
 ) -> Result<u64, RankedPriorityBudgetError> {
+    let reserve = std::env::var("API_KEY_RESERVE_CALLS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(100)
+        .max(0);
     let budget = calculate_priority_budget(database).await?;
     let row = database
         .one_json(
-            "SELECT COALESCE(SUM(GREATEST(daily_limit-total_24h-100,0)),0) AS total_usable FROM api_keys \
+            "SELECT COALESCE(SUM(GREATEST(daily_limit-total_24h-$1,0)),0) AS total_usable FROM api_keys \
              WHERE status NOT IN('limited','unhealthy','exhausted')",
-            &[],
+            &[&reserve],
         )
         .await?
         .unwrap_or(Value::Null);
