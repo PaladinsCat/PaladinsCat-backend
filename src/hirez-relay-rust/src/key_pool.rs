@@ -19,8 +19,6 @@ use crate::{
 };
 
 pub const DEFAULT_API_KEY_RESERVE_CALLS: u64 = 100;
-pub const DEFAULT_DAILY_LIMIT: u64 = 7_500;
-pub const SPECIAL_DAILY_LIMIT_2116: u64 = 15_000;
 const FAILURE_THRESHOLD: u32 = 5;
 const REVIVAL_COOLDOWN_MS: i64 = 30 * 60 * 1_000;
 const ESTIMATE_REVIVAL_COOLDOWN_MS: i64 = 5 * 60 * 1_000;
@@ -150,6 +148,7 @@ struct InMemoryKey {
     pending_increments: u64,
     consecutive_failures: u32,
     calls_total: u64,
+    is_backup: bool,
 }
 
 #[derive(Default)]
@@ -250,6 +249,7 @@ impl KeyPool {
                 pending_increments: pending.get(&row.dev_id).copied().unwrap_or(0),
                 consecutive_failures: row.consecutive_failures,
                 calls_total: row.calls_total,
+                is_backup: is_backup_dev_id(&row.dev_id),
             });
         }
         keys.sort_by(|left, right| left.dev_id.cmp(&right.dev_id));
@@ -380,10 +380,19 @@ impl KeyPool {
         }
 
         let mut inner = self.inner.write().expect("key pool write lock");
-        let Some(index) = inner.keys.iter().position(|key| {
+        // Pass 1: prefer primary (non-backup) keys; fall back to backup keys only
+        // when no primary has usable budget. Returns to a primary the moment one
+        // regains space (via sync_usage / estimate revival).
+        let usable = |key: &InMemoryKey| {
             key.status == KeyStatus::Healthy
                 && has_usable_budget(key.used_today, key.daily_limit, self.reserve)
-        }) else {
+        };
+        let Some(index) = inner
+            .keys
+            .iter()
+            .position(|key| !key.is_backup && usable(key))
+            .or_else(|| inner.keys.iter().position(|key| key.is_backup && usable(key)))
+        else {
             return Ok(None);
         };
         let dev_id = inner.keys[index].dev_id.clone();
@@ -699,19 +708,28 @@ impl ApiKeyState for KeyPool {
     }
 }
 
-fn configured_daily_limit(dev_id: &str) -> u64 {
-    if dev_id == "2116" {
-        SPECIAL_DAILY_LIMIT_2116
-    } else {
-        DEFAULT_DAILY_LIMIT
-    }
+fn configured_daily_limit(_dev_id: &str) -> u64 {
+    std::env::var("HIREZ_DEFAULT_DAILY_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|limit| *limit > 0)
+        .unwrap_or(7_500)
 }
 
-pub fn effective_daily_limit(dev_id: &str, reported_limit: Option<u64>) -> u64 {
-    let configured = configured_daily_limit(dev_id);
+pub fn effective_daily_limit(_dev_id: &str, reported_limit: Option<u64>) -> u64 {
     reported_limit
         .filter(|limit| *limit > 0)
-        .map_or(configured, |limit| limit.min(configured))
+        .unwrap_or_else(|| configured_daily_limit(_dev_id))
+}
+
+pub fn is_backup_dev_id(dev_id: &str) -> bool {
+    std::env::var("HIREZ_BACKUP_DEV_IDS")
+        .map(|value| backup_list_contains(&value, dev_id))
+        .unwrap_or(false)
+}
+
+fn backup_list_contains(list: &str, dev_id: &str) -> bool {
+    list.split(',').any(|candidate| candidate.trim() == dev_id)
 }
 
 fn has_usable_budget(used: u64, limit: u64, reserve: u64) -> bool {
@@ -964,12 +982,25 @@ mod tests {
     }
 
     #[test]
-    fn effective_limits_match_typescript_policy() {
-        assert_eq!(effective_daily_limit("2116", None), 15_000);
-        assert_eq!(effective_daily_limit("2116", Some(20_000)), 15_000);
+    fn effective_limit_trusts_reported_and_env_default() {
+        // Reported (authoritative) limits are trusted verbatim — no hard-coded clamp.
+        assert_eq!(effective_daily_limit("2116", Some(300_000)), 300_000);
+        assert_eq!(effective_daily_limit("2504", Some(300_000)), 300_000);
         assert_eq!(effective_daily_limit("2116", Some(10_000)), 10_000);
-        assert_eq!(effective_daily_limit("4114", Some(15_000)), 7_500);
+        assert_eq!(effective_daily_limit("4114", Some(15_000)), 15_000);
         assert_eq!(effective_daily_limit("4114", Some(7_000)), 7_000);
+        // No report yet -> configurable default (7500 when env unset).
+        assert_eq!(effective_daily_limit("2116", None), 7_500);
+        assert_eq!(effective_daily_limit("4114", None), 7_500);
+    }
+
+    #[test]
+    fn backup_dev_id_parses_env_list() {
+        assert!(backup_list_contains("2504, 9999", "2504"));
+        assert!(backup_list_contains("2504, 9999", "9999"));
+        assert!(backup_list_contains(" 2504 ", "2504"));
+        assert!(!backup_list_contains("2504, 9999", "4114"));
+        assert!(!backup_list_contains("", "2504"));
     }
 
     #[tokio::test]
