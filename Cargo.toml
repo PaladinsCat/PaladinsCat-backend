@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "src/backend-rust",
+  "src/discord-bot-rust",
   "src/hirez-relay-rust",
   "src/paladinscat-core",
 ]

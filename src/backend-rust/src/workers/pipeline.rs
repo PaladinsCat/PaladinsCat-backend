@@ -847,14 +847,39 @@ impl CanonicalIngestPipeline {
     }
 
     async fn terminalize_interrupted_nonranked_claims(&self) -> Result<(), DatabaseError> {
+        // An interrupted claim is NOT evidence of a bad payload: it usually means
+        // the worker exited (restart/crash) before persisting an in-flight batch.
+        // Permanently dropping it starved the roster/player tables and under-reported
+        // presence. Reset expired in-flight claims back to `discovered` so the next
+        // acquisition pass re-claims and persists them. A bounded attempt fuse still
+        // parks genuinely-unavailable matches instead of churning forever.
+        let attempt_cap = std::env::var("NONRANKED_ACQUISITION_INTERRUPT_MAX_ATTEMPTS")
+            .ok()
+            .and_then(|raw| raw.parse::<i64>().ok())
+            .unwrap_or(6)
+            .max(1);
         self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',lease_until=NULL,\
-             terminal_reason=COALESCE(terminal_reason,'worker_interrupted_single_pass_not_retried'),\
-             error_message=COALESCE(error_message,'Acquisition lease expired before persistence'),\
+            "UPDATE nonranked_match_acquisition SET status='discovered',quality=NULL,\
+             lease_until=NULL,terminal_reason=NULL,error_message=NULL,\
+             updated_at=now()\
+             WHERE status IN('fetching','service_deferred')\
+               AND (lease_until IS NULL OR lease_until<=now())\
+               AND (detail_attempts IS NULL OR detail_attempts < $1::int)",
+            &[&attempt_cap],
+        )
+        .await?;
+        // Anything still stuck in-flight past the fuse is permanently parked.
+        self.database.query_json(
+            "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
+             lease_until=NULL,terminal_reason='worker_interrupted_attempt_fuse_exceeded',\
+             error_message='Repeatedly interrupted before persistence; parked to avoid churn',\
              completed_at=COALESCE(completed_at,now()),updated_at=now()\
-             WHERE status IN('fetching','service_deferred') AND (lease_until IS NULL OR lease_until<=now())",
-            &[],
-        ).await?;
+             WHERE status IN('fetching','service_deferred')\
+               AND (lease_until IS NULL OR lease_until<=now())\
+               AND detail_attempts >= $1::int",
+            &[&attempt_cap],
+        )
+        .await?;
         Ok(())
     }
 
