@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:51.620Z",
+  "manifestSha256": "d79bfcac43230cdef2081a9688c0beb9fdaa7624b4048dbc3993ba06b6e715b8",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41804/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41804/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 11,
+    "passingTables": 11,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "matches",
+          "rowCount": 4,
+          "sha256": "edc0fd2d0d19d7ae5a49fdb434c6d8555560b511e6271f9688cc1136e36c39f8"
+        },
+        {
+          "name": "match_lobby_tiers",
+          "rowCount": 4,
+          "sha256": "21b0ea5ae19e2bceb44ccbe7359a3868df765c3c75210909aa4afcb04364a0c7"
+        },
+        {
+          "name": "match_players",
+          "rowCount": 7,
+          "sha256": "6bd232823e5789ce9655a0e939f2fa51275d497086e5fafbb8a3a4e27f3dba94"
+        },
+        {
+          "name": "stats_match_aggregate",
+          "rowCount": 5,
+          "sha256": "70b3d28d8215f10f89bd41b881e2a4b9852be3503379dca3e416450fbb10df0d"
+        },
+        {
+          "name": "stats_player_aggregate",
+          "rowCount": 6,
+          "sha256": "fe817f4e3f44cc0765fb38c26375bd27ac161ee228ea040ef3f4e12183c5a962"
+        },
+        {
+          "name": "champions",
+          "rowCount": 2,
+          "sha256": "fe2677968001dd6a55ef8e761bb25796cce750947a123e9bee97904515da83ed"
+        },
+        {
+          "name": "players",
+          "rowCount": 7,
+          "sha256": "bdcabc1b540ab720ca0256a8f5132b2a3560c03179cd34f1ca43944e72515407"
+        },
+        {
+          "name": "player_loadouts",
+          "rowCount": 7,
+          "sha256": "954d6158c0ad33a591b99e2283436b0bfab10606d4919cb25b86827ba23465c4"
+        },
+        {
+          "name": "leaderboard_current",
+          "rowCount": 2,
+          "sha256": "759d5860ea1ea3c9adcce0b62e25cf1026bc5249ec8e46f717503eba30236e37"
+        },
+        {
+          "name": "ranked_tiers",
+          "rowCount": 26,
+          "sha256": "6424213635788a6e75b434794b69d2e6c8a46ca9220da8500ecc502c36209c90"
+        },
+        {
+          "name": "tier_stats",
+          "rowCount": 1,
+          "sha256": "0651576d0f1ad7c00b509a5fa1fd38af7a3e5e89c1b62f391a91a55b140d78a2"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "matches",
+          "rowCount": 4,
+          "sha256": "edc0fd2d0d19d7ae5a49fdb434c6d8555560b511e6271f9688cc1136e36c39f8"
+        },
+        {
+          "name": "match_lobby_tiers",
+          "rowCount": 4,
+          "sha256": "21b0ea5ae19e2bceb44ccbe7359a3868df765c3c75210909aa4afcb04364a0c7"
+        },
+        {
+          "name": "match_players",
+          "rowCount": 7,
+          "sha256": "6bd232823e5789ce9655a0e939f2fa51275d497086e5fafbb8a3a4e27f3dba94"
+        },
+        {
+          "name": "stats_match_aggregate",
+          "rowCount": 5,
+          "sha256": "70b3d28d8215f10f89bd41b881e2a4b9852be3503379dca3e416450fbb10df0d"
+        },
+        {
+          "name": "stats_player_aggregate",
+          "rowCount": 6,
+          "sha256": "fe817f4e3f44cc0765fb38c26375bd27ac161ee228ea040ef3f4e12183c5a962"
+        },
+        {
+          "name": "champions",
+          "rowCount": 2,
+          "sha256": "fe2677968001dd6a55ef8e761bb25796cce750947a123e9bee97904515da83ed"
+        },
+        {
+          "name": "players",
+          "rowCount": 7,
+          "sha256": "bdcabc1b540ab720ca0256a8f5132b2a3560c03179cd34f1ca43944e72515407"
+        },
+        {
+          "name": "player_loadouts",
+          "rowCount": 7,
+          "sha256": "954d6158c0ad33a591b99e2283436b0bfab10606d4919cb25b86827ba23465c4"
+        },
+        {
+          "name": "leaderboard_current",
+          "rowCount": 2,
+          "sha256": "759d5860ea1ea3c9adcce0b62e25cf1026bc5249ec8e46f717503eba30236e37"
+        },
+        {
+          "name": "ranked_tiers",
+          "rowCount": 26,
+          "sha256": "6424213635788a6e75b434794b69d2e6c8a46ca9220da8500ecc502c36209c90"
+        },
+        {
+          "name": "tier_stats",
+          "rowCount": 1,
+          "sha256": "0651576d0f1ad7c00b509a5fa1fd38af7a3e5e89c1b62f391a91a55b140d78a2"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,3307 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:53:25.629Z",
+  "inventorySha256": "49db1ad9212f0d18ed23050f33103760dcf20c509b3d51d4a7427d39254e330d",
+  "fixtureSha256": "0143b38f6a30af070b1edbb0f598d66fc5d6aac6fa649070164bf9e92386b666",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:58248",
+    "rust": "http://127.0.0.1:58249"
+  },
+  "summary": {
+    "fixtures": 27,
+    "passedFixtures": 27,
+    "failedFixtures": 0,
+    "coveredRoutes": 8,
+    "passingRoutes": 8
+  },
+  "passingRouteIds": [
+    "GET /ratings/queue/:playerId",
+    "GET /ratings/champion/:playerId",
+    "GET /ratings/champion/meta",
+    "GET /ratings/champion/match-history/:championId",
+    "GET /ratings/snapshots/:matchId",
+    "GET /ratings/snapshots/player/:playerId",
+    "GET /ratings/distribution",
+    "GET /ratings/volatility/:playerId"
+  ],
+  "results": [
+    {
+      "id": "ratings-queue-sorted",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-queue-filter",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-queue-prefix-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-queue-missing-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-queue-invalid-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-queue-zero-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-queue-invalid-filter",
+      "routeId": "GET /ratings/queue/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-7"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-7"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-champion-sorted",
+      "routeId": "GET /ratings/champion/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-champion-filter",
+      "routeId": "GET /ratings/champion/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-champion-invalid-player",
+      "routeId": "GET /ratings/champion/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-champion-meta",
+      "routeId": "GET /ratings/champion/meta",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-champion-match-history",
+      "routeId": "GET /ratings/champion/match-history/:championId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-champion-match-history-page",
+      "routeId": "GET /ratings/champion/match-history/:championId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-champion-match-history-invalid",
+      "routeId": "GET /ratings/champion/match-history/:championId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-e"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-14"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-match-snapshots",
+      "routeId": "GET /ratings/snapshots/:matchId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-match-snapshots-invalid",
+      "routeId": "GET /ratings/snapshots/:matchId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid match ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid match ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-match-snapshots-empty",
+      "routeId": "GET /ratings/snapshots/:matchId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-player-snapshots",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-player-snapshots-from",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-player-snapshots-queue",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-player-snapshots-invalid-from",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-l"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-21"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-player-snapshots-invalid-queue",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-m"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-22"
+          }
+        }
+      }
+    },
+    {
+      "id": "ratings-distribution-default",
+      "routeId": "GET /ratings/distribution",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "bin_start": "400",
+            "bin_end": "450",
+            "player_count": "1",
+            "avg_mu": "416.85",
+            "avg_phi": "245.82"
+          },
+          {
+            "bin_start": "450",
+            "bin_end": "500",
+            "player_count": "1",
+            "avg_mu": "479.38",
+            "avg_phi": "208.34"
+          },
+          {
+            "bin_start": "500",
+            "bin_end": "550",
+            "player_count": "1",
+            "avg_mu": "520.34",
+            "avg_phi": "229.43"
+          },
+          {
+            "bin_start": "550",
+            "bin_end": "600",
+            "player_count": "2",
+            "avg_mu": "587.88",
+            "avg_phi": "194.66"
+          },
+          {
+            "bin_start": "600",
+            "bin_end": "650",
+            "player_count": "1",
+            "avg_mu": "624.09",
+            "avg_phi": "197.54"
+          },
+          {
+            "bin_start": "650",
+            "bin_end": "700",
+            "player_count": "3",
+            "avg_mu": "690.80",
+            "avg_phi": "160.48"
+          },
+          {
+            "bin_start": "700",
+            "bin_end": "750",
+            "player_count": "5",
+            "avg_mu": "730.60",
+            "avg_phi": "188.12"
+          },
+          {
+            "bin_start": "750",
+            "bin_end": "800",
+            "player_count": "4",
+            "avg_mu": "778.32",
+            "avg_phi": "198.67"
+          },
+          {
+            "bin_start": "800",
+            "bin_end": "850",
+            "player_count": "4",
+            "avg_mu": "820.79",
+            "avg_phi": "183.74"
+          },
+          {
+            "bin_start": "850",
+            "bin_end": "900",
+            "player_count": "19",
+            "avg_mu": "880.68",
+            "avg_phi": "146.50"
+          },
+          {
+            "bin_start": "900",
+            "bin_end": "950",
+            "player_count": "45",
+            "avg_mu": "929.73",
+            "avg_phi": "146.54"
+          },
+          {
+            "bin_start": "950",
+            "bin_end": "1000",
+            "player_count": "48",
+            "avg_mu": "976.89",
+            "avg_phi": "143.95"
+          },
+          {
+            "bin_start": "1000",
+            "bin_end": "1050",
+            "player_count": "119",
+            "avg_mu": "1029.49",
+            "avg_phi": "137.93"
+          },
+          {
+            "bin_start": "1050",
+            "bin_end": "1100",
+            "player_count": "200",
+            "avg_mu": "1076.33",
+            "avg_phi": "136.41"
+          },
+          {
+            "bin_start": "1100",
+            "bin_end": "1150",
+            "player_count": "305",
+            "avg_mu": "1127.49",
+            "avg_phi": "137.16"
+          },
+          {
+            "bin_start": "1150",
+            "bin_end": "1200",
+            "player_count": "410",
+            "avg_mu": "1177.20",
+            "avg_phi": "139.17"
+          },
+          {
+            "bin_start": "1200",
+            "bin_end": "1250",
+            "player_count": "548",
+            "avg_mu": "1226.53",
+            "avg_phi": "139.01"
+          },
+          {
+            "bin_start": "1250",
+            "bin_end": "1300",
+            "player_count": "436",
+            "avg_mu": "1272.71",
+            "avg_phi": "128.57"
+          },
+          {
+            "bin_start": "1300",
+            "bin_end": "1350",
+            "player_count": "351",
+            "avg_mu": "1323.92",
+            "avg_phi": "95.06"
+          },
+          {
+            "bin_start": "1350",
+            "bin_end": "1400",
+            "player_count": "390",
+            "avg_mu": "1377.10",
+            "avg_phi": "77.09"
+          },
+          {
+            "bin_start": "1400",
+            "bin_end": "1450",
+            "player_count": "544",
+            "avg_mu": "1425.85",
+            "avg_phi": "70.98"
+          },
+          {
+            "bin_start": "1450",
+            "bin_end": "1500",
+            "player_count": "774",
+            "avg_mu": "1476.00",
+            "avg_phi": "72.41"
+          },
+          {
+            "bin_start": "1500",
+            "bin_end": "1550",
+            "player_count": "832",
+            "avg_mu": "1524.67",
+            "avg_phi": "69.79"
+          },
+          {
+            "bin_start": "1550",
+            "bin_end": "1600",
+            "player_count": "779",
+            "avg_mu": "1574.56",
+            "avg_phi": "66.29"
+          },
+          {
+            "bin_start": "1600",
+            "bin_end": "1650",
+            "player_count": "671",
+            "avg_mu": "1624.01",
+            "avg_phi": "66.14"
+          },
+          {
+            "bin_start": "1650",
+            "bin_end": "1700",
+            "player_count": "550",
+            "avg_mu": "1673.79",
+            "avg_phi": "64.78"
+          },
+          {
+            "bin_start": "1700",
+            "bin_end": "1750",
+            "player_count": "467",
+            "avg_mu": "1724.84",
+            "avg_phi": "69.22"
+          },
+          {
+            "bin_start": "1750",
+            "bin_end": "1800",
+            "player_count": "348",
+            "avg_mu": "1773.99",
+            "avg_phi": "88.33"
+          },
+          {
+            "bin_start": "1800",
+            "bin_end": "1850",
+            "player_count": "317",
+            "avg_mu": "1823.16",
+            "avg_phi": "107.19"
+          },
+          {
+            "bin_start": "1850",
+            "bin_end": "1900",
+            "player_count": "247",
+            "avg_mu": "1874.17",
+            "avg_phi": "124.81"
+          },
+          {
+            "bin_start": "1900",
+            "bin_end": "1950",
+            "player_count": "193",
+            "avg_mu": "1922.02",
+            "avg_phi": "126.23"
+          },
+          {
+            "bin_start": "1950",
+            "bin_end": "2000",
+            "player_count": "116",
+            "avg_mu": "1973.44",
+            "avg_phi": "128.97"
+          },
+          {
+            "bin_start": "2000",
+            "bin_end": "2050",
+            "player_count": "85",
+            "avg_mu": "2022.10",
+            "avg_phi": "132.11"
+          },
+          {
+            "bin_start": "2050",
+            "bin_end": "2100",
+            "player_count": "65",
+            "avg_mu": "2076.87",
+            "avg_phi": "138.40"
+          },
+          {
+            "bin_start": "2100",
+            "bin_end": "2150",
+            "player_count": "51",
+            "avg_mu": "2125.58",
+            "avg_phi": "137.47"
+          },
+          {
+            "bin_start": "2150",
+            "bin_end": "2200",
+            "player_count": "26",
+            "avg_mu": "2175.58",
+            "avg_phi": "152.82"
+          },
+          {
+            "bin_start": "2200",
+            "bin_end": "2250",
+            "player_count": "21",
+            "avg_mu": "2227.72",
+            "avg_phi": "155.11"
+          },
+          {
+            "bin_start": "2250",
+            "bin_end": "2300",
+            "player_count": "7",
+            "avg_mu": "2268.02",
+            "avg_phi": "142.22"
+          },
+          {
+            "bin_start": "2300",
+            "bin_end": "2350",
+            "player_count": "7",
+            "avg_mu": "2316.83",
+            "avg_phi": "175.84"
+          },
+          {
+            "bin_start": "2350",
+            "bin_end": "2400",
+            "player_count": "3",
+            "avg_mu": "2382.07",
+            "avg_phi": "140.60"
+          },
+          {
+            "bin_start": "2400",
+            "bin_end": "2450",
+            "player_count": "1",
+            "avg_mu": "2413.01",
+            "avg_phi": "133.61"
+          },
+          {
+            "bin_start": "2450",
+            "bin_end": "2500",
+            "player_count": "2",
+            "avg_mu": "2485.58",
+            "avg_phi": "206.21"
+          },
+          {
+            "bin_start": "2600",
+            "bin_end": "2650",
+            "player_count": "1",
+            "avg_mu": "2605.87",
+            "avg_phi": "215.65"
+          },
+          {
+            "bin_start": "2700",
+            "bin_end": "2750",
+            "player_count": "2",
+            "avg_mu": "2721.99",
+            "avg_phi": "202.65"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "bin_start": "400",
+            "bin_end": "450",
+            "player_count": "1",
+            "avg_mu": "416.85",
+            "avg_phi": "245.82"
+          },
+          {
+            "bin_start": "450",
+            "bin_end": "500",
+            "player_count": "1",
+            "avg_mu": "479.38",
+            "avg_phi": "208.34"
+          },
+          {
+            "bin_start": "500",
+            "bin_end": "550",
+            "player_count": "1",
+            "avg_mu": "520.34",
+            "avg_phi": "229.43"
+          },
+          {
+            "bin_start": "550",
+            "bin_end": "600",
+            "player_count": "2",
+            "avg_mu": "587.88",
+            "avg_phi": "194.66"
+          },
+          {
+            "bin_start": "600",
+            "bin_end": "650",
+            "player_count": "1",
+            "avg_mu": "624.09",
+            "avg_phi": "197.54"
+          },
+          {
+            "bin_start": "650",
+            "bin_end": "700",
+            "player_count": "3",
+            "avg_mu": "690.80",
+            "avg_phi": "160.48"
+          },
+          {
+            "bin_start": "700",
+            "bin_end": "750",
+            "player_count": "5",
+            "avg_mu": "730.60",
+            "avg_phi": "188.12"
+          },
+          {
+            "bin_start": "750",
+            "bin_end": "800",
+            "player_count": "4",
+            "avg_mu": "778.32",
+            "avg_phi": "198.67"
+          },
+          {
+            "bin_start": "800",
+            "bin_end": "850",
+            "player_count": "4",
+            "avg_mu": "820.79",
+            "avg_phi": "183.74"
+          },
+          {
+            "bin_start": "850",
+            "bin_end": "900",
+            "player_count": "19",
+            "avg_mu": "880.68",
+            "avg_phi": "146.50"
+          },
+          {
+            "bin_start": "900",
+            "bin_end": "950",
+            "player_count": "45",
+            "avg_mu": "929.73",
+            "avg_phi": "146.54"
+          },
+          {
+            "bin_start": "950",
+            "bin_end": "1000",
+            "player_count": "48",
+            "avg_mu": "976.89",
+            "avg_phi": "143.95"
+          },
+          {
+            "bin_start": "1000",
+            "bin_end": "1050",
+            "player_count": "119",
+            "avg_mu": "1029.49",
+            "avg_phi": "137.93"
+          },
+          {
+            "bin_start": "1050",
+            "bin_end": "1100",
+            "player_count": "200",
+            "avg_mu": "1076.33",
+            "avg_phi": "136.41"
+          },
+          {
+            "bin_start": "1100",
+            "bin_end": "1150",
+            "player_count": "305",
+            "avg_mu": "1127.49",
+            "avg_phi": "137.16"
+          },
+          {
+            "bin_start": "1150",
+            "bin_end": "1200",
+            "player_count": "410",
+            "avg_mu": "1177.20",
+            "avg_phi": "139.17"
+          },
+          {
+            "bin_start": "1200",
+            "bin_end": "1250",
+            "player_count": "548",
+            "avg_mu": "1226.53",
+            "avg_phi": "139.01"
+          },
+          {
+            "bin_start": "1250",
+            "bin_end": "1300",
+            "player_count": "436",
+            "avg_mu": "1272.71",
+            "avg_phi": "128.57"
+          },
+          {
+            "bin_start": "1300",
+            "bin_end": "1350",
+            "player_count": "351",
+            "avg_mu": "1323.92",
+            "avg_phi": "95.06"
+          },
+          {
+            "bin_start": "1350",
+            "bin_end": "1400",
+            "player_count": "390",
+            "avg_mu": "1377.10",
+            "avg_phi": "77.09"
+          },
+          {
+            "bin_start": "1400",
+            "bin_end": "1450",
+            "player_count": "544",
+            "avg_mu": "1425.85",
+            "avg_phi": "70.98"
+          },
+          {
+            "bin_start": "1450",
+            "bin_end": "1500",
+            "player_count": "774",
+            "avg_mu": "1476.00",
+            "avg_phi": "72.41"
+          },
+          {
+            "bin_start": "1500",
+            "bin_end": "1550",
+            "player_count": "832",
+            "avg_mu": "1524.67",
+            "avg_phi": "69.79"
+          },
+          {
+            "bin_start": "1550",
+            "bin_end": "1600",
+            "player_count": "779",
+            "avg_mu": "1574.56",
+            "avg_phi": "66.29"
+          },
+          {
+            "bin_start": "1600",
+            "bin_end": "1650",
+            "player_count": "671",
+            "avg_mu": "1624.01",
+            "avg_phi": "66.14"
+          },
+          {
+            "bin_start": "1650",
+            "bin_end": "1700",
+            "player_count": "550",
+            "avg_mu": "1673.79",
+            "avg_phi": "64.78"
+          },
+          {
+            "bin_start": "1700",
+            "bin_end": "1750",
+            "player_count": "467",
+            "avg_mu": "1724.84",
+            "avg_phi": "69.22"
+          },
+          {
+            "bin_start": "1750",
+            "bin_end": "1800",
+            "player_count": "348",
+            "avg_mu": "1773.99",
+            "avg_phi": "88.33"
+          },
+          {
+            "bin_start": "1800",
+            "bin_end": "1850",
+            "player_count": "317",
+            "avg_mu": "1823.16",
+            "avg_phi": "107.19"
+          },
+          {
+            "bin_start": "1850",
+            "bin_end": "1900",
+            "player_count": "247",
+            "avg_mu": "1874.17",
+            "avg_phi": "124.81"
+          },
+          {
+            "bin_start": "1900",
+            "bin_end": "1950",
+            "player_count": "193",
+            "avg_mu": "1922.02",
+            "avg_phi": "126.23"
+          },
+          {
+            "bin_start": "1950",
+            "bin_end": "2000",
+            "player_count": "116",
+            "avg_mu": "1973.44",
+            "avg_phi": "128.97"
+          },
+          {
+            "bin_start": "2000",
+            "bin_end": "2050",
+            "player_count": "85",
+            "avg_mu": "2022.10",
+            "avg_phi": "132.11"
+          },
+          {
+            "bin_start": "2050",
+            "bin_end": "2100",
+            "player_count": "65",
+            "avg_mu": "2076.87",
+            "avg_phi": "138.40"
+          },
+          {
+            "bin_start": "2100",
+            "bin_end": "2150",
+            "player_count": "51",
+            "avg_mu": "2125.58",
+            "avg_phi": "137.47"
+          },
+          {
+            "bin_start": "2150",
+            "bin_end": "2200",
+            "player_count": "26",
+            "avg_mu": "2175.58",
+            "avg_phi": "152.82"
+          },
+          {
+            "bin_start": "2200",
+            "bin_end": "2250",
+            "player_count": "21",
+            "avg_mu": "2227.72",
+            "avg_phi": "155.11"
+          },
+          {
+            "bin_start": "2250",
+            "bin_end": "2300",
+            "player_count": "7",
+            "avg_mu": "2268.02",
+            "avg_phi": "142.22"
+          },
+          {
+            "bin_start": "2300",
+            "bin_end": "2350",
+            "player_count": "7",
+            "avg_mu": "2316.83",
+            "avg_phi": "175.84"
+          },
+          {
+            "bin_start": "2350",
+            "bin_end": "2400",
+            "player_count": "3",
+            "avg_mu": "2382.07",
+            "avg_phi": "140.60"
+          },
+          {
+            "bin_start": "2400",
+            "bin_end": "2450",
+            "player_count": "1",
+            "avg_mu": "2413.01",
+            "avg_phi": "133.61"
+          },
+          {
+            "bin_start": "2450",
+            "bin_end": "2500",
+            "player_count": "2",
+            "avg_mu": "2485.58",
+            "avg_phi": "206.21"
+          },
+          {
+            "bin_start": "2600",
+            "bin_end": "2650",
+            "player_count": "1",
+            "avg_mu": "2605.87",
+            "avg_phi": "215.65"
+          },
+          {
+            "bin_start": "2700",
+            "bin_end": "2750",
+            "player_count": "2",
+            "avg_mu": "2721.99",
+            "avg_phi": "202.65"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ratings-distribution-bin",
+      "routeId": "GET /ratings/distribution",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "bin_start": "400",
+            "bin_end": "500",
+            "player_count": "2",
+            "avg_mu": "448.12",
+            "avg_phi": "227.08"
+          },
+          {
+            "bin_start": "500",
+            "bin_end": "600",
+            "player_count": "3",
+            "avg_mu": "565.37",
+            "avg_phi": "206.25"
+          },
+          {
+            "bin_start": "600",
+            "bin_end": "700",
+            "player_count": "4",
+            "avg_mu": "674.13",
+            "avg_phi": "169.74"
+          },
+          {
+            "bin_start": "700",
+            "bin_end": "800",
+            "player_count": "9",
+            "avg_mu": "751.81",
+            "avg_phi": "192.81"
+          },
+          {
+            "bin_start": "800",
+            "bin_end": "900",
+            "player_count": "23",
+            "avg_mu": "870.27",
+            "avg_phi": "152.97"
+          },
+          {
+            "bin_start": "900",
+            "bin_end": "1000",
+            "player_count": "93",
+            "avg_mu": "954.07",
+            "avg_phi": "145.20"
+          },
+          {
+            "bin_start": "1000",
+            "bin_end": "1100",
+            "player_count": "319",
+            "avg_mu": "1058.85",
+            "avg_phi": "136.97"
+          },
+          {
+            "bin_start": "1100",
+            "bin_end": "1200",
+            "player_count": "715",
+            "avg_mu": "1156.00",
+            "avg_phi": "138.31"
+          },
+          {
+            "bin_start": "1200",
+            "bin_end": "1300",
+            "player_count": "984",
+            "avg_mu": "1246.99",
+            "avg_phi": "134.38"
+          },
+          {
+            "bin_start": "1300",
+            "bin_end": "1400",
+            "player_count": "741",
+            "avg_mu": "1351.91",
+            "avg_phi": "85.60"
+          },
+          {
+            "bin_start": "1400",
+            "bin_end": "1500",
+            "player_count": "1318",
+            "avg_mu": "1455.30",
+            "avg_phi": "71.82"
+          },
+          {
+            "bin_start": "1500",
+            "bin_end": "1600",
+            "player_count": "1611",
+            "avg_mu": "1548.79",
+            "avg_phi": "68.10"
+          },
+          {
+            "bin_start": "1600",
+            "bin_end": "1700",
+            "player_count": "1221",
+            "avg_mu": "1646.43",
+            "avg_phi": "65.52"
+          },
+          {
+            "bin_start": "1700",
+            "bin_end": "1800",
+            "player_count": "815",
+            "avg_mu": "1745.83",
+            "avg_phi": "77.38"
+          },
+          {
+            "bin_start": "1800",
+            "bin_end": "1900",
+            "player_count": "564",
+            "avg_mu": "1845.50",
+            "avg_phi": "114.90"
+          },
+          {
+            "bin_start": "1900",
+            "bin_end": "2000",
+            "player_count": "309",
+            "avg_mu": "1941.32",
+            "avg_phi": "127.26"
+          },
+          {
+            "bin_start": "2000",
+            "bin_end": "2100",
+            "player_count": "150",
+            "avg_mu": "2045.83",
+            "avg_phi": "134.84"
+          },
+          {
+            "bin_start": "2100",
+            "bin_end": "2200",
+            "player_count": "77",
+            "avg_mu": "2142.46",
+            "avg_phi": "142.65"
+          },
+          {
+            "bin_start": "2200",
+            "bin_end": "2300",
+            "player_count": "28",
+            "avg_mu": "2237.80",
+            "avg_phi": "151.88"
+          },
+          {
+            "bin_start": "2300",
+            "bin_end": "2400",
+            "player_count": "10",
+            "avg_mu": "2336.40",
+            "avg_phi": "165.27"
+          },
+          {
+            "bin_start": "2400",
+            "bin_end": "2500",
+            "player_count": "3",
+            "avg_mu": "2461.39",
+            "avg_phi": "182.01"
+          },
+          {
+            "bin_start": "2600",
+            "bin_end": "2700",
+            "player_count": "1",
+            "avg_mu": "2605.87",
+            "avg_phi": "215.65"
+          },
+          {
+            "bin_start": "2700",
+            "bin_end": "2800",
+            "player_count": "2",
+            "avg_mu": "2721.99",
+            "avg_phi": "202.65"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "bin_start": "400",
+            "bin_end": "500",
+            "player_count": "2",
+            "avg_mu": "448.12",
+            "avg_phi": "227.08"
+          },
+          {
+            "bin_start": "500",
+            "bin_end": "600",
+            "player_count": "3",
+            "avg_mu": "565.37",
+            "avg_phi": "206.25"
+          },
+          {
+            "bin_start": "600",
+            "bin_end": "700",
+            "player_count": "4",
+            "avg_mu": "674.13",
+            "avg_phi": "169.74"
+          },
+          {
+            "bin_start": "700",
+            "bin_end": "800",
+            "player_count": "9",
+            "avg_mu": "751.81",
+            "avg_phi": "192.81"
+          },
+          {
+            "bin_start": "800",
+            "bin_end": "900",
+            "player_count": "23",
+            "avg_mu": "870.27",
+            "avg_phi": "152.97"
+          },
+          {
+            "bin_start": "900",
+            "bin_end": "1000",
+            "player_count": "93",
+            "avg_mu": "954.07",
+            "avg_phi": "145.20"
+          },
+          {
+            "bin_start": "1000",
+            "bin_end": "1100",
+            "player_count": "319",
+            "avg_mu": "1058.85",
+            "avg_phi": "136.97"
+          },
+          {
+            "bin_start": "1100",
+            "bin_end": "1200",
+            "player_count": "715",
+            "avg_mu": "1156.00",
+            "avg_phi": "138.31"
+          },
+          {
+            "bin_start": "1200",
+            "bin_end": "1300",
+            "player_count": "984",
+            "avg_mu": "1246.99",
+            "avg_phi": "134.38"
+          },
+          {
+            "bin_start": "1300",
+            "bin_end": "1400",
+            "player_count": "741",
+            "avg_mu": "1351.91",
+            "avg_phi": "85.60"
+          },
+          {
+            "bin_start": "1400",
+            "bin_end": "1500",
+            "player_count": "1318",
+            "avg_mu": "1455.30",
+            "avg_phi": "71.82"
+          },
+          {
+            "bin_start": "1500",
+            "bin_end": "1600",
+            "player_count": "1611",
+            "avg_mu": "1548.79",
+            "avg_phi": "68.10"
+          },
+          {
+            "bin_start": "1600",
+            "bin_end": "1700",
+            "player_count": "1221",
+            "avg_mu": "1646.43",
+            "avg_phi": "65.52"
+          },
+          {
+            "bin_start": "1700",
+            "bin_end": "1800",
+            "player_count": "815",
+            "avg_mu": "1745.83",
+            "avg_phi": "77.38"
+          },
+          {
+            "bin_start": "1800",
+            "bin_end": "1900",
+            "player_count": "564",
+            "avg_mu": "1845.50",
+            "avg_phi": "114.90"
+          },
+          {
+            "bin_start": "1900",
+            "bin_end": "2000",
+            "player_count": "309",
+            "avg_mu": "1941.32",
+            "avg_phi": "127.26"
+          },
+          {
+            "bin_start": "2000",
+            "bin_end": "2100",
+            "player_count": "150",
+            "avg_mu": "2045.83",
+            "avg_phi": "134.84"
+          },
+          {
+            "bin_start": "2100",
+            "bin_end": "2200",
+            "player_count": "77",
+            "avg_mu": "2142.46",
+            "avg_phi": "142.65"
+          },
+          {
+            "bin_start": "2200",
+            "bin_end": "2300",
+            "player_count": "28",
+            "avg_mu": "2237.80",
+            "avg_phi": "151.88"
+          },
+          {
+            "bin_start": "2300",
+            "bin_end": "2400",
+            "player_count": "10",
+            "avg_mu": "2336.40",
+            "avg_phi": "165.27"
+          },
+          {
+            "bin_start": "2400",
+            "bin_end": "2500",
+            "player_count": "3",
+            "avg_mu": "2461.39",
+            "avg_phi": "182.01"
+          },
+          {
+            "bin_start": "2600",
+            "bin_end": "2700",
+            "player_count": "1",
+            "avg_mu": "2605.87",
+            "avg_phi": "215.65"
+          },
+          {
+            "bin_start": "2700",
+            "bin_end": "2800",
+            "player_count": "2",
+            "avg_mu": "2721.99",
+            "avg_phi": "202.65"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ratings-distribution-zero-default",
+      "routeId": "GET /ratings/distribution",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "bin_start": "400",
+            "bin_end": "450",
+            "player_count": "1",
+            "avg_mu": "416.85",
+            "avg_phi": "245.82"
+          },
+          {
+            "bin_start": "450",
+            "bin_end": "500",
+            "player_count": "1",
+            "avg_mu": "479.38",
+            "avg_phi": "208.34"
+          },
+          {
+            "bin_start": "500",
+            "bin_end": "550",
+            "player_count": "1",
+            "avg_mu": "520.34",
+            "avg_phi": "229.43"
+          },
+          {
+            "bin_start": "550",
+            "bin_end": "600",
+            "player_count": "2",
+            "avg_mu": "587.88",
+            "avg_phi": "194.66"
+          },
+          {
+            "bin_start": "600",
+            "bin_end": "650",
+            "player_count": "1",
+            "avg_mu": "624.09",
+            "avg_phi": "197.54"
+          },
+          {
+            "bin_start": "650",
+            "bin_end": "700",
+            "player_count": "3",
+            "avg_mu": "690.80",
+            "avg_phi": "160.48"
+          },
+          {
+            "bin_start": "700",
+            "bin_end": "750",
+            "player_count": "5",
+            "avg_mu": "730.60",
+            "avg_phi": "188.12"
+          },
+          {
+            "bin_start": "750",
+            "bin_end": "800",
+            "player_count": "4",
+            "avg_mu": "778.32",
+            "avg_phi": "198.67"
+          },
+          {
+            "bin_start": "800",
+            "bin_end": "850",
+            "player_count": "4",
+            "avg_mu": "820.79",
+            "avg_phi": "183.74"
+          },
+          {
+            "bin_start": "850",
+            "bin_end": "900",
+            "player_count": "19",
+            "avg_mu": "880.68",
+            "avg_phi": "146.50"
+          },
+          {
+            "bin_start": "900",
+            "bin_end": "950",
+            "player_count": "45",
+            "avg_mu": "929.73",
+            "avg_phi": "146.54"
+          },
+          {
+            "bin_start": "950",
+            "bin_end": "1000",
+            "player_count": "48",
+            "avg_mu": "976.89",
+            "avg_phi": "143.95"
+          },
+          {
+            "bin_start": "1000",
+            "bin_end": "1050",
+            "player_count": "119",
+            "avg_mu": "1029.49",
+            "avg_phi": "137.93"
+          },
+          {
+            "bin_start": "1050",
+            "bin_end": "1100",
+            "player_count": "200",
+            "avg_mu": "1076.33",
+            "avg_phi": "136.41"
+          },
+          {
+            "bin_start": "1100",
+            "bin_end": "1150",
+            "player_count": "305",
+            "avg_mu": "1127.49",
+            "avg_phi": "137.16"
+          },
+          {
+            "bin_start": "1150",
+            "bin_end": "1200",
+            "player_count": "410",
+            "avg_mu": "1177.20",
+            "avg_phi": "139.17"
+          },
+          {
+            "bin_start": "1200",
+            "bin_end": "1250",
+            "player_count": "548",
+            "avg_mu": "1226.53",
+            "avg_phi": "139.01"
+          },
+          {
+            "bin_start": "1250",
+            "bin_end": "1300",
+            "player_count": "436",
+            "avg_mu": "1272.71",
+            "avg_phi": "128.57"
+          },
+          {
+            "bin_start": "1300",
+            "bin_end": "1350",
+            "player_count": "351",
+            "avg_mu": "1323.92",
+            "avg_phi": "95.06"
+          },
+          {
+            "bin_start": "1350",
+            "bin_end": "1400",
+            "player_count": "390",
+            "avg_mu": "1377.10",
+            "avg_phi": "77.09"
+          },
+          {
+            "bin_start": "1400",
+            "bin_end": "1450",
+            "player_count": "544",
+            "avg_mu": "1425.85",
+            "avg_phi": "70.98"
+          },
+          {
+            "bin_start": "1450",
+            "bin_end": "1500",
+            "player_count": "774",
+            "avg_mu": "1476.00",
+            "avg_phi": "72.41"
+          },
+          {
+            "bin_start": "1500",
+            "bin_end": "1550",
+            "player_count": "832",
+            "avg_mu": "1524.67",
+            "avg_phi": "69.79"
+          },
+          {
+            "bin_start": "1550",
+            "bin_end": "1600",
+            "player_count": "779",
+            "avg_mu": "1574.56",
+            "avg_phi": "66.29"
+          },
+          {
+            "bin_start": "1600",
+            "bin_end": "1650",
+            "player_count": "671",
+            "avg_mu": "1624.01",
+            "avg_phi": "66.14"
+          },
+          {
+            "bin_start": "1650",
+            "bin_end": "1700",
+            "player_count": "550",
+            "avg_mu": "1673.79",
+            "avg_phi": "64.78"
+          },
+          {
+            "bin_start": "1700",
+            "bin_end": "1750",
+            "player_count": "467",
+            "avg_mu": "1724.84",
+            "avg_phi": "69.22"
+          },
+          {
+            "bin_start": "1750",
+            "bin_end": "1800",
+            "player_count": "348",
+            "avg_mu": "1773.99",
+            "avg_phi": "88.33"
+          },
+          {
+            "bin_start": "1800",
+            "bin_end": "1850",
+            "player_count": "317",
+            "avg_mu": "1823.16",
+            "avg_phi": "107.19"
+          },
+          {
+            "bin_start": "1850",
+            "bin_end": "1900",
+            "player_count": "247",
+            "avg_mu": "1874.17",
+            "avg_phi": "124.81"
+          },
+          {
+            "bin_start": "1900",
+            "bin_end": "1950",
+            "player_count": "193",
+            "avg_mu": "1922.02",
+            "avg_phi": "126.23"
+          },
+          {
+            "bin_start": "1950",
+            "bin_end": "2000",
+            "player_count": "116",
+            "avg_mu": "1973.44",
+            "avg_phi": "128.97"
+          },
+          {
+            "bin_start": "2000",
+            "bin_end": "2050",
+            "player_count": "85",
+            "avg_mu": "2022.10",
+            "avg_phi": "132.11"
+          },
+          {
+            "bin_start": "2050",
+            "bin_end": "2100",
+            "player_count": "65",
+            "avg_mu": "2076.87",
+            "avg_phi": "138.40"
+          },
+          {
+            "bin_start": "2100",
+            "bin_end": "2150",
+            "player_count": "51",
+            "avg_mu": "2125.58",
+            "avg_phi": "137.47"
+          },
+          {
+            "bin_start": "2150",
+            "bin_end": "2200",
+            "player_count": "26",
+            "avg_mu": "2175.58",
+            "avg_phi": "152.82"
+          },
+          {
+            "bin_start": "2200",
+            "bin_end": "2250",
+            "player_count": "21",
+            "avg_mu": "2227.72",
+            "avg_phi": "155.11"
+          },
+          {
+            "bin_start": "2250",
+            "bin_end": "2300",
+            "player_count": "7",
+            "avg_mu": "2268.02",
+            "avg_phi": "142.22"
+          },
+          {
+            "bin_start": "2300",
+            "bin_end": "2350",
+            "player_count": "7",
+            "avg_mu": "2316.83",
+            "avg_phi": "175.84"
+          },
+          {
+            "bin_start": "2350",
+            "bin_end": "2400",
+            "player_count": "3",
+            "avg_mu": "2382.07",
+            "avg_phi": "140.60"
+          },
+          {
+            "bin_start": "2400",
+            "bin_end": "2450",
+            "player_count": "1",
+            "avg_mu": "2413.01",
+            "avg_phi": "133.61"
+          },
+          {
+            "bin_start": "2450",
+            "bin_end": "2500",
+            "player_count": "2",
+            "avg_mu": "2485.58",
+            "avg_phi": "206.21"
+          },
+          {
+            "bin_start": "2600",
+            "bin_end": "2650",
+            "player_count": "1",
+            "avg_mu": "2605.87",
+            "avg_phi": "215.65"
+          },
+          {
+            "bin_start": "2700",
+            "bin_end": "2750",
+            "player_count": "2",
+            "avg_mu": "2721.99",
+            "avg_phi": "202.65"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "bin_start": "400",
+            "bin_end": "450",
+            "player_count": "1",
+            "avg_mu": "416.85",
+            "avg_phi": "245.82"
+          },
+          {
+            "bin_start": "450",
+            "bin_end": "500",
+            "player_count": "1",
+            "avg_mu": "479.38",
+            "avg_phi": "208.34"
+          },
+          {
+            "bin_start": "500",
+            "bin_end": "550",
+            "player_count": "1",
+            "avg_mu": "520.34",
+            "avg_phi": "229.43"
+          },
+          {
+            "bin_start": "550",
+            "bin_end": "600",
+            "player_count": "2",
+            "avg_mu": "587.88",
+            "avg_phi": "194.66"
+          },
+          {
+            "bin_start": "600",
+            "bin_end": "650",
+            "player_count": "1",
+            "avg_mu": "624.09",
+            "avg_phi": "197.54"
+          },
+          {
+            "bin_start": "650",
+            "bin_end": "700",
+            "player_count": "3",
+            "avg_mu": "690.80",
+            "avg_phi": "160.48"
+          },
+          {
+            "bin_start": "700",
+            "bin_end": "750",
+            "player_count": "5",
+            "avg_mu": "730.60",
+            "avg_phi": "188.12"
+          },
+          {
+            "bin_start": "750",
+            "bin_end": "800",
+            "player_count": "4",
+            "avg_mu": "778.32",
+            "avg_phi": "198.67"
+          },
+          {
+            "bin_start": "800",
+            "bin_end": "850",
+            "player_count": "4",
+            "avg_mu": "820.79",
+            "avg_phi": "183.74"
+          },
+          {
+            "bin_start": "850",
+            "bin_end": "900",
+            "player_count": "19",
+            "avg_mu": "880.68",
+            "avg_phi": "146.50"
+          },
+          {
+            "bin_start": "900",
+            "bin_end": "950",
+            "player_count": "45",
+            "avg_mu": "929.73",
+            "avg_phi": "146.54"
+          },
+          {
+            "bin_start": "950",
+            "bin_end": "1000",
+            "player_count": "48",
+            "avg_mu": "976.89",
+            "avg_phi": "143.95"
+          },
+          {
+            "bin_start": "1000",
+            "bin_end": "1050",
+            "player_count": "119",
+            "avg_mu": "1029.49",
+            "avg_phi": "137.93"
+          },
+          {
+            "bin_start": "1050",
+            "bin_end": "1100",
+            "player_count": "200",
+            "avg_mu": "1076.33",
+            "avg_phi": "136.41"
+          },
+          {
+            "bin_start": "1100",
+            "bin_end": "1150",
+            "player_count": "305",
+            "avg_mu": "1127.49",
+            "avg_phi": "137.16"
+          },
+          {
+            "bin_start": "1150",
+            "bin_end": "1200",
+            "player_count": "410",
+            "avg_mu": "1177.20",
+            "avg_phi": "139.17"
+          },
+          {
+            "bin_start": "1200",
+            "bin_end": "1250",
+            "player_count": "548",
+            "avg_mu": "1226.53",
+            "avg_phi": "139.01"
+          },
+          {
+            "bin_start": "1250",
+            "bin_end": "1300",
+            "player_count": "436",
+            "avg_mu": "1272.71",
+            "avg_phi": "128.57"
+          },
+          {
+            "bin_start": "1300",
+            "bin_end": "1350",
+            "player_count": "351",
+            "avg_mu": "1323.92",
+            "avg_phi": "95.06"
+          },
+          {
+            "bin_start": "1350",
+            "bin_end": "1400",
+            "player_count": "390",
+            "avg_mu": "1377.10",
+            "avg_phi": "77.09"
+          },
+          {
+            "bin_start": "1400",
+            "bin_end": "1450",
+            "player_count": "544",
+            "avg_mu": "1425.85",
+            "avg_phi": "70.98"
+          },
+          {
+            "bin_start": "1450",
+            "bin_end": "1500",
+            "player_count": "774",
+            "avg_mu": "1476.00",
+            "avg_phi": "72.41"
+          },
+          {
+            "bin_start": "1500",
+            "bin_end": "1550",
+            "player_count": "832",
+            "avg_mu": "1524.67",
+            "avg_phi": "69.79"
+          },
+          {
+            "bin_start": "1550",
+            "bin_end": "1600",
+            "player_count": "779",
+            "avg_mu": "1574.56",
+            "avg_phi": "66.29"
+          },
+          {
+            "bin_start": "1600",
+            "bin_end": "1650",
+            "player_count": "671",
+            "avg_mu": "1624.01",
+            "avg_phi": "66.14"
+          },
+          {
+            "bin_start": "1650",
+            "bin_end": "1700",
+            "player_count": "550",
+            "avg_mu": "1673.79",
+            "avg_phi": "64.78"
+          },
+          {
+            "bin_start": "1700",
+            "bin_end": "1750",
+            "player_count": "467",
+            "avg_mu": "1724.84",
+            "avg_phi": "69.22"
+          },
+          {
+            "bin_start": "1750",
+            "bin_end": "1800",
+            "player_count": "348",
+            "avg_mu": "1773.99",
+            "avg_phi": "88.33"
+          },
+          {
+            "bin_start": "1800",
+            "bin_end": "1850",
+            "player_count": "317",
+            "avg_mu": "1823.16",
+            "avg_phi": "107.19"
+          },
+          {
+            "bin_start": "1850",
+            "bin_end": "1900",
+            "player_count": "247",
+            "avg_mu": "1874.17",
+            "avg_phi": "124.81"
+          },
+          {
+            "bin_start": "1900",
+            "bin_end": "1950",
+            "player_count": "193",
+            "avg_mu": "1922.02",
+            "avg_phi": "126.23"
+          },
+          {
+            "bin_start": "1950",
+            "bin_end": "2000",
+            "player_count": "116",
+            "avg_mu": "1973.44",
+            "avg_phi": "128.97"
+          },
+          {
+            "bin_start": "2000",
+            "bin_end": "2050",
+            "player_count": "85",
+            "avg_mu": "2022.10",
+            "avg_phi": "132.11"
+          },
+          {
+            "bin_start": "2050",
+            "bin_end": "2100",
+            "player_count": "65",
+            "avg_mu": "2076.87",
+            "avg_phi": "138.40"
+          },
+          {
+            "bin_start": "2100",
+            "bin_end": "2150",
+            "player_count": "51",
+            "avg_mu": "2125.58",
+            "avg_phi": "137.47"
+          },
+          {
+            "bin_start": "2150",
+            "bin_end": "2200",
+            "player_count": "26",
+            "avg_mu": "2175.58",
+            "avg_phi": "152.82"
+          },
+          {
+            "bin_start": "2200",
+            "bin_end": "2250",
+            "player_count": "21",
+            "avg_mu": "2227.72",
+            "avg_phi": "155.11"
+          },
+          {
+            "bin_start": "2250",
+            "bin_end": "2300",
+            "player_count": "7",
+            "avg_mu": "2268.02",
+            "avg_phi": "142.22"
+          },
+          {
+            "bin_start": "2300",
+            "bin_end": "2350",
+            "player_count": "7",
+            "avg_mu": "2316.83",
+            "avg_phi": "175.84"
+          },
+          {
+            "bin_start": "2350",
+            "bin_end": "2400",
+            "player_count": "3",
+            "avg_mu": "2382.07",
+            "avg_phi": "140.60"
+          },
+          {
+            "bin_start": "2400",
+            "bin_end": "2450",
+            "player_count": "1",
+            "avg_mu": "2413.01",
+            "avg_phi": "133.61"
+          },
+          {
+            "bin_start": "2450",
+            "bin_end": "2500",
+            "player_count": "2",
+            "avg_mu": "2485.58",
+            "avg_phi": "206.21"
+          },
+          {
+            "bin_start": "2600",
+            "bin_end": "2650",
+            "player_count": "1",
+            "avg_mu": "2605.87",
+            "avg_phi": "215.65"
+          },
+          {
+            "bin_start": "2700",
+            "bin_end": "2750",
+            "player_count": "2",
+            "avg_mu": "2721.99",
+            "avg_phi": "202.65"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ratings-volatility",
+      "routeId": "GET /ratings/volatility/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": []
+      }
+    },
+    {
+      "id": "ratings-volatility-invalid",
+      "routeId": "GET /ratings/volatility/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      }
+    }
+  ]
+}

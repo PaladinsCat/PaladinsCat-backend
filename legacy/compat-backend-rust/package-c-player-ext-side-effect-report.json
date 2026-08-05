@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-30T18:11:32.722Z",
+  "manifestSha256": "64b6707053eaf28cfb8e89e64fd0b1b85620fa24f270c1866778436c4331ff67",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:39764/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:39764/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 2,
+    "passingTables": 2,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "players_private",
+          "rowCount": 3,
+          "sha256": "6278a7e0dddb44d443292eda8a79a14ed467944c22a101985640366adc604cc6"
+        },
+        {
+          "name": "private_account_community_votes",
+          "rowCount": 3,
+          "sha256": "5d56f9d88d4f26d5693ae3386148a9b835f1c96f638e4c292fafbac5b6d23868"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "players_private",
+          "rowCount": 3,
+          "sha256": "6278a7e0dddb44d443292eda8a79a14ed467944c22a101985640366adc604cc6"
+        },
+        {
+          "name": "private_account_community_votes",
+          "rowCount": 3,
+          "sha256": "5d56f9d88d4f26d5693ae3386148a9b835f1c96f638e4c292fafbac5b6d23868"
+        }
+      ]
+    }
+  }
+}

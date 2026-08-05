@@ -1,0 +1,3627 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:40.800Z",
+  "inventorySha256": "49db1ad9212f0d18ed23050f33103760dcf20c509b3d51d4a7427d39254e330d",
+  "fixtureSha256": "1f17d406235662b80ddaa1d49def245f2ce934e90c08fd0d09af1e84fdc806c3",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:54252",
+    "rust": "http://127.0.0.1:54253"
+  },
+  "summary": {
+    "fixtures": 38,
+    "passedFixtures": 38,
+    "failedFixtures": 0,
+    "coveredRoutes": 10,
+    "passingRoutes": 10
+  },
+  "passingRouteIds": [
+    "GET /meta/version",
+    "GET /meta/changelog",
+    "GET /meta/items",
+    "GET /meta/talents",
+    "GET /meta/cards",
+    "GET /meta/compositions",
+    "GET /meta/items/:itemId",
+    "GET /meta/talents/:talentId",
+    "GET /meta/cards/:cardId",
+    "GET /meta/top"
+  ],
+  "results": [
+    {
+      "id": "meta-version-stack-and-components",
+      "routeId": "GET /meta/version",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "cache-control": "no-store, max-age=0",
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "id": 4,
+          "timestamp": "2026-03-01T00:10:00.000Z",
+          "version": "v1.2.0",
+          "component": "stack",
+          "environment": "staging",
+          "gitCommit": "",
+          "gitCommitShort": "",
+          "gitBranch": "",
+          "gitDirty": false,
+          "buildTimestamp": null,
+          "deployedAt": "2026-03-01T00:10:00.000Z",
+          "dbSchemaVersion": "",
+          "source": "",
+          "notes": "",
+          "metadata": {},
+          "components": [
+            {
+              "id": 6,
+              "component": "backend",
+              "environment": "production",
+              "version": "v1.2.0",
+              "gitCommit": "backendnew222222",
+              "gitCommitShort": "backend",
+              "gitBranch": "main",
+              "gitDirty": false,
+              "buildTimestamp": "2026-03-01T00:00:00.000Z",
+              "deployedAt": "2026-03-01T00:05:00.000Z",
+              "dbSchemaVersion": "102",
+              "source": "deploy",
+              "metadata": {
+                "runtime": "rust"
+              }
+            },
+            {
+              "id": 7,
+              "component": "hirezrelay",
+              "environment": "production",
+              "version": "v1.2.0",
+              "gitCommit": "relay1234567890",
+              "gitCommitShort": "relay12",
+              "gitBranch": "main",
+              "gitDirty": false,
+              "buildTimestamp": "2026-03-01T00:00:00.000Z",
+              "deployedAt": "2026-03-01T00:06:00.000Z",
+              "dbSchemaVersion": "102",
+              "source": "deploy",
+              "metadata": {}
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "cache-control": "no-store, max-age=0",
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "id": 4,
+          "timestamp": "2026-03-01T00:10:00.000Z",
+          "version": "v1.2.0",
+          "component": "stack",
+          "environment": "staging",
+          "gitCommit": "",
+          "gitCommitShort": "",
+          "gitBranch": "",
+          "gitDirty": false,
+          "buildTimestamp": null,
+          "deployedAt": "2026-03-01T00:10:00.000Z",
+          "dbSchemaVersion": "",
+          "source": "",
+          "notes": "",
+          "metadata": {},
+          "components": [
+            {
+              "id": 6,
+              "component": "backend",
+              "environment": "production",
+              "version": "v1.2.0",
+              "gitCommit": "backendnew222222",
+              "gitCommitShort": "backend",
+              "gitBranch": "main",
+              "gitDirty": false,
+              "buildTimestamp": "2026-03-01T00:00:00.000Z",
+              "deployedAt": "2026-03-01T00:05:00.000Z",
+              "dbSchemaVersion": "102",
+              "source": "deploy",
+              "metadata": {
+                "runtime": "rust"
+              }
+            },
+            {
+              "id": 7,
+              "component": "hirezrelay",
+              "environment": "production",
+              "version": "v1.2.0",
+              "gitCommit": "relay1234567890",
+              "gitCommitShort": "relay12",
+              "gitBranch": "main",
+              "gitDirty": false,
+              "buildTimestamp": "2026-03-01T00:00:00.000Z",
+              "deployedAt": "2026-03-01T00:06:00.000Z",
+              "dbSchemaVersion": "102",
+              "source": "deploy",
+              "metadata": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-changelog-preview-miss",
+      "routeId": "GET /meta/changelog",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "id": 4,
+          "version": "v1.2.0",
+          "gitCommit": "",
+          "gitCommitShort": "",
+          "gitBranch": "",
+          "deployedAt": "2026-03-01T00:10:00.000Z",
+          "source": "",
+          "changelog": "**Added**\n- Manual one\n- Manual two",
+          "changeCount": 2,
+          "releaseType": "patch"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "id": 4,
+          "version": "v1.2.0",
+          "gitCommit": "",
+          "gitCommitShort": "",
+          "gitBranch": "",
+          "deployedAt": "2026-03-01T00:10:00.000Z",
+          "source": "",
+          "changelog": "**Added**\n- Manual one\n- Manual two",
+          "changeCount": 2,
+          "releaseType": "patch"
+        }
+      }
+    },
+    {
+      "id": "meta-changelog-preview-hit-canonical",
+      "routeId": "GET /meta/changelog",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "id": 4,
+          "version": "v1.2.0",
+          "gitCommit": "",
+          "gitCommitShort": "",
+          "gitBranch": "",
+          "deployedAt": "2026-03-01T00:10:00.000Z",
+          "source": "",
+          "changelog": "**Added**\n- Manual one\n- Manual two",
+          "changeCount": 2,
+          "releaseType": "patch"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "id": 4,
+          "version": "v1.2.0",
+          "gitCommit": "",
+          "gitCommitShort": "",
+          "gitBranch": "",
+          "deployedAt": "2026-03-01T00:10:00.000Z",
+          "source": "",
+          "changelog": "**Added**\n- Manual one\n- Manual two",
+          "changeCount": 2,
+          "releaseType": "patch"
+        }
+      }
+    },
+    {
+      "id": "meta-changelog-list-deduplicates-commits",
+      "routeId": "GET /meta/changelog",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "data": [
+            {
+              "id": 4,
+              "version": "v1.2.0",
+              "gitCommit": "",
+              "gitCommitShort": "",
+              "gitBranch": "",
+              "deployedAt": "2026-03-01T00:10:00.000Z",
+              "source": "",
+              "changelog": "**Added**\n- Manual one\n- Manual two",
+              "changeCount": 2,
+              "releaseType": "patch"
+            },
+            {
+              "id": 3,
+              "version": "v1.1.0",
+              "gitCommit": "bbbbbbb222222222",
+              "gitCommitShort": "bbbbbbb",
+              "gitBranch": "main",
+              "deployedAt": "2026-02-01T00:10:00.000Z",
+              "source": "deploy",
+              "changelog": "bbbbbbb Third change\nbbbbbbc Fourth change",
+              "changeCount": 6,
+              "releaseType": "minor"
+            }
+          ],
+          "total": 3,
+          "page": 1,
+          "perPage": 2,
+          "totalPages": 2
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "data": [
+            {
+              "id": 4,
+              "version": "v1.2.0",
+              "gitCommit": "",
+              "gitCommitShort": "",
+              "gitBranch": "",
+              "deployedAt": "2026-03-01T00:10:00.000Z",
+              "source": "",
+              "changelog": "**Added**\n- Manual one\n- Manual two",
+              "changeCount": 2,
+              "releaseType": "patch"
+            },
+            {
+              "id": 3,
+              "version": "v1.1.0",
+              "gitCommit": "bbbbbbb222222222",
+              "gitCommitShort": "bbbbbbb",
+              "gitBranch": "main",
+              "deployedAt": "2026-02-01T00:10:00.000Z",
+              "source": "deploy",
+              "changelog": "bbbbbbb Third change\nbbbbbbc Fourth change",
+              "changeCount": 6,
+              "releaseType": "minor"
+            }
+          ],
+          "total": 3,
+          "page": 1,
+          "perPage": 2,
+          "totalPages": 2
+        }
+      }
+    },
+    {
+      "id": "meta-changelog-list-page-two-useful-duplicate",
+      "routeId": "GET /meta/changelog",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "data": [
+            {
+              "id": 1,
+              "version": "v1.0.0",
+              "gitCommit": "aaaaaaa111111111",
+              "gitCommitShort": "aaaaaaa",
+              "gitBranch": "main",
+              "deployedAt": "2026-01-01T00:10:00.000Z",
+              "source": "deploy",
+              "changelog": "abcdef1 First change\nabcdef2 Second change",
+              "changeCount": 2,
+              "releaseType": "patch"
+            }
+          ],
+          "total": 3,
+          "page": 2,
+          "perPage": 2,
+          "totalPages": 2
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "data": [
+            {
+              "id": 1,
+              "version": "v1.0.0",
+              "gitCommit": "aaaaaaa111111111",
+              "gitCommitShort": "aaaaaaa",
+              "gitBranch": "main",
+              "deployedAt": "2026-01-01T00:10:00.000Z",
+              "source": "deploy",
+              "changelog": "abcdef1 First change\nabcdef2 Second change",
+              "changeCount": 2,
+              "releaseType": "patch"
+            }
+          ],
+          "total": 3,
+          "page": 2,
+          "perPage": 2,
+          "totalPages": 2
+        }
+      }
+    },
+    {
+      "id": "meta-changelog-preview-false-is-list",
+      "routeId": "GET /meta/changelog",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "data": [
+            {
+              "id": 4,
+              "version": "v1.2.0",
+              "gitCommit": "",
+              "gitCommitShort": "",
+              "gitBranch": "",
+              "deployedAt": "2026-03-01T00:10:00.000Z",
+              "source": "",
+              "changelog": "**Added**\n- Manual one\n- Manual two",
+              "changeCount": 2,
+              "releaseType": "patch"
+            }
+          ],
+          "total": 3,
+          "page": 1,
+          "perPage": 1,
+          "totalPages": 3
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "data": [
+            {
+              "id": 4,
+              "version": "v1.2.0",
+              "gitCommit": "",
+              "gitCommitShort": "",
+              "gitBranch": "",
+              "deployedAt": "2026-03-01T00:10:00.000Z",
+              "source": "",
+              "changelog": "**Added**\n- Manual one\n- Manual two",
+              "changeCount": 2,
+              "releaseType": "patch"
+            }
+          ],
+          "total": 3,
+          "page": 1,
+          "perPage": 1,
+          "totalPages": 3
+        }
+      }
+    },
+    {
+      "id": "meta-items-ranked-sort",
+      "routeId": "GET /meta/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 101,
+            "item_name": "Haven",
+            "slot": 2,
+            "item_level": 1,
+            "count": 40,
+            "wins": 22,
+            "losses": 18,
+            "winrate": "55.00",
+            "updated_at": "2026-03-03T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 1,
+            "count": 30,
+            "wins": 18,
+            "losses": 12,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "item_id": 102,
+            "item_name": null,
+            "slot": 3,
+            "item_level": 1,
+            "count": 5,
+            "wins": 1,
+            "losses": 4,
+            "winrate": "20.00",
+            "updated_at": "2026-03-04T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 101,
+            "item_name": "Haven",
+            "slot": 2,
+            "item_level": 1,
+            "count": 40,
+            "wins": 22,
+            "losses": 18,
+            "winrate": "55.00",
+            "updated_at": "2026-03-03T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 1,
+            "count": 30,
+            "wins": 18,
+            "losses": 12,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "item_id": 102,
+            "item_name": null,
+            "slot": 3,
+            "item_level": 1,
+            "count": 5,
+            "wins": 1,
+            "losses": 4,
+            "winrate": "20.00",
+            "updated_at": "2026-03-04T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-items-casual",
+      "routeId": "GET /meta/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 202,
+            "item_name": "Veteran",
+            "slot": 2,
+            "item_level": 2,
+            "count": 70,
+            "wins": 30,
+            "losses": 40,
+            "winrate": "42.86",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "item_id": 201,
+            "item_name": "Nimble",
+            "slot": 1,
+            "item_level": 1,
+            "count": 90,
+            "wins": 50,
+            "losses": 40,
+            "winrate": "55.56",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 202,
+            "item_name": "Veteran",
+            "slot": 2,
+            "item_level": 2,
+            "count": 70,
+            "wins": 30,
+            "losses": 40,
+            "winrate": "42.86",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "item_id": 201,
+            "item_name": "Nimble",
+            "slot": 1,
+            "item_level": 1,
+            "count": 90,
+            "wins": 50,
+            "losses": 40,
+            "winrate": "55.56",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-items-unknown-mode-defaults-ranked",
+      "routeId": "GET /meta/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 1,
+            "count": 30,
+            "wins": 18,
+            "losses": 12,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 1,
+            "count": 30,
+            "wins": 18,
+            "losses": 12,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-items-filter-prefix-and-pagination",
+      "routeId": "GET /meta/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-items-invalid-filter-database-error",
+      "routeId": "GET /meta/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-b"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-11"
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-items-invalid-sort-is-ignored",
+      "routeId": "GET /meta/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 1,
+            "count": 30,
+            "wins": 18,
+            "losses": 12,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 1,
+            "count": 30,
+            "wins": 18,
+            "losses": 12,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "slot": 1,
+            "item_level": 2,
+            "count": 20,
+            "wins": 10,
+            "losses": 10,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-talents-ranked",
+      "routeId": "GET /meta/talents",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "talent_id": 300,
+            "champion_name": "Ash",
+            "talent_name": "Fortress Breaker",
+            "count": 100,
+            "wins": 60,
+            "losses": 40,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "talent_id": 301,
+            "champion_name": "Maeve",
+            "talent_name": "Cat Burglar",
+            "count": 80,
+            "wins": 36,
+            "losses": 44,
+            "winrate": "45.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "talent_id": 302,
+            "champion_name": "Pip",
+            "talent_name": null,
+            "count": 10,
+            "wins": 2,
+            "losses": 8,
+            "winrate": "20.00",
+            "updated_at": "2026-03-03T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "talent_id": 300,
+            "champion_name": "Ash",
+            "talent_name": "Fortress Breaker",
+            "count": 100,
+            "wins": 60,
+            "losses": 40,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "talent_id": 301,
+            "champion_name": "Maeve",
+            "talent_name": "Cat Burglar",
+            "count": 80,
+            "wins": 36,
+            "losses": 44,
+            "winrate": "45.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "talent_id": 302,
+            "champion_name": "Pip",
+            "talent_name": null,
+            "count": 10,
+            "wins": 2,
+            "losses": 8,
+            "winrate": "20.00",
+            "updated_at": "2026-03-03T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-talents-casual-prefix-pagination",
+      "routeId": "GET /meta/talents",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "talent_id": 401,
+            "champion_name": "Bomb King",
+            "talent_name": "Royal Subjects",
+            "count": 40,
+            "wins": 18,
+            "losses": 22,
+            "winrate": "45.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "talent_id": 401,
+            "champion_name": "Bomb King",
+            "talent_name": "Royal Subjects",
+            "count": 40,
+            "wins": 18,
+            "losses": 22,
+            "winrate": "45.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-cards-ranked",
+      "routeId": "GET /meta/cards",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "card_id": 500,
+            "champion_name": "Ash",
+            "card_name": "Brawl",
+            "card_level": 1,
+            "count": 200,
+            "wins": 120,
+            "losses": 80,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "card_id": 500,
+            "champion_name": "Ash",
+            "card_name": "Brawl",
+            "card_level": 5,
+            "count": 150,
+            "wins": 75,
+            "losses": 75,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "card_id": 501,
+            "champion_name": "Maeve",
+            "card_name": "Street Cred",
+            "card_level": 3,
+            "count": 90,
+            "wins": 40,
+            "losses": 50,
+            "winrate": "44.44",
+            "updated_at": "2026-03-03T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "card_id": 500,
+            "champion_name": "Ash",
+            "card_name": "Brawl",
+            "card_level": 1,
+            "count": 200,
+            "wins": 120,
+            "losses": 80,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          },
+          {
+            "card_id": 500,
+            "champion_name": "Ash",
+            "card_name": "Brawl",
+            "card_level": 5,
+            "count": 150,
+            "wins": 75,
+            "losses": 75,
+            "winrate": "50.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "card_id": 501,
+            "champion_name": "Maeve",
+            "card_name": "Street Cred",
+            "card_level": 3,
+            "count": 90,
+            "wins": 40,
+            "losses": 50,
+            "winrate": "44.44",
+            "updated_at": "2026-03-03T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-cards-casual",
+      "routeId": "GET /meta/cards",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "card_id": 601,
+            "champion_name": "Pip",
+            "card_name": "Reload",
+            "card_level": 2,
+            "count": 50,
+            "wins": 20,
+            "losses": 30,
+            "winrate": "40.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "card_id": 600,
+            "champion_name": "Ying",
+            "card_name": "Brittle",
+            "card_level": 5,
+            "count": 300,
+            "wins": 180,
+            "losses": 120,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "card_id": 601,
+            "champion_name": "Pip",
+            "card_name": "Reload",
+            "card_level": 2,
+            "count": 50,
+            "wins": 20,
+            "losses": 30,
+            "winrate": "40.00",
+            "updated_at": "2026-03-02T00:00:00.000Z"
+          },
+          {
+            "card_id": 600,
+            "champion_name": "Ying",
+            "card_name": "Brittle",
+            "card_level": 5,
+            "count": 300,
+            "wins": 180,
+            "losses": 120,
+            "winrate": "60.00",
+            "updated_at": "2026-03-01T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-compositions-default-aggregate",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 3,
+          "data": [
+            {
+              "comp_id": "2-1-1-1",
+              "frontline": 2,
+              "damage": 1,
+              "flank": 1,
+              "support": 1,
+              "count": 20,
+              "wins": 14,
+              "losses": 6,
+              "winrate": "70.00"
+            },
+            {
+              "comp_id": "1-2-1-1",
+              "frontline": 1,
+              "damage": 2,
+              "flank": 1,
+              "support": 1,
+              "count": 15,
+              "wins": 8,
+              "losses": 7,
+              "winrate": "53.33"
+            },
+            {
+              "comp_id": "1-1-2-1",
+              "frontline": 1,
+              "damage": 1,
+              "flank": 2,
+              "support": 1,
+              "count": 8,
+              "wins": 0,
+              "losses": 0,
+              "winrate": null
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 3,
+          "data": [
+            {
+              "comp_id": "2-1-1-1",
+              "frontline": 2,
+              "damage": 1,
+              "flank": 1,
+              "support": 1,
+              "count": 20,
+              "wins": 14,
+              "losses": 6,
+              "winrate": "70.00"
+            },
+            {
+              "comp_id": "1-2-1-1",
+              "frontline": 1,
+              "damage": 2,
+              "flank": 1,
+              "support": 1,
+              "count": 15,
+              "wins": 8,
+              "losses": 7,
+              "winrate": "53.33"
+            },
+            {
+              "comp_id": "1-1-2-1",
+              "frontline": 1,
+              "damage": 1,
+              "flank": 2,
+              "support": 1,
+              "count": 8,
+              "wins": 0,
+              "losses": 0,
+              "winrate": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-compositions-tier-range",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 1,
+          "data": [
+            {
+              "comp_id": "1-2-1-1",
+              "frontline": 1,
+              "damage": 2,
+              "flank": 1,
+              "support": 1,
+              "count": 15,
+              "wins": 8,
+              "losses": 7,
+              "winrate": "53.33"
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 1,
+          "data": [
+            {
+              "comp_id": "1-2-1-1",
+              "frontline": 1,
+              "damage": 2,
+              "flank": 1,
+              "support": 1,
+              "count": 15,
+              "wins": 8,
+              "losses": 7,
+              "winrate": "53.33"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-compositions-number-decimal-integer",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 2,
+          "data": [
+            {
+              "comp_id": "2-1-1-1",
+              "frontline": 2,
+              "damage": 1,
+              "flank": 1,
+              "support": 1,
+              "count": 20,
+              "wins": 14,
+              "losses": 6,
+              "winrate": "70.00"
+            },
+            {
+              "comp_id": "1-1-2-1",
+              "frontline": 1,
+              "damage": 1,
+              "flank": 2,
+              "support": 1,
+              "count": 8,
+              "wins": 0,
+              "losses": 0,
+              "winrate": null
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 2,
+          "data": [
+            {
+              "comp_id": "2-1-1-1",
+              "frontline": 2,
+              "damage": 1,
+              "flank": 1,
+              "support": 1,
+              "count": 20,
+              "wins": 14,
+              "losses": 6,
+              "winrate": "70.00"
+            },
+            {
+              "comp_id": "1-1-2-1",
+              "frontline": 1,
+              "damage": 1,
+              "flank": 2,
+              "support": 1,
+              "count": 8,
+              "wins": 0,
+              "losses": 0,
+              "winrate": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-compositions-invalid-tail-tier",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": "Tier bounds must be between 1 and 26."
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": "Tier bounds must be between 1 and 26."
+        }
+      }
+    },
+    {
+      "id": "meta-compositions-invalid-reversed-tier",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": "Tier bounds must be between 1 and 26."
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": "Tier bounds must be between 1 and 26."
+        }
+      }
+    },
+    {
+      "id": "meta-compositions-sort-and-limit",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 1,
+          "data": [
+            {
+              "comp_id": "1-1-2-1",
+              "frontline": 1,
+              "damage": 1,
+              "flank": 2,
+              "support": 1,
+              "count": 8,
+              "wins": 0,
+              "losses": 0,
+              "winrate": null
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "total": 1,
+          "data": [
+            {
+              "comp_id": "1-1-2-1",
+              "frontline": 1,
+              "damage": 1,
+              "flank": 2,
+              "support": 1,
+              "count": 8,
+              "wins": 0,
+              "losses": 0,
+              "winrate": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-compositions-negative-limit",
+      "routeId": "GET /meta/compositions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-n"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-23"
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-item-detail-ranked",
+      "routeId": "GET /meta/items/:itemId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "item_id": 101,
+          "item_name": "Haven",
+          "slot": 2,
+          "item_level": 1,
+          "count": 40,
+          "wins": 22,
+          "losses": 18,
+          "winrate": "55.00",
+          "updated_at": "2026-03-03T00:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "item_id": 101,
+          "item_name": "Haven",
+          "slot": 2,
+          "item_level": 1,
+          "count": 40,
+          "wins": 22,
+          "losses": 18,
+          "winrate": "55.00",
+          "updated_at": "2026-03-03T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "meta-item-detail-casual",
+      "routeId": "GET /meta/items/:itemId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "item_id": 201,
+          "item_name": "Nimble",
+          "slot": 1,
+          "item_level": 1,
+          "count": 90,
+          "wins": 50,
+          "losses": 40,
+          "winrate": "55.56",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "item_id": 201,
+          "item_name": "Nimble",
+          "slot": 1,
+          "item_level": 1,
+          "count": 90,
+          "wins": 50,
+          "losses": 40,
+          "winrate": "55.56",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "meta-item-detail-invalid",
+      "routeId": "GET /meta/items/:itemId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid item ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid item ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-item-detail-not-found",
+      "routeId": "GET /meta/items/:itemId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Item stats not found",
+            "details": {
+              "itemId": 999,
+              "mode": "ranked"
+            }
+          }
+        }
+      },
+      "rust": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Item stats not found",
+            "details": {
+              "itemId": 999,
+              "mode": "ranked"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-talent-detail-ranked",
+      "routeId": "GET /meta/talents/:talentId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5972",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "272",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "talent_id": 300,
+          "champion_name": "Ash",
+          "talent_name": "Fortress Breaker",
+          "count": 100,
+          "wins": 60,
+          "losses": 40,
+          "winrate": "60.00",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5972",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "272",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "talent_id": 300,
+          "champion_name": "Ash",
+          "talent_name": "Fortress Breaker",
+          "count": 100,
+          "wins": 60,
+          "losses": 40,
+          "winrate": "60.00",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "meta-talent-detail-casual",
+      "routeId": "GET /meta/talents/:talentId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5971",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "271",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "talent_id": 400,
+          "champion_name": "Ying",
+          "talent_name": "Life Exchange",
+          "count": 120,
+          "wins": 72,
+          "losses": 48,
+          "winrate": "60.00",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5971",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "271",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "talent_id": 400,
+          "champion_name": "Ying",
+          "talent_name": "Life Exchange",
+          "count": 120,
+          "wins": 72,
+          "losses": 48,
+          "winrate": "60.00",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "meta-talent-detail-invalid",
+      "routeId": "GET /meta/talents/:talentId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5970",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "270",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid talent ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5970",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "270",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid talent ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-talent-detail-not-found",
+      "routeId": "GET /meta/talents/:talentId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5969",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "269",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Talent stats not found",
+            "details": {
+              "talentId": -1,
+              "mode": "casual"
+            }
+          }
+        }
+      },
+      "rust": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5969",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "269",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Talent stats not found",
+            "details": {
+              "talentId": -1,
+              "mode": "casual"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-card-detail-ranked",
+      "routeId": "GET /meta/cards/:cardId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5968",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "268",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "card_id": 501,
+          "champion_name": "Maeve",
+          "card_name": "Street Cred",
+          "card_level": 3,
+          "count": 90,
+          "wins": 40,
+          "losses": 50,
+          "winrate": "44.44",
+          "updated_at": "2026-03-03T00:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5968",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "268",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "card_id": 501,
+          "champion_name": "Maeve",
+          "card_name": "Street Cred",
+          "card_level": 3,
+          "count": 90,
+          "wins": 40,
+          "losses": 50,
+          "winrate": "44.44",
+          "updated_at": "2026-03-03T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "meta-card-detail-casual",
+      "routeId": "GET /meta/cards/:cardId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5967",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "267",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "card_id": 600,
+          "champion_name": "Ying",
+          "card_name": "Brittle",
+          "card_level": 5,
+          "count": 300,
+          "wins": 180,
+          "losses": 120,
+          "winrate": "60.00",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5967",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "267",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "card_id": 600,
+          "champion_name": "Ying",
+          "card_name": "Brittle",
+          "card_level": 5,
+          "count": 300,
+          "wins": 180,
+          "losses": 120,
+          "winrate": "60.00",
+          "updated_at": "2026-03-01T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "meta-card-detail-invalid",
+      "routeId": "GET /meta/cards/:cardId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5966",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "266",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid card ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5966",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "266",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid card ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-card-detail-not-found",
+      "routeId": "GET /meta/cards/:cardId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5965",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "265",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Card stats not found",
+            "details": {
+              "cardId": 999,
+              "mode": "ranked"
+            }
+          }
+        }
+      },
+      "rust": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5965",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "265",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Card stats not found",
+            "details": {
+              "cardId": 999,
+              "mode": "ranked"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "meta-top-ranked",
+      "routeId": "GET /meta/top",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5964",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "264",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "mode": "ranked",
+          "topItems": [
+            {
+              "item_id": 101,
+              "name": "Haven",
+              "count": 40,
+              "winrate": "55.00"
+            },
+            {
+              "item_id": 100,
+              "name": "Chronos",
+              "count": 30,
+              "winrate": "60.00"
+            }
+          ],
+          "topTalents": [
+            {
+              "talent_id": 300,
+              "name": "Fortress Breaker",
+              "count": 100,
+              "winrate": "60.00"
+            },
+            {
+              "talent_id": 301,
+              "name": "Cat Burglar",
+              "count": 80,
+              "winrate": "45.00"
+            }
+          ],
+          "topCards": [
+            {
+              "card_id": 500,
+              "name": "Brawl",
+              "count": 200,
+              "winrate": "60.00"
+            },
+            {
+              "card_id": 500,
+              "name": "Brawl",
+              "count": 150,
+              "winrate": "50.00"
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5964",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "264",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "mode": "ranked",
+          "topItems": [
+            {
+              "item_id": 101,
+              "name": "Haven",
+              "count": 40,
+              "winrate": "55.00"
+            },
+            {
+              "item_id": 100,
+              "name": "Chronos",
+              "count": 30,
+              "winrate": "60.00"
+            }
+          ],
+          "topTalents": [
+            {
+              "talent_id": 300,
+              "name": "Fortress Breaker",
+              "count": 100,
+              "winrate": "60.00"
+            },
+            {
+              "talent_id": 301,
+              "name": "Cat Burglar",
+              "count": 80,
+              "winrate": "45.00"
+            }
+          ],
+          "topCards": [
+            {
+              "card_id": 500,
+              "name": "Brawl",
+              "count": 200,
+              "winrate": "60.00"
+            },
+            {
+              "card_id": 500,
+              "name": "Brawl",
+              "count": 150,
+              "winrate": "50.00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-top-casual-capped-prefix",
+      "routeId": "GET /meta/top",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5963",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "263",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "mode": "casual",
+          "topItems": [
+            {
+              "item_id": 201,
+              "name": "Nimble",
+              "count": 90,
+              "winrate": "55.56"
+            }
+          ],
+          "topTalents": [
+            {
+              "talent_id": 400,
+              "name": "Life Exchange",
+              "count": 120,
+              "winrate": "60.00"
+            }
+          ],
+          "topCards": [
+            {
+              "card_id": 600,
+              "name": "Brittle",
+              "count": 300,
+              "winrate": "60.00"
+            }
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5963",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "263",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "mode": "casual",
+          "topItems": [
+            {
+              "item_id": 201,
+              "name": "Nimble",
+              "count": 90,
+              "winrate": "55.56"
+            }
+          ],
+          "topTalents": [
+            {
+              "talent_id": 400,
+              "name": "Life Exchange",
+              "count": 120,
+              "winrate": "60.00"
+            }
+          ],
+          "topCards": [
+            {
+              "card_id": 600,
+              "name": "Brittle",
+              "count": 300,
+              "winrate": "60.00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "meta-top-negative-limit",
+      "routeId": "GET /meta/top",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5962",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "262",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-12"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5962",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "262",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-38"
+          }
+        }
+      }
+    }
+  ]
+}

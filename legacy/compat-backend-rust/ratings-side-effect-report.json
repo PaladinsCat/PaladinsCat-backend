@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:40:04.473Z",
+  "manifestSha256": "b7c951284bb28bcb1db7a11a3bef15c5a061644001b7f114059318441cc4851d",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40990/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40990/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 8,
+    "passingTables": 8,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "players",
+          "rowCount": 3,
+          "sha256": "1d88440526dc93b22dcac58b276b84dab7d76a58037b6f882ff9633da04a3d5d"
+        },
+        {
+          "name": "champions",
+          "rowCount": 2,
+          "sha256": "f0458e76e1c8a1abdf0f424bc093fb26ddc89f0697b6c3bbee911f62973f1b8e"
+        },
+        {
+          "name": "matches",
+          "rowCount": 3,
+          "sha256": "8cce88a193483bee65e1e53761b925621abfa8ecb0b6db7ec7abe5f77cf6588b"
+        },
+        {
+          "name": "champion_ratings",
+          "rowCount": 2,
+          "sha256": "9a459da8c88c752c6d4feb2594fb57be86dc7c46c6eb95e65b383463b2461470"
+        },
+        {
+          "name": "champion_match_ratings",
+          "rowCount": 3,
+          "sha256": "18832bc72a1256c6886983f1c1173b6e91873daf22bb884c003305f4cb6d5901"
+        },
+        {
+          "name": "player_queue_ratings",
+          "rowCount": 4,
+          "sha256": "d4c2b7353f83e12821fcd3f48f44ca1c31f7ea4d33c5087466357ec02be495b7"
+        },
+        {
+          "name": "player_champion_ratings",
+          "rowCount": 3,
+          "sha256": "06c168b3a268c193abf2a3e188577fe0c74b21e89d2542dffb32e69fc704938a"
+        },
+        {
+          "name": "match_rating_snapshots",
+          "rowCount": 3,
+          "sha256": "f175054bc1f3a7ed86a8d02d455910c3af1c3eade5428cecc08937a50eee312e"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "players",
+          "rowCount": 3,
+          "sha256": "1d88440526dc93b22dcac58b276b84dab7d76a58037b6f882ff9633da04a3d5d"
+        },
+        {
+          "name": "champions",
+          "rowCount": 2,
+          "sha256": "f0458e76e1c8a1abdf0f424bc093fb26ddc89f0697b6c3bbee911f62973f1b8e"
+        },
+        {
+          "name": "matches",
+          "rowCount": 3,
+          "sha256": "8cce88a193483bee65e1e53761b925621abfa8ecb0b6db7ec7abe5f77cf6588b"
+        },
+        {
+          "name": "champion_ratings",
+          "rowCount": 2,
+          "sha256": "9a459da8c88c752c6d4feb2594fb57be86dc7c46c6eb95e65b383463b2461470"
+        },
+        {
+          "name": "champion_match_ratings",
+          "rowCount": 3,
+          "sha256": "18832bc72a1256c6886983f1c1173b6e91873daf22bb884c003305f4cb6d5901"
+        },
+        {
+          "name": "player_queue_ratings",
+          "rowCount": 4,
+          "sha256": "d4c2b7353f83e12821fcd3f48f44ca1c31f7ea4d33c5087466357ec02be495b7"
+        },
+        {
+          "name": "player_champion_ratings",
+          "rowCount": 3,
+          "sha256": "06c168b3a268c193abf2a3e188577fe0c74b21e89d2542dffb32e69fc704938a"
+        },
+        {
+          "name": "match_rating_snapshots",
+          "rowCount": 3,
+          "sha256": "f175054bc1f3a7ed86a8d02d455910c3af1c3eade5428cecc08937a50eee312e"
+        }
+      ]
+    }
+  }
+}

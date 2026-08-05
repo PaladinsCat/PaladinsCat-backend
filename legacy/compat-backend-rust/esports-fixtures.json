@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "description": "Esports list, detail, roster, display-name, filtering, pagination, validation, and database failure compatibility.",
+  "fixtures": [
+    {
+      "id": "esports-leagues-default",
+      "routeId": "GET /esports/leagues",
+      "request": { "method": "GET", "path": "/esports/leagues" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/league_id", "equals": 1 },
+        { "pointer": "/body/0/league_name", "equals": "Alpha League" }
+      ]
+    },
+    {
+      "id": "esports-leagues-filter",
+      "routeId": "GET /esports/leagues",
+      "request": { "method": "GET", "path": "/esports/leagues?q=alpha" },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/league_id", "equals": 1 }
+      ]
+    },
+    {
+      "id": "esports-leagues-page",
+      "routeId": "GET /esports/leagues",
+      "request": { "method": "GET", "path": "/esports/leagues?page=2&perPage=1" },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/league_id", "equals": 2 }
+      ]
+    },
+    {
+      "id": "esports-leagues-prefix-pagination",
+      "routeId": "GET /esports/leagues",
+      "request": { "method": "GET", "path": "/esports/leagues?page=2tail&perPage=1tail" }
+    },
+    {
+      "id": "esports-leagues-invalid-pagination-defaults",
+      "routeId": "GET /esports/leagues",
+      "request": { "method": "GET", "path": "/esports/leagues?page=no&perPage=no" }
+    },
+    {
+      "id": "esports-league-detail",
+      "routeId": "GET /esports/leagues/:id",
+      "request": { "method": "GET", "path": "/esports/leagues/1" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body/league/league_id", "equals": 1 },
+        { "pointer": "/body/teams", "length": 2 },
+        { "pointer": "/body/teams/1/team_name", "equals": "Blaze" }
+      ]
+    },
+    {
+      "id": "esports-league-prefix-id",
+      "routeId": "GET /esports/leagues/:id",
+      "request": { "method": "GET", "path": "/esports/leagues/1tail" }
+    },
+    {
+      "id": "esports-league-missing",
+      "routeId": "GET /esports/leagues/:id",
+      "request": { "method": "GET", "path": "/esports/leagues/999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/code", "equals": "NOT_FOUND" },
+        { "pointer": "/body/error/details/id", "equals": 999 }
+      ]
+    },
+    {
+      "id": "esports-league-invalid",
+      "routeId": "GET /esports/leagues/:id",
+      "request": { "method": "GET", "path": "/esports/leagues/not-an-id" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" }
+      ]
+    },
+    {
+      "id": "esports-teams-default",
+      "routeId": "GET /esports/teams",
+      "request": { "method": "GET", "path": "/esports/teams" },
+      "assertions": [
+        { "pointer": "/body", "length": 4 },
+        { "pointer": "/body/0/team_id", "equals": 10 },
+        { "pointer": "/body/3/team_id", "equals": 30 }
+      ]
+    },
+    {
+      "id": "esports-teams-league-filter",
+      "routeId": "GET /esports/teams",
+      "request": { "method": "GET", "path": "/esports/teams?leagueId=1" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/1/team_name", "equals": "Blaze" }
+      ]
+    },
+    {
+      "id": "esports-teams-name-filter",
+      "routeId": "GET /esports/teams",
+      "request": { "method": "GET", "path": "/esports/teams?q=cycl" },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/team_id", "equals": 20 }
+      ]
+    },
+    {
+      "id": "esports-teams-combined-filter",
+      "routeId": "GET /esports/teams",
+      "request": { "method": "GET", "path": "/esports/teams?leagueId=1&q=blaze" }
+    },
+    {
+      "id": "esports-teams-invalid-league-filter",
+      "routeId": "GET /esports/teams",
+      "request": { "method": "GET", "path": "/esports/teams?leagueId=invalid" },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "esports-team-detail",
+      "routeId": "GET /esports/teams/:id",
+      "request": { "method": "GET", "path": "/esports/teams/10" },
+      "assertions": [
+        { "pointer": "/body/team/team_id", "equals": 10 },
+        { "pointer": "/body/players", "length": 2 },
+        { "pointer": "/body/players/0/player_name", "equals": "Preferred Name" },
+        { "pointer": "/body/players/1/player_name", "equals": "Visible Gamer" }
+      ]
+    },
+    {
+      "id": "esports-team-missing",
+      "routeId": "GET /esports/teams/:id",
+      "request": { "method": "GET", "path": "/esports/teams/999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/details/id", "equals": 999 }
+      ]
+    },
+    {
+      "id": "esports-team-invalid",
+      "routeId": "GET /esports/teams/:id",
+      "request": { "method": "GET", "path": "/esports/teams/not-an-id" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid team ID" }
+      ]
+    },
+    {
+      "id": "esports-team-roster",
+      "routeId": "GET /esports/teams/:id/players",
+      "request": { "method": "GET", "path": "/esports/teams/10/players" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/player_name", "equals": "Preferred Name" },
+        { "pointer": "/body/1/player_name", "equals": "Visible Gamer" }
+      ]
+    },
+    {
+      "id": "esports-team-empty-roster",
+      "routeId": "GET /esports/teams/:id/players",
+      "request": { "method": "GET", "path": "/esports/teams/999/players" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 0 }
+      ]
+    },
+    {
+      "id": "esports-team-invalid-roster",
+      "routeId": "GET /esports/teams/:id/players",
+      "request": { "method": "GET", "path": "/esports/teams/not-an-id/players" }
+    },
+    {
+      "id": "esports-search-missing-query",
+      "routeId": "GET /esports/search",
+      "request": { "method": "GET", "path": "/esports/search" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Missing required query param: q" }
+      ]
+    },
+    {
+      "id": "esports-search-empty-query",
+      "routeId": "GET /esports/search",
+      "request": { "method": "GET", "path": "/esports/search?q=" }
+    },
+    {
+      "id": "esports-search-case-insensitive",
+      "routeId": "GET /esports/search",
+      "request": { "method": "GET", "path": "/esports/search?q=aeG" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/team_id", "equals": 10 }
+      ]
+    }
+  ]
+}

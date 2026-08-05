@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "mode": "read-only-production-data-shadow",
+  "checkedAt": "2026-08-01T09:53:31.2529812+00:00",
+  "gitCommit": "827beb2a1b9698f61c12e02522289e2a9f101c37",
+  "gitDirty": true,
+  "safety": {
+    "databaseDefaultTransactionReadOnly": true,
+    "redis": "isolated-local-container",
+    "meilisearch": "disabled",
+    "relay": "unreachable-loopback",
+    "schedulers": "disabled",
+    "workersStarted": false
+  },
+  "summary": {
+    "groups": 6,
+    "fixtures": 117,
+    "passedFixtures": 117,
+    "failedFixtures": 0,
+    "routes": 46,
+    "passingRoutes": 46
+  },
+  "results": [
+    {
+      "group": "recovery",
+      "report": "recovery-shadow-report.json",
+      "fixtures": 21,
+      "passedFixtures": 21,
+      "routes": 5,
+      "passingRoutes": 5
+    },
+    {
+      "group": "notifications",
+      "report": "notifications-shadow-report.json",
+      "fixtures": 9,
+      "passedFixtures": 9,
+      "routes": 1,
+      "passingRoutes": 1
+    },
+    {
+      "group": "esports",
+      "report": "esports-shadow-report.json",
+      "fixtures": 23,
+      "passedFixtures": 23,
+      "routes": 6,
+      "passingRoutes": 6
+    },
+    {
+      "group": "ratings",
+      "report": "ratings-shadow-report.json",
+      "fixtures": 27,
+      "passedFixtures": 27,
+      "routes": 8,
+      "passingRoutes": 8
+    },
+    {
+      "group": "reference",
+      "report": "reference-shadow-report.json",
+      "fixtures": 36,
+      "passedFixtures": 36,
+      "routes": 25,
+      "passingRoutes": 25
+    },
+    {
+      "group": "public-operations",
+      "report": "public-operations-shadow-report.json",
+      "fixtures": 1,
+      "passedFixtures": 1,
+      "routes": 1,
+      "passingRoutes": 1
+    }
+  ]
+}

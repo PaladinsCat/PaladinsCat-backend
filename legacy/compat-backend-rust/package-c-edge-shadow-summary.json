@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "mode": "read-only-production-data-shadow",
+  "checkedAt": "2026-07-30T17:48:57.9815654+00:00",
+  "gitCommit": "cf4abe67efdf0b855a37f28050babeff5621f836",
+  "gitDirty": true,
+  "safety": {
+    "databaseDefaultTransactionReadOnly": true,
+    "redis": "isolated-local-container",
+    "meilisearch": "disabled",
+    "relay": "unreachable-loopback",
+    "schedulers": "disabled",
+    "workersStarted": false
+  },
+  "summary": {
+    "groups": 1,
+    "fixtures": 15,
+    "passedFixtures": 15,
+    "failedFixtures": 0,
+    "routes": 15,
+    "passingRoutes": 15
+  },
+  "results": [
+    {
+      "group": "package-c-edge",
+      "report": "package-c-edge-shadow-report.json",
+      "fixtures": 15,
+      "passedFixtures": 15,
+      "routes": 15,
+      "passingRoutes": 15
+    }
+  ]
+}

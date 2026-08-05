@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:40:16.675Z",
+  "manifestSha256": "43fd98a4bf044dc5cf7d434f81c7352515d0e7a4889cef30522f6312c0b12e3e",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40884/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40884/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 9,
+    "passingTables": 9,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "matches",
+          "rowCount": 4,
+          "sha256": "990bb9fec8c2aabe8c5da9b58737a2f9db857690ad657240dbe60c8581fd3f36"
+        },
+        {
+          "name": "players",
+          "rowCount": 3,
+          "sha256": "9fa5667b9122e818ed383c8906a0b2849b5656eb6257267056c216ad5e7a29b8"
+        },
+        {
+          "name": "users",
+          "rowCount": 2,
+          "sha256": "f3190221ad844aadc5681c11e25668c9e1871ca455c99006b31026383a7db301"
+        },
+        {
+          "name": "builds",
+          "rowCount": 2,
+          "sha256": "c7dca363d55e26f7067b23ed4f29e41bc96913e572b3f79a084879262fe09183"
+        },
+        {
+          "name": "tier_lists",
+          "rowCount": 1,
+          "sha256": "15d27c01ff63dc6230c07acceb74534aaf87b91d5c59787845c5a6f857a29ec4"
+        },
+        {
+          "name": "posts",
+          "rowCount": 2,
+          "sha256": "10ec2cbeeea8897040e95425ff4c9509a0ce0d894e504fd229631ce215037b5a"
+        },
+        {
+          "name": "site_daily_visitors",
+          "rowCount": 3,
+          "sha256": "257660a4aeaca48a5e0830eb612b0f3bab96dfdb7128530667109c09e171fbba"
+        },
+        {
+          "name": "nonranked_match_acquisition",
+          "rowCount": 4,
+          "sha256": "336a927eaf21c1695a60a9c6a1d09e938768a312445f433675b7d8c358016fc3"
+        },
+        {
+          "name": "stack_versions",
+          "rowCount": 2,
+          "sha256": "09775ffda13fd95221eaf39ea462cf3569596296a3ac0fce2555ac0e2ed5e049"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "matches",
+          "rowCount": 4,
+          "sha256": "990bb9fec8c2aabe8c5da9b58737a2f9db857690ad657240dbe60c8581fd3f36"
+        },
+        {
+          "name": "players",
+          "rowCount": 3,
+          "sha256": "9fa5667b9122e818ed383c8906a0b2849b5656eb6257267056c216ad5e7a29b8"
+        },
+        {
+          "name": "users",
+          "rowCount": 2,
+          "sha256": "f3190221ad844aadc5681c11e25668c9e1871ca455c99006b31026383a7db301"
+        },
+        {
+          "name": "builds",
+          "rowCount": 2,
+          "sha256": "c7dca363d55e26f7067b23ed4f29e41bc96913e572b3f79a084879262fe09183"
+        },
+        {
+          "name": "tier_lists",
+          "rowCount": 1,
+          "sha256": "15d27c01ff63dc6230c07acceb74534aaf87b91d5c59787845c5a6f857a29ec4"
+        },
+        {
+          "name": "posts",
+          "rowCount": 2,
+          "sha256": "10ec2cbeeea8897040e95425ff4c9509a0ce0d894e504fd229631ce215037b5a"
+        },
+        {
+          "name": "site_daily_visitors",
+          "rowCount": 3,
+          "sha256": "257660a4aeaca48a5e0830eb612b0f3bab96dfdb7128530667109c09e171fbba"
+        },
+        {
+          "name": "nonranked_match_acquisition",
+          "rowCount": 4,
+          "sha256": "336a927eaf21c1695a60a9c6a1d09e938768a312445f433675b7d8c358016fc3"
+        },
+        {
+          "name": "stack_versions",
+          "rowCount": 2,
+          "sha256": "09775ffda13fd95221eaf39ea462cf3569596296a3ac0fce2555ac0e2ed5e049"
+        }
+      ]
+    }
+  }
+}

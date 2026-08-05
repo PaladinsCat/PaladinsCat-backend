@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "description": "Recovery GET routes are read-only; both databases must remain byte-for-byte equivalent in canonical JSONB form.",
+  "tables": [
+    { "name": "broken_skins", "orderBy": ["id"] },
+    { "name": "recovery_stats", "orderBy": ["match_id"] },
+    { "name": "raw_ingest_buffer", "orderBy": ["id"] }
+  ]
+}

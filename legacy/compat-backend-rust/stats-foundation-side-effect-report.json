@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:46.249Z",
+  "manifestSha256": "fe730e5bdcf80f23dad599f7e555e7188bc1ef118c2e79bee051a79963e2416c",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40982/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40982/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 7,
+    "passingTables": 7,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "matches",
+          "rowCount": 6,
+          "sha256": "b9c06077fb93a810a3cf21dc79fb4cea1265307bcef8b8f7b5ce9aca96c72076"
+        },
+        {
+          "name": "match_players",
+          "rowCount": 11,
+          "sha256": "3dd08340cb1ff01c435cf0e09c34d3c8e78bddef65c1832ea872a24c64a09aef"
+        },
+        {
+          "name": "leaderboard_current",
+          "rowCount": 4,
+          "sha256": "dcbeb7b1284c0ae69e8cfc8298b5174a62a5d8753f8a1b0038646cbf94fbcc97"
+        },
+        {
+          "name": "leaderboard_update_log",
+          "rowCount": 3,
+          "sha256": "5fab76234fb897e0efadc9c67c447165371bace986ff8510a7892f899422721d"
+        },
+        {
+          "name": "tier_population_stats",
+          "rowCount": 3,
+          "sha256": "b29a49a83992bb67117f3719019a688a7a4ca83ee9b01444a5d8e4cdcb0a96cb"
+        },
+        {
+          "name": "players",
+          "rowCount": 7,
+          "sha256": "f8036f6f4d3770ab901274790744c27df69522d2912a52ab011ff328cdcd6c82"
+        },
+        {
+          "name": "player_champion_ratings",
+          "rowCount": 7,
+          "sha256": "33fe7c85b2ef806a2ff83002b6a47142559c650d954f375366055fa943c1b689"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "matches",
+          "rowCount": 6,
+          "sha256": "b9c06077fb93a810a3cf21dc79fb4cea1265307bcef8b8f7b5ce9aca96c72076"
+        },
+        {
+          "name": "match_players",
+          "rowCount": 11,
+          "sha256": "3dd08340cb1ff01c435cf0e09c34d3c8e78bddef65c1832ea872a24c64a09aef"
+        },
+        {
+          "name": "leaderboard_current",
+          "rowCount": 4,
+          "sha256": "dcbeb7b1284c0ae69e8cfc8298b5174a62a5d8753f8a1b0038646cbf94fbcc97"
+        },
+        {
+          "name": "leaderboard_update_log",
+          "rowCount": 3,
+          "sha256": "5fab76234fb897e0efadc9c67c447165371bace986ff8510a7892f899422721d"
+        },
+        {
+          "name": "tier_population_stats",
+          "rowCount": 3,
+          "sha256": "b29a49a83992bb67117f3719019a688a7a4ca83ee9b01444a5d8e4cdcb0a96cb"
+        },
+        {
+          "name": "players",
+          "rowCount": 7,
+          "sha256": "f8036f6f4d3770ab901274790744c27df69522d2912a52ab011ff328cdcd6c82"
+        },
+        {
+          "name": "player_champion_ratings",
+          "rowCount": 7,
+          "sha256": "33fe7c85b2ef806a2ff83002b6a47142559c650d954f375366055fa943c1b689"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 1,
+  "description": "Meta version, changelog cache, ranked/casual counts, tier compositions, detail, sorting, pagination, and legacy JavaScript parsing compatibility.",
+  "fixtures": [
+    {
+      "id": "meta-version-stack-and-components",
+      "routeId": "GET /meta/version",
+      "request": { "method": "GET", "path": "/meta/version" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        {
+          "pointer": "/headers/cache-control",
+          "equals": "no-store, max-age=0"
+        },
+        { "pointer": "/body/id", "equals": 4 },
+        { "pointer": "/body/version", "equals": "v1.2.0" },
+        { "pointer": "/body/gitCommitShort", "equals": "" },
+        { "pointer": "/body/gitDirty", "equals": false },
+        { "pointer": "/body/metadata", "equals": {} },
+        { "pointer": "/body/components", "length": 2 },
+        { "pointer": "/body/components/0/component", "equals": "backend" },
+        {
+          "pointer": "/body/components/0/gitCommitShort",
+          "equals": "backend"
+        },
+        {
+          "pointer": "/body/components/1/component",
+          "equals": "hirezrelay"
+        }
+      ]
+    },
+    {
+      "id": "meta-changelog-preview-miss",
+      "routeId": "GET /meta/changelog",
+      "request": {
+        "method": "GET",
+        "path": "/meta/changelog?preview=true&utm_source=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body/id", "equals": 4 },
+        { "pointer": "/body/changeCount", "equals": 2 },
+        { "pointer": "/body/releaseType", "equals": "patch" }
+      ]
+    },
+    {
+      "id": "meta-changelog-preview-hit-canonical",
+      "routeId": "GET /meta/changelog",
+      "request": {
+        "method": "GET",
+        "path": "/meta/changelog?preview=true"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/headers/x-cache-age", "equals": "0" },
+        { "pointer": "/body/id", "equals": 4 }
+      ]
+    },
+    {
+      "id": "meta-changelog-list-deduplicates-commits",
+      "routeId": "GET /meta/changelog",
+      "request": {
+        "method": "GET",
+        "path": "/meta/changelog?page=1&perPage=2"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body/data", "length": 2 },
+        { "pointer": "/body/total", "equals": 3 },
+        { "pointer": "/body/totalPages", "equals": 2 },
+        { "pointer": "/body/data/0/id", "equals": 4 },
+        { "pointer": "/body/data/1/id", "equals": 3 },
+        { "pointer": "/body/data/1/changeCount", "equals": 6 },
+        { "pointer": "/body/data/1/releaseType", "equals": "minor" }
+      ]
+    },
+    {
+      "id": "meta-changelog-list-page-two-useful-duplicate",
+      "routeId": "GET /meta/changelog",
+      "request": {
+        "method": "GET",
+        "path": "/meta/changelog?page=2&perPage=2"
+      },
+      "assertions": [
+        { "pointer": "/body/data", "length": 1 },
+        { "pointer": "/body/data/0/id", "equals": 1 },
+        { "pointer": "/body/data/0/gitCommitShort", "equals": "aaaaaaa" },
+        { "pointer": "/body/data/0/changeCount", "equals": 2 }
+      ]
+    },
+    {
+      "id": "meta-changelog-preview-false-is-list",
+      "routeId": "GET /meta/changelog",
+      "request": {
+        "method": "GET",
+        "path": "/meta/changelog?preview=false&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body/data", "length": 1 },
+        { "pointer": "/body/total", "equals": 3 }
+      ]
+    },
+    {
+      "id": "meta-items-ranked-sort",
+      "routeId": "GET /meta/items",
+      "request": {
+        "method": "GET",
+        "path": "/meta/items?sort=count&order=desc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 4 },
+        { "pointer": "/body/0/item_id", "equals": 101 },
+        { "pointer": "/body/0/winrate", "equals": "55.00" },
+        { "pointer": "/body/3/item_name", "equals": null }
+      ]
+    },
+    {
+      "id": "meta-items-casual",
+      "routeId": "GET /meta/items",
+      "request": {
+        "method": "GET",
+        "path": "/meta/items?mode=casual&sort=wins&order=asc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/item_id", "equals": 202 }
+      ]
+    },
+    {
+      "id": "meta-items-unknown-mode-defaults-ranked",
+      "routeId": "GET /meta/items",
+      "request": {
+        "method": "GET",
+        "path": "/meta/items?mode=CASUAL&slot=1&sort=item_level&order=asc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/item_id", "equals": 100 }
+      ]
+    },
+    {
+      "id": "meta-items-filter-prefix-and-pagination",
+      "routeId": "GET /meta/items",
+      "request": {
+        "method": "GET",
+        "path": "/meta/items?slot=1tail&itemLevel=2tail&page=1&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/item_id", "equals": 100 },
+        { "pointer": "/body/0/item_level", "equals": 2 }
+      ]
+    },
+    {
+      "id": "meta-items-invalid-filter-database-error",
+      "routeId": "GET /meta/items",
+      "request": { "method": "GET", "path": "/meta/items?slot=no" },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "meta-items-invalid-sort-is-ignored",
+      "routeId": "GET /meta/items",
+      "request": {
+        "method": "GET",
+        "path": "/meta/items?sort=item_id%20DESC%3BSELECT&perPage=2"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "meta-talents-ranked",
+      "routeId": "GET /meta/talents",
+      "request": {
+        "method": "GET",
+        "path": "/meta/talents?sort=count&order=desc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/talent_id", "equals": 300 },
+        { "pointer": "/body/2/talent_name", "equals": null }
+      ]
+    },
+    {
+      "id": "meta-talents-casual-prefix-pagination",
+      "routeId": "GET /meta/talents",
+      "request": {
+        "method": "GET",
+        "path": "/meta/talents?mode=casual&page=2tail&perPage=1tail&sort=count&order=desc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/talent_id", "equals": 401 }
+      ]
+    },
+    {
+      "id": "meta-cards-ranked",
+      "routeId": "GET /meta/cards",
+      "request": {
+        "method": "GET",
+        "path": "/meta/cards?sort=count&order=desc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/card_id", "equals": 500 },
+        { "pointer": "/body/0/card_level", "equals": 1 }
+      ]
+    },
+    {
+      "id": "meta-cards-casual",
+      "routeId": "GET /meta/cards",
+      "request": {
+        "method": "GET",
+        "path": "/meta/cards?mode=casual&sort=winrate&order=asc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/card_id", "equals": 601 }
+      ]
+    },
+    {
+      "id": "meta-compositions-default-aggregate",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions"
+      },
+      "assertions": [
+        { "pointer": "/body/total", "equals": 3 },
+        { "pointer": "/body/data/0/comp_id", "equals": "2-1-1-1" },
+        { "pointer": "/body/data/0/count", "equals": 20 },
+        { "pointer": "/body/data/1/comp_id", "equals": "1-2-1-1" },
+        { "pointer": "/body/data/1/count", "equals": 15 },
+        { "pointer": "/body/data/1/winrate", "equals": "53.33" },
+        { "pointer": "/body/data/2/winrate", "equals": null }
+      ]
+    },
+    {
+      "id": "meta-compositions-tier-range",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions?tierMin=5&tierMax=10&sortBy=wins&order=asc"
+      },
+      "assertions": [
+        { "pointer": "/body/total", "equals": 1 },
+        { "pointer": "/body/data/0/wins", "equals": 8 }
+      ]
+    },
+    {
+      "id": "meta-compositions-number-decimal-integer",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions?tierMin=15.0&tierMax=20"
+      },
+      "assertions": [
+        { "pointer": "/body/total", "equals": 2 }
+      ]
+    },
+    {
+      "id": "meta-compositions-invalid-tail-tier",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions?tierMin=1tail"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error",
+          "equals": "Tier bounds must be between 1 and 26."
+        }
+      ]
+    },
+    {
+      "id": "meta-compositions-invalid-reversed-tier",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions?tierMin=20&tierMax=5"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "meta-compositions-sort-and-limit",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions?sortBy=frontline&order=asc&limit=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body/total", "equals": 1 },
+        { "pointer": "/body/data/0/frontline", "equals": 1 }
+      ]
+    },
+    {
+      "id": "meta-compositions-negative-limit",
+      "routeId": "GET /meta/compositions",
+      "request": {
+        "method": "GET",
+        "path": "/meta/compositions?limit=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    },
+    {
+      "id": "meta-item-detail-ranked",
+      "routeId": "GET /meta/items/:itemId",
+      "request": { "method": "GET", "path": "/meta/items/101tail" },
+      "assertions": [
+        { "pointer": "/body/item_name", "equals": "Haven" },
+        { "pointer": "/body/count", "equals": 40 }
+      ]
+    },
+    {
+      "id": "meta-item-detail-casual",
+      "routeId": "GET /meta/items/:itemId",
+      "request": {
+        "method": "GET",
+        "path": "/meta/items/201?mode=casual"
+      },
+      "assertions": [
+        { "pointer": "/body/item_name", "equals": "Nimble" }
+      ]
+    },
+    {
+      "id": "meta-item-detail-invalid",
+      "routeId": "GET /meta/items/:itemId",
+      "request": { "method": "GET", "path": "/meta/items/no" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid item ID" }
+      ]
+    },
+    {
+      "id": "meta-item-detail-not-found",
+      "routeId": "GET /meta/items/:itemId",
+      "request": { "method": "GET", "path": "/meta/items/999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/details/itemId", "equals": 999 },
+        { "pointer": "/body/error/details/mode", "equals": "ranked" }
+      ]
+    },
+    {
+      "id": "meta-talent-detail-ranked",
+      "routeId": "GET /meta/talents/:talentId",
+      "request": { "method": "GET", "path": "/meta/talents/300" },
+      "assertions": [
+        { "pointer": "/body/talent_name", "equals": "Fortress Breaker" }
+      ]
+    },
+    {
+      "id": "meta-talent-detail-casual",
+      "routeId": "GET /meta/talents/:talentId",
+      "request": {
+        "method": "GET",
+        "path": "/meta/talents/400?mode=casual"
+      },
+      "assertions": [
+        { "pointer": "/body/champion_name", "equals": "Ying" }
+      ]
+    },
+    {
+      "id": "meta-talent-detail-invalid",
+      "routeId": "GET /meta/talents/:talentId",
+      "request": { "method": "GET", "path": "/meta/talents/NaN" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid talent ID" }
+      ]
+    },
+    {
+      "id": "meta-talent-detail-not-found",
+      "routeId": "GET /meta/talents/:talentId",
+      "request": {
+        "method": "GET",
+        "path": "/meta/talents/-1?mode=casual"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/details/talentId", "equals": -1 },
+        { "pointer": "/body/error/details/mode", "equals": "casual" }
+      ]
+    },
+    {
+      "id": "meta-card-detail-ranked",
+      "routeId": "GET /meta/cards/:cardId",
+      "request": { "method": "GET", "path": "/meta/cards/501" },
+      "assertions": [
+        { "pointer": "/body/card_name", "equals": "Street Cred" }
+      ]
+    },
+    {
+      "id": "meta-card-detail-casual",
+      "routeId": "GET /meta/cards/:cardId",
+      "request": {
+        "method": "GET",
+        "path": "/meta/cards/600?mode=casual"
+      },
+      "assertions": [
+        { "pointer": "/body/card_name", "equals": "Brittle" }
+      ]
+    },
+    {
+      "id": "meta-card-detail-invalid",
+      "routeId": "GET /meta/cards/:cardId",
+      "request": { "method": "GET", "path": "/meta/cards/+" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid card ID" }
+      ]
+    },
+    {
+      "id": "meta-card-detail-not-found",
+      "routeId": "GET /meta/cards/:cardId",
+      "request": { "method": "GET", "path": "/meta/cards/999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/details/cardId", "equals": 999 }
+      ]
+    },
+    {
+      "id": "meta-top-ranked",
+      "routeId": "GET /meta/top",
+      "request": { "method": "GET", "path": "/meta/top?limit=2" },
+      "assertions": [
+        { "pointer": "/body/mode", "equals": "ranked" },
+        { "pointer": "/body/topItems", "length": 2 },
+        { "pointer": "/body/topItems/0/item_id", "equals": 101 },
+        { "pointer": "/body/topTalents/0/talent_id", "equals": 300 },
+        { "pointer": "/body/topCards/0/card_id", "equals": 500 }
+      ]
+    },
+    {
+      "id": "meta-top-casual-capped-prefix",
+      "routeId": "GET /meta/top",
+      "request": {
+        "method": "GET",
+        "path": "/meta/top?mode=casual&limit=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body/mode", "equals": "casual" },
+        { "pointer": "/body/topItems", "length": 1 },
+        { "pointer": "/body/topItems/0/item_id", "equals": 201 },
+        { "pointer": "/body/topTalents/0/talent_id", "equals": 400 },
+        { "pointer": "/body/topCards/0/card_id", "equals": 600 }
+      ]
+    },
+    {
+      "id": "meta-top-negative-limit",
+      "routeId": "GET /meta/top",
+      "request": { "method": "GET", "path": "/meta/top?limit=-1" },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    }
+  ]
+}

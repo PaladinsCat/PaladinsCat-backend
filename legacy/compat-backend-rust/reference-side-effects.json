@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "champions", "orderBy": ["id"] },
+    { "name": "items", "orderBy": ["item_id"] },
+    { "name": "bounty_items", "orderBy": ["bounty_item_id"] },
+    { "name": "maps", "orderBy": ["map_id"] },
+    { "name": "ranked_tiers", "orderBy": ["tier_id"] },
+    { "name": "regions", "orderBy": ["region_code"] },
+    { "name": "talents", "orderBy": ["talent_id"] },
+    { "name": "queue_types", "orderBy": ["queue_id"] },
+    { "name": "patches", "orderBy": ["id"] },
+    { "name": "cards", "orderBy": ["card_id"] },
+    { "name": "skins", "orderBy": ["skin_id"] },
+    { "name": "championsquick", "orderBy": ["id"] }
+  ]
+}

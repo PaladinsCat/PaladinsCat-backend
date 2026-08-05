@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "description": "Co-play pair, stack, relationship, pagination, search, validation, and legacy parseInt compatibility.",
+  "fixtures": [
+    {
+      "id": "coplay-parties-pairs-default",
+      "routeId": "GET /coplay/parties",
+      "request": { "method": "GET", "path": "/coplay/parties" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/source_player_name", "equals": "Alice" },
+        { "pointer": "/body/0/target_player_name", "equals": "Bob" },
+        { "pointer": "/body/0/match_count", "equals": 4 },
+        { "pointer": "/body/0/total_count", "equals": 3 }
+      ]
+    },
+    {
+      "id": "coplay-parties-pairs-search",
+      "routeId": "GET /coplay/parties",
+      "request": { "method": "GET", "path": "/coplay/parties?q=Alice" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/total_count", "equals": 2 }
+      ]
+    },
+    {
+      "id": "coplay-parties-pairs-empty-search",
+      "routeId": "GET /coplay/parties",
+      "request": { "method": "GET", "path": "/coplay/parties?q=Nobody" },
+      "assertions": [
+        { "pointer": "/body", "length": 0 }
+      ]
+    },
+    {
+      "id": "coplay-parties-pairs-pagination",
+      "routeId": "GET /coplay/parties",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/parties?page=2&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/source_player_id", "equals": "20" },
+        { "pointer": "/body/0/target_player_id", "equals": "30" }
+      ]
+    },
+    {
+      "id": "coplay-parties-limit-alias-prefix",
+      "routeId": "GET /coplay/parties",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/parties?page=2tail&limit=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/match_count", "equals": 2 }
+      ]
+    },
+    {
+      "id": "coplay-parties-invalid-kind",
+      "routeId": "GET /coplay/parties",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/parties?kind=unknown"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" },
+        {
+          "pointer": "/body/error/message",
+          "equals": "kind must be pairs or stacks"
+        }
+      ]
+    },
+    {
+      "id": "coplay-parties-stacks-default",
+      "routeId": "GET /coplay/parties",
+      "request": { "method": "GET", "path": "/coplay/parties?kind=stacks" },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/group_key", "equals": "30:40:50" },
+        { "pointer": "/body/0/player_names/0", "equals": "Carol" },
+        { "pointer": "/body/0/total_count", "equals": 3 },
+        { "pointer": "/body/2/group_key", "equals": "10:20" }
+      ]
+    },
+    {
+      "id": "coplay-parties-stacks-search-size",
+      "routeId": "GET /coplay/parties",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/parties?kind=stacks&q=Alice&size=3"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/group_key", "equals": "10:20:30" },
+        { "pointer": "/body/0/player_ids/2", "equals": "30" }
+      ]
+    },
+    {
+      "id": "coplay-parties-stacks-invalid-size-is-ignored",
+      "routeId": "GET /coplay/parties",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/parties?kind=stacks&size=99"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 }
+      ]
+    },
+    {
+      "id": "coplay-teammates",
+      "routeId": "GET /coplay/teammates/:playerId",
+      "request": { "method": "GET", "path": "/coplay/teammates/20" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/other_player_name", "equals": "Alice" },
+        { "pointer": "/body/0/match_count", "equals": 5 },
+        { "pointer": "/body/1/other_player_name", "equals": "Carol" }
+      ]
+    },
+    {
+      "id": "coplay-teammates-invalid-player",
+      "routeId": "GET /coplay/teammates/:playerId",
+      "request": { "method": "GET", "path": "/coplay/teammates/no" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid player ID" }
+      ]
+    },
+    {
+      "id": "coplay-opponents-limit",
+      "routeId": "GET /coplay/opponents/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/opponents/10tail?limit=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/other_player_name", "equals": "Carol" },
+        { "pointer": "/body/0/match_count", "equals": 7 }
+      ]
+    },
+    {
+      "id": "coplay-opponents-negative-limit",
+      "routeId": "GET /coplay/opponents/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/opponents/10?limit=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    },
+    {
+      "id": "coplay-party",
+      "routeId": "GET /coplay/party/:playerId",
+      "request": { "method": "GET", "path": "/coplay/party/10" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/other_player_name", "equals": "Bob" },
+        { "pointer": "/body/0/match_count", "equals": 4 },
+        { "pointer": "/body/1/other_player_name", "equals": "Carol" }
+      ]
+    },
+    {
+      "id": "coplay-party-invalid-player",
+      "routeId": "GET /coplay/party/:playerId",
+      "request": { "method": "GET", "path": "/coplay/party/0" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "coplay-pair-reversed",
+      "routeId": "GET /coplay/pair/:sourceId/:targetId",
+      "request": { "method": "GET", "path": "/coplay/pair/30/10" },
+      "assertions": [
+        { "pointer": "/body/source_player_id", "equals": 30 },
+        { "pointer": "/body/target_player_id", "equals": 10 },
+        { "pointer": "/body/teammate", "equals": null },
+        { "pointer": "/body/opponent/count", "equals": 7 },
+        { "pointer": "/body/party/match_count", "equals": 1 }
+      ]
+    },
+    {
+      "id": "coplay-pair-teammate",
+      "routeId": "GET /coplay/pair/:sourceId/:targetId",
+      "request": { "method": "GET", "path": "/coplay/pair/10/20" },
+      "assertions": [
+        { "pointer": "/body/teammate/count", "equals": 5 },
+        { "pointer": "/body/opponent", "equals": null },
+        { "pointer": "/body/party/match_count", "equals": 4 }
+      ]
+    },
+    {
+      "id": "coplay-pair-missing",
+      "routeId": "GET /coplay/pair/:sourceId/:targetId",
+      "request": { "method": "GET", "path": "/coplay/pair/10/50" },
+      "assertions": [
+        { "pointer": "/body/teammate", "equals": null },
+        { "pointer": "/body/opponent", "equals": null },
+        { "pointer": "/body/party", "equals": null }
+      ]
+    },
+    {
+      "id": "coplay-pair-invalid",
+      "routeId": "GET /coplay/pair/:sourceId/:targetId",
+      "request": { "method": "GET", "path": "/coplay/pair/no/20" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid player IDs" }
+      ]
+    },
+    {
+      "id": "coplay-stats",
+      "routeId": "GET /coplay/stats/:playerId",
+      "request": { "method": "GET", "path": "/coplay/stats/10" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/other_player_name", "equals": "Carol" },
+        { "pointer": "/body/0/times_together", "equals": 7 },
+        { "pointer": "/body/0/times_in_party", "equals": 1 },
+        { "pointer": "/body/1/other_player_name", "equals": "Bob" },
+        { "pointer": "/body/1/times_in_party", "equals": 4 }
+      ]
+    },
+    {
+      "id": "coplay-stats-empty",
+      "routeId": "GET /coplay/stats/:playerId",
+      "request": { "method": "GET", "path": "/coplay/stats/50" },
+      "assertions": [
+        { "pointer": "/body", "length": 0 }
+      ]
+    },
+    {
+      "id": "coplay-top-pairs",
+      "routeId": "GET /coplay/top-pairs",
+      "request": { "method": "GET", "path": "/coplay/top-pairs" },
+      "assertions": [
+        { "pointer": "/body", "length": 5 },
+        { "pointer": "/body/0/source_player_name", "equals": "Alice" },
+        { "pointer": "/body/0/target_player_name", "equals": "Carol" },
+        { "pointer": "/body/0/match_count", "equals": 7 }
+      ]
+    },
+    {
+      "id": "coplay-top-pairs-team-filter",
+      "routeId": "GET /coplay/top-pairs",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/top-pairs?sameTeam=true"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/match_count", "equals": 5 },
+        { "pointer": "/body/0/same_team", "equals": true }
+      ]
+    },
+    {
+      "id": "coplay-top-pairs-opponent-filter",
+      "routeId": "GET /coplay/top-pairs",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/top-pairs?sameTeam=false"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/match_count", "equals": 7 },
+        { "pointer": "/body/0/same_team", "equals": false }
+      ]
+    },
+    {
+      "id": "coplay-top-pairs-limit",
+      "routeId": "GET /coplay/top-pairs",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/top-pairs?limit=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 }
+      ]
+    },
+    {
+      "id": "coplay-top-pairs-negative-limit",
+      "routeId": "GET /coplay/top-pairs",
+      "request": {
+        "method": "GET",
+        "path": "/coplay/top-pairs?limit=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    }
+  ]
+}

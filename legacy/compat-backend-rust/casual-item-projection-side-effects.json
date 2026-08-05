@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    {
+      "name": "item_counts_casual",
+      "orderBy": ["stats_scope", "queue_id", "item_id", "slot", "item_level"],
+      "omitColumns": ["updated_at"]
+    },
+    {
+      "name": "item_counts_casual_matches",
+      "orderBy": ["match_id"],
+      "omitColumns": ["projected_at"]
+    },
+    {
+      "name": "item_counts_ranked",
+      "orderBy": ["marker"]
+    }
+  ]
+}

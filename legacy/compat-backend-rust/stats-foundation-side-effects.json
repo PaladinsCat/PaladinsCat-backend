@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "matches", "orderBy": ["match_id", "entry_datetime"] },
+    {
+      "name": "match_players",
+      "orderBy": ["match_id", "entry_datetime", "player_id"]
+    },
+    { "name": "leaderboard_current", "orderBy": ["player_id"] },
+    { "name": "leaderboard_update_log", "orderBy": ["id"] },
+    { "name": "tier_population_stats", "orderBy": ["tier"] },
+    { "name": "players", "orderBy": ["id"] },
+    {
+      "name": "player_champion_ratings",
+      "orderBy": ["player_id", "champion_id"]
+    }
+  ]
+}

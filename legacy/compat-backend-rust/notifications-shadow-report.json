@@ -1,0 +1,886 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:53:20.641Z",
+  "inventorySha256": "49db1ad9212f0d18ed23050f33103760dcf20c509b3d51d4a7427d39254e330d",
+  "fixtureSha256": "9683fa62bda707f3d934ad2eed13284824e7dfe3d9ae738a42de15b8084c5320",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:55684",
+    "rust": "http://127.0.0.1:55685"
+  },
+  "summary": {
+    "fixtures": 9,
+    "passedFixtures": 9,
+    "failedFixtures": 0,
+    "coveredRoutes": 1,
+    "passingRoutes": 1
+  },
+  "passingRouteIds": [
+    "GET /notifications/"
+  ],
+  "results": [
+    {
+      "id": "notifications-default-cold-miss",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-default-hit",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-tracking-cold-miss",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-tracking-canonical-hit",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-upper-bound",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-zero-default",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-invalid-default",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          },
+          {
+            "id": 19,
+            "timestamp": "2026-07-30T02:06:00.000Z",
+            "importance": 100,
+            "message": "undergoing backend update with rust."
+          },
+          {
+            "id": 6,
+            "timestamp": "2026-07-13T00:48:00.000Z",
+            "importance": 50,
+            "message": "PaladinsCat - Open Beta. Bug report or feature requests - discord @nabicook"
+          },
+          {
+            "id": 7,
+            "timestamp": "2026-07-13T12:35:00.000Z",
+            "importance": 10,
+            "message": "contribute to the localization - https://github.com/NabiCook/PaladinsCat-locales"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-prefix-integer",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 22,
+            "timestamp": "2026-07-31T20:03:00.000Z",
+            "importance": 100,
+            "message": "session issues with kicking out login status resolved - as well as notification read status sync"
+          }
+        ]
+      }
+    },
+    {
+      "id": "notifications-negative-limit",
+      "routeId": "GET /notifications/",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-9"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-9"
+          }
+        }
+      }
+    }
+  ]
+}

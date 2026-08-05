@@ -1,0 +1,1818 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-30T18:11:32.522Z",
+  "inventorySha256": "f634ed994d22b07d49cb66ad1061288a723dfae945ce528ee9c30b700a4199a6",
+  "fixtureSha256": "eda63f385f04831d66537a7a212c3d52ff192ec79378295e09dd1f835d66eb85",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:63769",
+    "rust": "http://127.0.0.1:63770"
+  },
+  "summary": {
+    "fixtures": 20,
+    "passedFixtures": 20,
+    "failedFixtures": 0,
+    "coveredRoutes": 11,
+    "passingRoutes": 11
+  },
+  "passingRouteIds": [
+    "GET /player-ext/name-history/:playerId",
+    "GET /player-ext/merges/:playerId",
+    "GET /player-ext/status/:playerId",
+    "GET /player-ext/achievements/:playerId",
+    "GET /player-ext/private",
+    "GET /player-ext/private/bulk",
+    "GET /player-ext/private/:privateId",
+    "GET /player-ext/private-history",
+    "GET /player-ext/bulk",
+    "GET /player-ext/search",
+    "POST /player-ext/private/:privateId/report"
+  ],
+  "results": [
+    {
+      "id": "player-ext-name-history",
+      "routeId": "GET /player-ext/name-history/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 1,
+            "player_id": "1001",
+            "name": "AlphaCat",
+            "changed_at": "2026-07-20T12:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "changed_at": "2026-07-20T12:00:00.000Z",
+            "id": 1,
+            "name": "AlphaCat",
+            "player_id": "1001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "player-ext-name-history-validation",
+      "routeId": "GET /player-ext/name-history/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid player ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-merges",
+      "routeId": "GET /player-ext/merges/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 1,
+            "player_id": "1001",
+            "merged_into_player_id": "1002",
+            "merged_at": "2026-01-05T09:30:00.000Z",
+            "source": "profile"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 1,
+            "merged_at": "2026-01-05T09:30:00.000Z",
+            "merged_into_player_id": "1002",
+            "player_id": "1001",
+            "source": "profile"
+          }
+        ]
+      }
+    },
+    {
+      "id": "player-ext-status",
+      "routeId": "GET /player-ext/status/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "player_id": 1001,
+          "status": 3,
+          "status_string": "In Match",
+          "current_match_id": "1281115795",
+          "queue_id": 486,
+          "privacy_flag": false,
+          "personal_status_message": "Ranked grind",
+          "updated_at": "2026-07-29T14:00:00.000Z"
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "current_match_id": "1281115795",
+          "personal_status_message": "Ranked grind",
+          "player_id": 1001,
+          "privacy_flag": false,
+          "queue_id": 486,
+          "status": 3,
+          "status_string": "In Match",
+          "updated_at": "2026-07-29T14:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "player-ext-status-missing",
+      "routeId": "GET /player-ext/status/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Player status not found",
+            "details": {
+              "playerId": 9999
+            }
+          }
+        }
+      },
+      "rust": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "details": {
+              "playerId": 9999
+            },
+            "message": "Player status not found"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-achievements",
+      "routeId": "GET /player-ext/achievements/:playerId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "achievement_id": 10,
+            "player_id": 1001,
+            "achievement_name": "First Blood",
+            "progress": 12,
+            "updated_at": "2026-07-28T11:00:00.000Z"
+          },
+          {
+            "achievement_id": 20,
+            "player_id": 1001,
+            "achievement_name": "Champion Mastery",
+            "progress": 46,
+            "updated_at": "2026-07-28T11:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "achievement_id": 10,
+            "achievement_name": "First Blood",
+            "player_id": 1001,
+            "progress": 12,
+            "updated_at": "2026-07-28T11:00:00.000Z"
+          },
+          {
+            "achievement_id": 20,
+            "achievement_name": "Champion Mastery",
+            "player_id": 1001,
+            "progress": 46,
+            "updated_at": "2026-07-28T11:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "player-ext-private-list-filtered",
+      "routeId": "GET /player-ext/private",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "party_id": 222,
+            "account_level": 205,
+            "mastery_level": 38,
+            "league_tier": 21,
+            "league_points": 2400,
+            "first_seen": "2026-06-01T10:00:00.000Z",
+            "last_seen": "2026-07-29T10:00:00.000Z",
+            "match_count": 5,
+            "alias": "ShadowCat",
+            "verified_name": "Verified Shadow",
+            "display_name": "Verified Shadow",
+            "identity_status": "verified",
+            "identity_confidence": 98,
+            "tracking_version": 2,
+            "cheater": false,
+            "cheater_reason": null,
+            "cheater_marked_at": null,
+            "sus_count": 1,
+            "top_reasons": [
+              {
+                "count": 1,
+                "reason": "Aim tracking"
+              }
+            ],
+            "total_count": 1
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "account_level": 205,
+            "alias": "ShadowCat",
+            "cheater": false,
+            "cheater_marked_at": null,
+            "cheater_reason": null,
+            "display_name": "Verified Shadow",
+            "first_seen": "2026-06-01T10:00:00.000Z",
+            "id": 2,
+            "identity_confidence": 98,
+            "identity_status": "verified",
+            "last_seen": "2026-07-29T10:00:00.000Z",
+            "league_points": 2400,
+            "league_tier": 21,
+            "mastery_level": 38,
+            "match_count": 5,
+            "party_id": 222,
+            "sus_count": 1,
+            "top_reasons": [
+              {
+                "count": 1,
+                "reason": "Aim tracking"
+              }
+            ],
+            "total_count": 1,
+            "tracking_version": 2,
+            "verified_name": "Verified Shadow"
+          }
+        ]
+      }
+    },
+    {
+      "id": "player-ext-private-bulk",
+      "routeId": "GET /player-ext/private/bulk",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "accounts": [
+            {
+              "id": 2,
+              "cheater": false,
+              "cheater_reason": null,
+              "cheater_marked_at": null,
+              "sus_count": 1
+            },
+            {
+              "id": 3,
+              "cheater": false,
+              "cheater_reason": null,
+              "cheater_marked_at": null,
+              "sus_count": 0
+            }
+          ],
+          "count": 2,
+          "notFound": [
+            1,
+            999
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "accounts": [
+            {
+              "cheater": false,
+              "cheater_marked_at": null,
+              "cheater_reason": null,
+              "id": 2,
+              "sus_count": 1
+            },
+            {
+              "cheater": false,
+              "cheater_marked_at": null,
+              "cheater_reason": null,
+              "id": 3,
+              "sus_count": 0
+            }
+          ],
+          "count": 2,
+          "notFound": [
+            1,
+            999
+          ]
+        }
+      }
+    },
+    {
+      "id": "player-ext-private-bulk-validation",
+      "routeId": "GET /player-ext/private/bulk",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Missing or invalid ids parameter"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Missing or invalid ids parameter"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-private-detail-canonical",
+      "routeId": "GET /player-ext/private/:privateId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "account": {
+            "id": 2,
+            "party_id": 222,
+            "account_level": 205,
+            "mastery_level": 38,
+            "league_tier": 21,
+            "league_points": 2400,
+            "first_seen": "2026-06-01T10:00:00.000Z",
+            "last_seen": "2026-07-29T10:00:00.000Z",
+            "match_count": 5,
+            "alias": "ShadowCat",
+            "verified_name": "Verified Shadow",
+            "display_name": "Verified Shadow",
+            "identity_status": "verified",
+            "identity_confidence": 98,
+            "tracking_version": 2,
+            "cheater": false,
+            "cheater_reason": null,
+            "cheater_marked_at": null,
+            "sus_count": 1
+          },
+          "observations": [
+            {
+              "match_id": "1281115795",
+              "private_slot": 1,
+              "entry_datetime": "2026-07-29T10:00:00.000Z",
+              "account_level": 205,
+              "mastery_level": 38,
+              "league_tier": 21,
+              "league_points": 2400,
+              "tp_delta": 12,
+              "win_status": "Loss",
+              "champion_id": 2205,
+              "champion_name": "Androxus",
+              "task_force": 2,
+              "platform": "PC",
+              "source": "direct",
+              "resolution_status": "verified",
+              "resolution_confidence": 98,
+              "resolution_reasons": [
+                "verified_name"
+              ],
+              "map": "Jaguar Falls",
+              "queue_id": 486,
+              "region": "North America",
+              "duration_seconds": 780
+            },
+            {
+              "match_id": "1281115794",
+              "private_slot": 1,
+              "entry_datetime": "2026-07-28T10:00:00.000Z",
+              "account_level": 204,
+              "mastery_level": 37,
+              "league_tier": 21,
+              "league_points": 2388,
+              "tp_delta": null,
+              "win_status": "Win",
+              "champion_id": 2092,
+              "champion_name": "Fernando",
+              "task_force": 1,
+              "platform": "PC",
+              "source": "history",
+              "resolution_status": "linked",
+              "resolution_confidence": 91,
+              "resolution_reasons": [
+                "party_continuity"
+              ],
+              "map": "Stone Keep",
+              "queue_id": 486,
+              "region": "North America",
+              "duration_seconds": 900
+            }
+          ],
+          "requested_private_id": 1
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "account": {
+            "account_level": 205,
+            "alias": "ShadowCat",
+            "cheater": false,
+            "cheater_marked_at": null,
+            "cheater_reason": null,
+            "display_name": "Verified Shadow",
+            "first_seen": "2026-06-01T10:00:00.000Z",
+            "id": 2,
+            "identity_confidence": 98,
+            "identity_status": "verified",
+            "last_seen": "2026-07-29T10:00:00.000Z",
+            "league_points": 2400,
+            "league_tier": 21,
+            "mastery_level": 38,
+            "match_count": 5,
+            "party_id": 222,
+            "sus_count": 1,
+            "tracking_version": 2,
+            "verified_name": "Verified Shadow"
+          },
+          "observations": [
+            {
+              "account_level": 205,
+              "champion_id": 2205,
+              "champion_name": "Androxus",
+              "duration_seconds": 780,
+              "entry_datetime": "2026-07-29T10:00:00.000Z",
+              "league_points": 2400,
+              "league_tier": 21,
+              "map": "Jaguar Falls",
+              "mastery_level": 38,
+              "match_id": "1281115795",
+              "platform": "PC",
+              "private_slot": 1,
+              "queue_id": 486,
+              "region": "North America",
+              "resolution_confidence": 98,
+              "resolution_reasons": [
+                "verified_name"
+              ],
+              "resolution_status": "verified",
+              "source": "direct",
+              "task_force": 2,
+              "tp_delta": 12,
+              "win_status": "Loss"
+            },
+            {
+              "account_level": 204,
+              "champion_id": 2092,
+              "champion_name": "Fernando",
+              "duration_seconds": 900,
+              "entry_datetime": "2026-07-28T10:00:00.000Z",
+              "league_points": 2388,
+              "league_tier": 21,
+              "map": "Stone Keep",
+              "mastery_level": 37,
+              "match_id": "1281115794",
+              "platform": "PC",
+              "private_slot": 1,
+              "queue_id": 486,
+              "region": "North America",
+              "resolution_confidence": 91,
+              "resolution_reasons": [
+                "party_continuity"
+              ],
+              "resolution_status": "linked",
+              "source": "history",
+              "task_force": 1,
+              "tp_delta": null,
+              "win_status": "Win"
+            }
+          ],
+          "requested_private_id": 1
+        }
+      }
+    },
+    {
+      "id": "player-ext-private-detail-missing",
+      "routeId": "GET /player-ext/private/:privateId",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Private account not found"
+          }
+        }
+      },
+      "rust": {
+        "status": 404,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Private account not found"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-private-history",
+      "routeId": "GET /player-ext/private-history",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "player_private_id": 2,
+            "party_id": 222,
+            "account_level": 205,
+            "mastery_level": 38,
+            "league_tier": 21,
+            "league_points": 2400,
+            "match_id": "1281115795",
+            "private_slot": 1,
+            "resolution_confidence": 98,
+            "resolution_reasons": [
+              "verified_name"
+            ],
+            "recorded_at": "2026-07-29T10:00:00.000Z",
+            "created_at": "2026-07-29T10:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "account_level": 205,
+            "created_at": "2026-07-29T10:00:00.000Z",
+            "id": 2,
+            "league_points": 2400,
+            "league_tier": 21,
+            "mastery_level": 38,
+            "match_id": "1281115795",
+            "party_id": 222,
+            "player_private_id": 2,
+            "private_slot": 1,
+            "recorded_at": "2026-07-29T10:00:00.000Z",
+            "resolution_confidence": 98,
+            "resolution_reasons": [
+              "verified_name"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "player-ext-player-bulk",
+      "routeId": "GET /player-ext/bulk",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "players": [
+            {
+              "id": "1001",
+              "name": "AlphaCat",
+              "level": 999,
+              "region": "North America",
+              "platform": "PC",
+              "kbm_tier": 26,
+              "kbm_points": 2875,
+              "cheater": false,
+              "sus_count": 0
+            },
+            {
+              "id": "1002",
+              "name": "BetaCat",
+              "level": 420,
+              "region": "Europe",
+              "platform": "Xbox",
+              "kbm_tier": 20,
+              "kbm_points": 2400,
+              "cheater": true,
+              "sus_count": 3
+            }
+          ],
+          "count": 2,
+          "notFound": [
+            1001,
+            1002,
+            9999
+          ]
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "count": 2,
+          "notFound": [
+            1001,
+            1002,
+            9999
+          ],
+          "players": [
+            {
+              "cheater": false,
+              "id": "1001",
+              "kbm_points": 2875,
+              "kbm_tier": 26,
+              "level": 999,
+              "name": "AlphaCat",
+              "platform": "PC",
+              "region": "North America",
+              "sus_count": 0
+            },
+            {
+              "cheater": true,
+              "id": "1002",
+              "kbm_points": 2400,
+              "kbm_tier": 20,
+              "level": 420,
+              "name": "BetaCat",
+              "platform": "Xbox",
+              "region": "Europe",
+              "sus_count": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "player-ext-player-bulk-validation",
+      "routeId": "GET /player-ext/bulk",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Missing or invalid ids parameter"
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Missing or invalid ids parameter"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-search-filtered",
+      "routeId": "GET /player-ext/search",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": "1001",
+            "name": "AlphaCat",
+            "level": 999,
+            "region": "North America",
+            "platform": "PC",
+            "kbm_tier": 26,
+            "kbm_points": 2875,
+            "cheater": false,
+            "sus_count": 0
+          },
+          {
+            "id": "1003",
+            "name": "GammaCat",
+            "level": 315,
+            "region": "North America",
+            "platform": "PC",
+            "kbm_tier": 15,
+            "kbm_points": 1900,
+            "cheater": false,
+            "sus_count": 1
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "cheater": false,
+            "id": "1001",
+            "kbm_points": 2875,
+            "kbm_tier": 26,
+            "level": 999,
+            "name": "AlphaCat",
+            "platform": "PC",
+            "region": "North America",
+            "sus_count": 0
+          },
+          {
+            "cheater": false,
+            "id": "1003",
+            "kbm_points": 1900,
+            "kbm_tier": 15,
+            "level": 315,
+            "name": "GammaCat",
+            "platform": "PC",
+            "region": "North America",
+            "sus_count": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "player-ext-report-authentication",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 401,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "AUTH",
+            "message": "Authentication required"
+          }
+        }
+      },
+      "rust": {
+        "status": 401,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "AUTH",
+            "message": "Authentication required"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-report-suspicious-created",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "success": true,
+          "message": "Private account reported as Suspicious",
+          "already_voted": false,
+          "private_id": 2,
+          "sus_count": 2
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "already_voted": false,
+          "message": "Private account reported as Suspicious",
+          "private_id": 2,
+          "success": true,
+          "sus_count": 2
+        }
+      }
+    },
+    {
+      "id": "player-ext-report-suspicious-duplicate",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "success": true,
+          "message": "You have already reported this private account as Suspicious",
+          "already_voted": true,
+          "private_id": 2,
+          "sus_count": 2
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "already_voted": true,
+          "message": "You have already reported this private account as Suspicious",
+          "private_id": 2,
+          "success": true,
+          "sus_count": 2
+        }
+      }
+    },
+    {
+      "id": "player-ext-report-cheater-permission",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 403,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "PERMISSION",
+            "message": "Action requires admin or approved status"
+          }
+        }
+      },
+      "rust": {
+        "status": 403,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "PERMISSION",
+            "message": "Action requires admin or approved status"
+          }
+        }
+      }
+    },
+    {
+      "id": "player-ext-report-cheater-created",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "success": true,
+          "message": "Private account confirmed as cheater",
+          "already_voted": false,
+          "private_id": 2,
+          "cheater": true
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "already_voted": false,
+          "cheater": true,
+          "message": "Private account confirmed as cheater",
+          "private_id": 2,
+          "success": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "description": "Package C compares durable raw Hi-Rez audit evidence produced by authenticated operator pass-through routes.",
+  "tables": [
+    {
+      "name": "hirez_raw_api_responses",
+      "orderBy": ["endpoint", "entity_id"],
+      "omitColumns": ["id", "created_at"]
+    },
+    {
+      "name": "player_status",
+      "orderBy": ["player_id"],
+      "omitColumns": ["updated_at"]
+    },
+    {
+      "name": "live_matches",
+      "orderBy": ["match_id"],
+      "omitColumns": ["detected_at"]
+    },
+    {
+      "name": "live_match_players",
+      "orderBy": ["match_id", "task_force", "player_id"],
+      "omitColumns": ["id"]
+    }
+  ]
+}

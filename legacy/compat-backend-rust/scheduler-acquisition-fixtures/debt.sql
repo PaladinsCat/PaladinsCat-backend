@@ -1,0 +1,1 @@
+-- Debt fixture begins with the durable schema only; the runner must prove its state transition.

@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-30T20:17:04.689Z",
+  "manifestSha256": "60a26f29b91c7456c18f2ad3cb2eba7a02ebb47e06303a76ef78efe1f8a255fd",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:38872/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:38872/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 4,
+    "passingTables": 4,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "hirez_raw_api_responses",
+          "rowCount": 4,
+          "sha256": "08ea4fcd635a0a821dcbbd8a738392a95a524ef101ce19c5361b81eac866b3d4"
+        },
+        {
+          "name": "player_status",
+          "rowCount": 1,
+          "sha256": "b9462add3169771cf24757d4c7112699554859038ab2eb22ab112b1047d5513c"
+        },
+        {
+          "name": "live_matches",
+          "rowCount": 1,
+          "sha256": "d63c88eda1477a2154ce00cebe9a6c001119b300e742e39f7ed3702d7f7ceab1"
+        },
+        {
+          "name": "live_match_players",
+          "rowCount": 2,
+          "sha256": "6fdd3ac238f4490018e465d1a45f6b00bfaf70e08683604fdb8e0c43951b3fae"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "hirez_raw_api_responses",
+          "rowCount": 4,
+          "sha256": "08ea4fcd635a0a821dcbbd8a738392a95a524ef101ce19c5361b81eac866b3d4"
+        },
+        {
+          "name": "player_status",
+          "rowCount": 1,
+          "sha256": "b9462add3169771cf24757d4c7112699554859038ab2eb22ab112b1047d5513c"
+        },
+        {
+          "name": "live_matches",
+          "rowCount": 1,
+          "sha256": "d63c88eda1477a2154ce00cebe9a6c001119b300e742e39f7ed3702d7f7ceab1"
+        },
+        {
+          "name": "live_match_players",
+          "rowCount": 2,
+          "sha256": "6fdd3ac238f4490018e465d1a45f6b00bfaf70e08683604fdb8e0c43951b3fae"
+        }
+      ]
+    }
+  }
+}

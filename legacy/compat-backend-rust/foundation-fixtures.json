@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "description": "Full application-foundation comparisons using the production TypeScript middleware constructor and the private Rust candidate.",
+  "fixtures": [
+    {
+      "id": "foundation-health-degraded-without-meilisearch",
+      "routeId": "GET /health",
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/body/timestamp", "value": "<timestamp>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body/status", "equals": "degraded" },
+        { "pointer": "/body/db", "equals": true },
+        { "pointer": "/body/redis", "equals": true },
+        { "pointer": "/body/meilisearch", "equals": false }
+      ]
+    },
+    {
+      "id": "foundation-deployment-local-idle-state",
+      "routeId": "GET /deployment/status",
+      "request": {
+        "method": "GET",
+        "path": "/deployment/status"
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/body/updatedAt", "value": "<timestamp>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/headers/cache-control", "equals": "no-store, max-age=0" },
+        { "pointer": "/body/id", "equals": "" },
+        { "pointer": "/body/phase", "equals": "idle" }
+      ]
+    },
+    {
+      "id": "foundation-public-route-allowed-origin-and-quotas",
+      "routeId": "GET /reference/regions",
+      "request": {
+        "method": "GET",
+        "path": "/reference/regions",
+        "headers": {
+          "Origin": "https://paladinscat.com"
+        }
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/headers/x-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-global-ratelimit-reset", "value": "<reset>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/headers/access-control-allow-origin", "equals": "https://paladinscat.com" },
+        { "pointer": "/headers/x-ratelimit-limit", "equals": "300" },
+        { "pointer": "/headers/x-global-ratelimit-limit", "equals": "6000" },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "foundation-public-route-disallowed-origin",
+      "routeId": "GET /reference/regions",
+      "request": {
+        "method": "GET",
+        "path": "/reference/regions",
+        "headers": {
+          "Origin": "https://attacker.invalid"
+        }
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/headers/x-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-global-ratelimit-reset", "value": "<reset>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "foundation-cors-preflight",
+      "routeId": "GET /reference/regions",
+      "middlewareProbe": true,
+      "request": {
+        "method": "OPTIONS",
+        "path": "/reference/regions",
+        "headers": {
+          "Origin": "https://paladinscat.com",
+          "Access-Control-Request-Method": "GET",
+          "Access-Control-Request-Headers": "authorization"
+        }
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 204 },
+        { "pointer": "/headers/access-control-allow-origin", "equals": "https://paladinscat.com" },
+        { "pointer": "/headers/access-control-allow-headers", "equals": "authorization" }
+      ]
+    },
+    {
+      "id": "foundation-developer-key-required",
+      "routeId": "GET /reference/regions",
+      "developerProbe": true,
+      "request": {
+        "method": "GET",
+        "path": "/v1/reference/regions"
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/headers/x-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-global-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-request-id", "value": "<request-id>" },
+        { "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 401 },
+        { "pointer": "/body/error/code", "equals": "INVALID_API_KEY" },
+        { "pointer": "/headers/cache-control", "equals": "private, no-store" }
+      ]
+    },
+    {
+      "id": "foundation-developer-key-accepted",
+      "routeId": "GET /reference/regions",
+      "developerProbe": true,
+      "request": {
+        "method": "GET",
+        "path": "/v1/reference/regions",
+        "headers": {
+          "Authorization": "Bearer pc_test_BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
+        }
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/headers/x-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-global-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-developer-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-request-id", "value": "<request-id>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/headers/x-paladinscat-api-version", "equals": "v1" },
+        { "pointer": "/headers/x-developer-ratelimit-limit", "equals": "120" },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "foundation-developer-private-route-denied",
+      "routeId": "GET /recovery/pending",
+      "developerProbe": true,
+      "request": {
+        "method": "GET",
+        "path": "/v1/recovery/pending",
+        "headers": {
+          "Authorization": "Bearer pc_test_BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
+        }
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/headers/x-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-global-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-request-id", "value": "<request-id>" },
+        { "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/code", "equals": "API_ROUTE_NOT_FOUND" }
+      ]
+    },
+    {
+      "id": "foundation-operator-route-denied",
+      "routeId": "GET /recovery/pending",
+      "request": {
+        "method": "GET",
+        "path": "/recovery/pending"
+      },
+      "normalize": [
+        { "operation": "replace", "pointer": "/headers/x-ratelimit-reset", "value": "<reset>" },
+        { "operation": "replace", "pointer": "/headers/x-global-ratelimit-reset", "value": "<reset>" }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 401 },
+        { "pointer": "/body/error/code", "equals": "OPERATOR_AUTH_REQUIRED" }
+      ]
+    }
+  ]
+}

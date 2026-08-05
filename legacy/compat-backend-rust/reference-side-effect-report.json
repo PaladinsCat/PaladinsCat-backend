@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:40:10.751Z",
+  "manifestSha256": "d605585637e13c3dec88ea29e611e11348e0851f8b2d98831fc4088465712566",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41368/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41368/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 12,
+    "passingTables": 12,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "champions",
+          "rowCount": 2,
+          "sha256": "addaf744f9d68bd9b48ce113687721c395354055a42c57be91184d00b6d56897"
+        },
+        {
+          "name": "items",
+          "rowCount": 2,
+          "sha256": "b9b5e40cff5c77aaa83bb16d8a7922fe10c92eacd6a11305314c5a496bab45e8"
+        },
+        {
+          "name": "bounty_items",
+          "rowCount": 2,
+          "sha256": "bcd744ab7819c52b76d3e946e1cbb6f8cc11f27af74a9043f236c1199df788e9"
+        },
+        {
+          "name": "maps",
+          "rowCount": 2,
+          "sha256": "46267ae465f835c3e8ba1ea0101f3fc51a5ff67c49ff11049467a6cc10d1b83a"
+        },
+        {
+          "name": "ranked_tiers",
+          "rowCount": 2,
+          "sha256": "02e886cf3e28e3a47af6688d6267417842bb1c42a62487bb8a0992c499ac0661"
+        },
+        {
+          "name": "regions",
+          "rowCount": 2,
+          "sha256": "510c054980c7700f6c77c4add73ecb620afddbf1c31aee47e95e3e6b822cb9bf"
+        },
+        {
+          "name": "talents",
+          "rowCount": 2,
+          "sha256": "4fe69763c3a847fc29f67ce492f831b9e82cab59fcb7e46823994103a5cf540d"
+        },
+        {
+          "name": "queue_types",
+          "rowCount": 2,
+          "sha256": "9a7992dde7126632ebeea8a9e97f428783e46b05a6046f8e73457df57f40f29f"
+        },
+        {
+          "name": "patches",
+          "rowCount": 2,
+          "sha256": "aace187306768ca4a4632e1229f1fbcb639b23c19ea848bdf410b2f55fd4b42b"
+        },
+        {
+          "name": "cards",
+          "rowCount": 2,
+          "sha256": "fc76730c3f85fdc2f464c1a8613df231540cd0c16e43fef969b27656ed8a840c"
+        },
+        {
+          "name": "skins",
+          "rowCount": 2,
+          "sha256": "5f96c8f7775ca8f6fa4cb0d1c74cbdae2744c01fc87219f442b73f44d199983b"
+        },
+        {
+          "name": "championsquick",
+          "rowCount": 2,
+          "sha256": "71a210bdf00cce6a17ffdbf9c3281ef37466ba18e1c51f1d4f9a279ee0da459c"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "champions",
+          "rowCount": 2,
+          "sha256": "addaf744f9d68bd9b48ce113687721c395354055a42c57be91184d00b6d56897"
+        },
+        {
+          "name": "items",
+          "rowCount": 2,
+          "sha256": "b9b5e40cff5c77aaa83bb16d8a7922fe10c92eacd6a11305314c5a496bab45e8"
+        },
+        {
+          "name": "bounty_items",
+          "rowCount": 2,
+          "sha256": "bcd744ab7819c52b76d3e946e1cbb6f8cc11f27af74a9043f236c1199df788e9"
+        },
+        {
+          "name": "maps",
+          "rowCount": 2,
+          "sha256": "46267ae465f835c3e8ba1ea0101f3fc51a5ff67c49ff11049467a6cc10d1b83a"
+        },
+        {
+          "name": "ranked_tiers",
+          "rowCount": 2,
+          "sha256": "02e886cf3e28e3a47af6688d6267417842bb1c42a62487bb8a0992c499ac0661"
+        },
+        {
+          "name": "regions",
+          "rowCount": 2,
+          "sha256": "510c054980c7700f6c77c4add73ecb620afddbf1c31aee47e95e3e6b822cb9bf"
+        },
+        {
+          "name": "talents",
+          "rowCount": 2,
+          "sha256": "4fe69763c3a847fc29f67ce492f831b9e82cab59fcb7e46823994103a5cf540d"
+        },
+        {
+          "name": "queue_types",
+          "rowCount": 2,
+          "sha256": "9a7992dde7126632ebeea8a9e97f428783e46b05a6046f8e73457df57f40f29f"
+        },
+        {
+          "name": "patches",
+          "rowCount": 2,
+          "sha256": "aace187306768ca4a4632e1229f1fbcb639b23c19ea848bdf410b2f55fd4b42b"
+        },
+        {
+          "name": "cards",
+          "rowCount": 2,
+          "sha256": "fc76730c3f85fdc2f464c1a8613df231540cd0c16e43fef969b27656ed8a840c"
+        },
+        {
+          "name": "skins",
+          "rowCount": 2,
+          "sha256": "5f96c8f7775ca8f6fa4cb0d1c74cbdae2744c01fc87219f442b73f44d199983b"
+        },
+        {
+          "name": "championsquick",
+          "rowCount": 2,
+          "sha256": "71a210bdf00cce6a17ffdbf9c3281ef37466ba18e1c51f1d4f9a279ee0da459c"
+        }
+      ]
+    }
+  }
+}

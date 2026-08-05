@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "description": "Public notification reads must not mutate their PostgreSQL source rows.",
+  "tables": [
+    { "name": "notifications", "orderBy": ["id"] }
+  ]
+}

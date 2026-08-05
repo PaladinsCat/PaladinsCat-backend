@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 1,
+  "description": "Stats foundation league, ranked leaderboard, update log, tier population, champion rating, legacy JavaScript parsing, cache, and schema compatibility.",
+  "fixtures": [
+    {
+      "id": "stats-leagues-cache-miss-tracking-ignored",
+      "routeId": "GET /stats/leagues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leagues?utm_source=fixture"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/league_tier", "equals": 21 },
+        { "pointer": "/body/0/total_plays", "equals": "5" },
+        { "pointer": "/body/0/unique_players", "equals": "4" },
+        { "pointer": "/body/0/win_rate", "equals": "50.00" },
+        { "pointer": "/body/1/league_tier", "equals": 22 },
+        { "pointer": "/body/1/win_rate", "equals": "66.67" }
+      ]
+    },
+    {
+      "id": "stats-leagues-cache-hit-canonical",
+      "routeId": "GET /stats/leagues",
+      "request": { "method": "GET", "path": "/stats/leagues" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/headers/x-cache-age", "equals": "0" },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-cache-miss",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?tier=21&top=2&utm_medium=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/player_id", "equals": "101" },
+        { "pointer": "/body/0/trend", "equals": 2 },
+        { "pointer": "/body/0/winrate", "equals": 66.67 },
+        { "pointer": "/body/1/player_id", "equals": "102" },
+        { "pointer": "/body/1/trend", "equals": 0 }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-cache-hit-canonical-order",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?top=2&tier=21"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/headers/x-cache-age", "equals": "0" },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-prefix-parsing",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?tier=21tail&top=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/player_id", "equals": "101" }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-top-cap",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?tier=21&top=500"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/2/trend", "equals": -2 }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-zero-default",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?tier=22&top=0"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/player_id", "equals": "201" }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-missing-tier",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-tier-out-of-range",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?tier=20"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "Invalid tier. Must be 21-26 (Diamond 5 to Master)."
+        }
+      ]
+    },
+    {
+      "id": "stats-ranked-leaderboard-negative-limit",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/ranked-leaderboard?tier=21&top=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "stats-leaderboard-log-default-updated-at-order",
+      "routeId": "GET /stats/leaderboard-log",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leaderboard-log"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/id", "equals": 2 },
+        {
+          "pointer": "/body/0/updated_at",
+          "equals": "2026-03-03T00:00:00.000Z"
+        },
+        { "pointer": "/body/0/tiers_updated", "length": 3 },
+        { "pointer": "/body/2/id", "equals": 1 }
+      ]
+    },
+    {
+      "id": "stats-leaderboard-log-pagination-prefix",
+      "routeId": "GET /stats/leaderboard-log",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leaderboard-log?page=2tail&perPage=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/id", "equals": 3 }
+      ]
+    },
+    {
+      "id": "stats-leaderboard-log-per-page-cap",
+      "routeId": "GET /stats/leaderboard-log",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leaderboard-log?page=1&perPage=500"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 }
+      ]
+    },
+    {
+      "id": "stats-leaderboard-log-zero-defaults",
+      "routeId": "GET /stats/leaderboard-log",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leaderboard-log?page=0&perPage=0"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/id", "equals": 2 }
+      ]
+    },
+    {
+      "id": "stats-leaderboard-log-negative-offset",
+      "routeId": "GET /stats/leaderboard-log",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leaderboard-log?page=-1&perPage=1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "stats-leaderboard-log-negative-limit",
+      "routeId": "GET /stats/leaderboard-log",
+      "request": {
+        "method": "GET",
+        "path": "/stats/leaderboard-log?page=1&perPage=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "stats-tier-population-cache-miss",
+      "routeId": "GET /stats/tier-population",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tier-population?fbclid=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/tier", "equals": 21 },
+        { "pointer": "/body/0/player_count", "equals": "50" },
+        { "pointer": "/body/0/percentage", "equals": "50.00" },
+        { "pointer": "/body/2/percentage", "equals": "20.00" }
+      ]
+    },
+    {
+      "id": "stats-tier-population-cache-hit-canonical",
+      "routeId": "GET /stats/tier-population",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tier-population"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/headers/x-cache-age", "equals": "0" },
+        { "pointer": "/body", "length": 3 }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-cache-miss",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=101&limit=2&utm_campaign=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/rank", "equals": 1 },
+        { "pointer": "/body/0/playerId", "equals": "1" },
+        { "pointer": "/body/0/playerName", "equals": "PublicAlpha" },
+        { "pointer": "/body/0/mu", "equals": "1800.25" },
+        { "pointer": "/body/1/playerName", "equals": "PublicBravo" }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-cache-hit-canonical-order",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?limit=2&championId=101"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/headers/x-cache-age", "equals": "0" },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-display-name-fallbacks",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=101"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 5 },
+        { "pointer": "/body/2/playerName", "equals": "StoredCharlie" },
+        { "pointer": "/body/3/playerName", "equals": "Player 4" },
+        { "pointer": "/body/4/playerName", "equals": "Player 6" }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-prefix-parsing",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=101tail&limit=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/playerId", "equals": "1" }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-limit-cap",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=101&limit=500"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 5 }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-invalid-id",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=0"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" },
+        { "pointer": "/body/error/message", "equals": "Invalid championId." }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-missing-id",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-negative-limit",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=101&limit=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "stats-champion-leaderboard-other-champion",
+      "routeId": "GET /stats/champion-leaderboard",
+      "request": {
+        "method": "GET",
+        "path": "/stats/champion-leaderboard?championId=202"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/playerName", "equals": "OtherChampion" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:39:36.100Z",
+  "manifestSha256": "7ba54518e3104fdecfda2fb3dcdea029226a27909ce3d1f9d8f937b60ae92378",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41282/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41282/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 3,
+    "passingTables": 3,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "broken_skins",
+          "rowCount": 2,
+          "sha256": "19d95d8073309f1534b1ebe84da78b809b5c31e0e0bfbecd1af25c8661e70dfc"
+        },
+        {
+          "name": "recovery_stats",
+          "rowCount": 2,
+          "sha256": "aeff5a38b7899303acb382bd5a5e08d6027a615f438cf35f8f4350339bb841f5"
+        },
+        {
+          "name": "raw_ingest_buffer",
+          "rowCount": 4,
+          "sha256": "4c49d8b7c1feb16936753edfa69e5c786d16febb9ff3e5f5acadaafec3e2579c"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "broken_skins",
+          "rowCount": 2,
+          "sha256": "19d95d8073309f1534b1ebe84da78b809b5c31e0e0bfbecd1af25c8661e70dfc"
+        },
+        {
+          "name": "recovery_stats",
+          "rowCount": 2,
+          "sha256": "aeff5a38b7899303acb382bd5a5e08d6027a615f438cf35f8f4350339bb841f5"
+        },
+        {
+          "name": "raw_ingest_buffer",
+          "rowCount": 4,
+          "sha256": "4c49d8b7c1feb16936753edfa69e5c786d16febb9ff3e5f5acadaafec3e2579c"
+        }
+      ]
+    }
+  }
+}

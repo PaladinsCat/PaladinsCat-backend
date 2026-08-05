@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "description": "Exact TypeScript-to-Rust parity for ranked and casual item aggregate statistics.",
+  "fixtures": [
+    {
+      "id": "stats-items-ranked-default-cache-miss",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?utm_source=fixture" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/item_id", "equals": 100 },
+        { "pointer": "/body/0/total_uses", "equals": "18" },
+        { "pointer": "/body/0/win_rate", "equals": "61.11" },
+        { "pointer": "/body/0/pick_rate", "equals": "36.00" }
+      ]
+    },
+    {
+      "id": "stats-items-ranked-default-cache-hit",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/body/0/total_uses", "equals": "18" }
+      ]
+    },
+    {
+      "id": "stats-items-ranked-frontline-tier",
+      "routeId": "GET /stats/items",
+      "request": {
+        "method": "GET",
+        "path": "/stats/items?role=front-line&tierMin=10&tierMax=10"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/item_id", "equals": 100 },
+        { "pointer": "/body/0/total_uses", "equals": "5" },
+        { "pointer": "/body/0/pick_rate", "equals": "50.00" }
+      ]
+    },
+    {
+      "id": "stats-items-ranked-champion",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?championId=1" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/total_uses", "equals": "15" }
+      ]
+    },
+    {
+      "id": "stats-items-ranked-empty-role-is-ignored",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?role=" },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/total_uses", "equals": "18" }
+      ]
+    },
+    {
+      "id": "stats-items-casual-all-scopes",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=casual" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/item_id", "equals": 100 },
+        { "pointer": "/body/0/total_uses", "equals": "4" },
+        { "pointer": "/body/0/win_rate", "equals": "50.00" },
+        { "pointer": "/body/0/pick_rate", "equals": "80.00" }
+      ]
+    },
+    {
+      "id": "stats-items-casual-scope",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=casual&scope=casual" },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/total_uses", "equals": "3" },
+        { "pointer": "/body/0/pick_rate", "equals": "100.00" }
+      ]
+    },
+    {
+      "id": "stats-items-casual-queue-number-semantics",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=casual&queueId=4.25e2" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/item_id", "equals": 200 }
+      ]
+    },
+    {
+      "id": "stats-items-invalid-mode",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=special" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Mode must be ranked or casual." }
+      ]
+    },
+    {
+      "id": "stats-items-casual-rejects-tier",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=casual&tierMin=5" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "tierMin is available only for ranked item statistics."
+        }
+      ]
+    },
+    {
+      "id": "stats-items-casual-invalid-scope",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=casual&scope=ranked" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "Invalid casual scope. Use casual, bot, team_deathmatch, arcade, wave_defense, experiment, newcomer, custom, other."
+        }
+      ]
+    },
+    {
+      "id": "stats-items-casual-invalid-queue",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?mode=casual&queueId=486" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "queueId must identify a positive non-ranked queue."
+        }
+      ]
+    },
+    {
+      "id": "stats-items-ranked-invalid-role",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?role=tank" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "Invalid role. Use Frontline, Damage, Flank, or Support."
+        }
+      ]
+    },
+    {
+      "id": "stats-items-ranked-invalid-champion-envelope",
+      "routeId": "GET /stats/items",
+      "request": { "method": "GET", "path": "/stats/items?championId=0" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error", "equals": "Invalid champion id" }
+      ]
+    }
+  ]
+}

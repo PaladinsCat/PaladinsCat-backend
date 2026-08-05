@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "description": "Base worker trace normalization. Scenario manifests may add narrower rules but may not silently ignore event order, relay operations, claims, checkpoints, or terminal states.",
+  "normalize": [
+    { "operation": "replace", "pointer": "/at", "value": "<deterministic-clock>" }
+  ]
+}

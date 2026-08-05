@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "matches", "orderBy": ["match_id"] },
+    { "name": "players", "orderBy": ["id"] },
+    { "name": "users", "orderBy": ["id"] },
+    { "name": "builds", "orderBy": ["id"] },
+    { "name": "tier_lists", "orderBy": ["post_id"] },
+    { "name": "posts", "orderBy": ["id"] },
+    {
+      "name": "site_daily_visitors",
+      "orderBy": ["visit_date", "visitor_hash"]
+    },
+    {
+      "name": "nonranked_match_acquisition",
+      "orderBy": ["match_id"]
+    },
+    { "name": "stack_versions", "orderBy": ["id"] }
+  ]
+}

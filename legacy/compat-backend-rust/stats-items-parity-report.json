@@ -1,0 +1,2174 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:56.496Z",
+  "inventorySha256": "49db1ad9212f0d18ed23050f33103760dcf20c509b3d51d4a7427d39254e330d",
+  "fixtureSha256": "ae28d1e958a20ab87a13c194ce1310611afe43ed6e38737b21690f1dd9b216aa",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:53163",
+    "rust": "http://127.0.0.1:53164"
+  },
+  "summary": {
+    "fixtures": 14,
+    "passedFixtures": 14,
+    "failedFixtures": 0,
+    "coveredRoutes": 1,
+    "passingRoutes": 1
+  },
+  "passingRouteIds": [
+    "GET /stats/items"
+  ],
+  "results": [
+    {
+      "id": "stats-items-ranked-default-cache-miss",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "18",
+            "win_rate": "61.11",
+            "pick_rate": "36.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 69.23,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "pick_rate": 26,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 10,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 300,
+            "item_name": "Item 300",
+            "total_uses": "7",
+            "win_rate": "57.14",
+            "pick_rate": "14.00",
+            "slots": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "total_uses": 7
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 57.14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "pick_rate": 14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "8.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 8,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "18",
+            "win_rate": "61.11",
+            "pick_rate": "36.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 69.23,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "pick_rate": 26,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 10,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 300,
+            "item_name": "Item 300",
+            "total_uses": "7",
+            "win_rate": "57.14",
+            "pick_rate": "14.00",
+            "slots": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "total_uses": 7
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 57.14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "pick_rate": 14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "8.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 8,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-ranked-default-cache-hit",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "18",
+            "win_rate": "61.11",
+            "pick_rate": "36.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 69.23,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "pick_rate": 26,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 10,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 300,
+            "item_name": "Item 300",
+            "total_uses": "7",
+            "win_rate": "57.14",
+            "pick_rate": "14.00",
+            "slots": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "total_uses": 7
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 57.14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "pick_rate": 14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "8.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 8,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "18",
+            "win_rate": "61.11",
+            "pick_rate": "36.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 69.23,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "pick_rate": 26,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 10,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 300,
+            "item_name": "Item 300",
+            "total_uses": "7",
+            "win_rate": "57.14",
+            "pick_rate": "14.00",
+            "slots": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "total_uses": 7
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 57.14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "pick_rate": 14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "8.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 8,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-ranked-frontline-tier",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "5",
+            "win_rate": "40.00",
+            "pick_rate": "50.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 50,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "5",
+            "win_rate": "40.00",
+            "pick_rate": "50.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 50,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-ranked-champion",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "15",
+            "win_rate": "53.33",
+            "pick_rate": "50.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 60,
+                "total_uses": 10
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 60,
+                "item_level": 1,
+                "total_uses": 10
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 60,
+                "pick_rate": 33.33,
+                "item_level": 1,
+                "total_uses": 10
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 16.67,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "13.33",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 13.33,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "15",
+            "win_rate": "53.33",
+            "pick_rate": "50.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 60,
+                "total_uses": 10
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 60,
+                "item_level": 1,
+                "total_uses": 10
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 60,
+                "pick_rate": 33.33,
+                "item_level": 1,
+                "total_uses": 10
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 16.67,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "13.33",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 13.33,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-ranked-empty-role-is-ignored",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "18",
+            "win_rate": "61.11",
+            "pick_rate": "36.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 69.23,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "pick_rate": 26,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 10,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 300,
+            "item_name": "Item 300",
+            "total_uses": "7",
+            "win_rate": "57.14",
+            "pick_rate": "14.00",
+            "slots": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "total_uses": 7
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 57.14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "pick_rate": 14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "8.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 8,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "18",
+            "win_rate": "61.11",
+            "pick_rate": "36.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "total_uses": 5
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 69.23,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "win_rate": 40,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 69.23,
+                "pick_rate": 26,
+                "item_level": 1,
+                "total_uses": 13
+              },
+              {
+                "slot": 2,
+                "win_rate": 40,
+                "pick_rate": 10,
+                "item_level": 2,
+                "total_uses": 5
+              }
+            ]
+          },
+          {
+            "item_id": 300,
+            "item_name": "Item 300",
+            "total_uses": "7",
+            "win_rate": "57.14",
+            "pick_rate": "14.00",
+            "slots": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "total_uses": 7
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 57.14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 3,
+                "win_rate": 57.14,
+                "pick_rate": 14,
+                "item_level": 2,
+                "total_uses": 7
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "4",
+            "win_rate": "25.00",
+            "pick_rate": "8.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "total_uses": 4
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 25,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 25,
+                "pick_rate": 8,
+                "item_level": 1,
+                "total_uses": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-casual-all-scopes",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "4",
+            "win_rate": "50.00",
+            "pick_rate": "80.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 33.33,
+                "total_uses": 3
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "total_uses": 1
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 33.33,
+                "item_level": 1,
+                "total_uses": 3
+              },
+              {
+                "win_rate": 100,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 33.33,
+                "pick_rate": 60,
+                "item_level": 1,
+                "total_uses": 3
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "pick_rate": 20,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "3",
+            "win_rate": "66.67",
+            "pick_rate": "60.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "total_uses": 3
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 66.67,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "pick_rate": 60,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "4",
+            "win_rate": "50.00",
+            "pick_rate": "80.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 33.33,
+                "total_uses": 3
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "total_uses": 1
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 33.33,
+                "item_level": 1,
+                "total_uses": 3
+              },
+              {
+                "win_rate": 100,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 33.33,
+                "pick_rate": 60,
+                "item_level": 1,
+                "total_uses": 3
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "pick_rate": 20,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ]
+          },
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "3",
+            "win_rate": "66.67",
+            "pick_rate": "60.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "total_uses": 3
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 66.67,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "pick_rate": 60,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-casual-scope",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "3",
+            "win_rate": "66.67",
+            "pick_rate": "100.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 50,
+                "total_uses": 2
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "total_uses": 1
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 50,
+                "item_level": 1,
+                "total_uses": 2
+              },
+              {
+                "win_rate": 100,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 50,
+                "pick_rate": 66.67,
+                "item_level": 1,
+                "total_uses": 2
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "pick_rate": 33.33,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "3",
+            "win_rate": "66.67",
+            "pick_rate": "100.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 50,
+                "total_uses": 2
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "total_uses": 1
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 50,
+                "item_level": 1,
+                "total_uses": 2
+              },
+              {
+                "win_rate": 100,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 50,
+                "pick_rate": 66.67,
+                "item_level": 1,
+                "total_uses": 2
+              },
+              {
+                "slot": 2,
+                "win_rate": 100,
+                "pick_rate": 33.33,
+                "item_level": 2,
+                "total_uses": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-casual-queue-number-semantics",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "3",
+            "win_rate": "66.67",
+            "pick_rate": "150.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "total_uses": 3
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 66.67,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "pick_rate": 150,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ]
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "1",
+            "win_rate": "0.00",
+            "pick_rate": "50.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 0,
+                "total_uses": 1
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 0,
+                "item_level": 1,
+                "total_uses": 1
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 0,
+                "pick_rate": 50,
+                "item_level": 1,
+                "total_uses": 1
+              }
+            ]
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "item_id": 200,
+            "item_name": "Haven",
+            "total_uses": "3",
+            "win_rate": "66.67",
+            "pick_rate": "150.00",
+            "slots": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "total_uses": 3
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 66.67,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 2,
+                "win_rate": 66.67,
+                "pick_rate": 150,
+                "item_level": 1,
+                "total_uses": 3
+              }
+            ]
+          },
+          {
+            "item_id": 100,
+            "item_name": "Chronos",
+            "total_uses": "1",
+            "win_rate": "0.00",
+            "pick_rate": "50.00",
+            "slots": [
+              {
+                "slot": 1,
+                "win_rate": 0,
+                "total_uses": 1
+              }
+            ],
+            "levels": [
+              {
+                "win_rate": 0,
+                "item_level": 1,
+                "total_uses": 1
+              }
+            ],
+            "breakdown": [
+              {
+                "slot": 1,
+                "win_rate": 0,
+                "pick_rate": 50,
+                "item_level": 1,
+                "total_uses": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-items-invalid-mode",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Mode must be ranked or casual."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Mode must be ranked or casual."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-items-casual-rejects-tier",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "tierMin is available only for ranked item statistics."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "tierMin is available only for ranked item statistics."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-items-casual-invalid-scope",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid casual scope. Use casual, bot, team_deathmatch, arcade, wave_defense, experiment, newcomer, custom, other."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid casual scope. Use casual, bot, team_deathmatch, arcade, wave_defense, experiment, newcomer, custom, other."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-items-casual-invalid-queue",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "queueId must identify a positive non-ranked queue."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "queueId must identify a positive non-ranked queue."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-items-ranked-invalid-role",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid role. Use Frontline, Damage, Flank, or Support."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid role. Use Frontline, Damage, Flank, or Support."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-items-ranked-invalid-champion-envelope",
+      "routeId": "GET /stats/items",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": "Invalid champion id"
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": "Invalid champion id"
+        }
+      }
+    }
+  ]
+}

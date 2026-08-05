@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "matches", "orderBy": ["match_id", "entry_datetime"] },
+    {
+      "name": "match_lobby_tiers",
+      "orderBy": ["match_id", "entry_datetime"]
+    },
+    {
+      "name": "match_players",
+      "orderBy": ["match_id", "entry_datetime", "player_id"]
+    },
+    {
+      "name": "stats_match_aggregate",
+      "orderBy": ["queue_id", "lobby_tier", "stat_date", "region", "map_name"]
+    },
+    {
+      "name": "stats_player_aggregate",
+      "orderBy": ["queue_id", "lobby_tier", "champion_id", "map_name", "platform"]
+    },
+    { "name": "champions", "orderBy": ["id"] },
+    { "name": "players", "orderBy": ["id"] },
+    { "name": "player_loadouts", "orderBy": ["id"] },
+    { "name": "leaderboard_current", "orderBy": ["player_id"] },
+    { "name": "ranked_tiers", "orderBy": ["tier_id"] },
+    { "name": "tier_stats", "orderBy": ["source"] }
+  ]
+}

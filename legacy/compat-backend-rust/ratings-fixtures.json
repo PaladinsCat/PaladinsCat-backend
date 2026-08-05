@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 1,
+  "description": "Rating filters, sorting, pagination, numeric precision, display-name, validation, and schema-compatible queue filtering.",
+  "fixtures": [
+    {
+      "id": "ratings-queue-sorted",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/queue/100?sort=mu&order=asc"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/queue_id", "equals": 424 },
+        { "pointer": "/body/0/mu", "equals": "1400.00" },
+        { "pointer": "/body/1/mu", "equals": "1600.50" },
+        { "pointer": "/body/1/volatility", "equals": "0.0600" }
+      ]
+    },
+    {
+      "id": "ratings-queue-filter",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/queue/100?queueId=486"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/queue_id", "equals": 486 }
+      ]
+    },
+    {
+      "id": "ratings-queue-prefix-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": { "method": "GET", "path": "/ratings/queue/100tail?queueId=486tail" },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/player_id", "equals": "100" }
+      ]
+    },
+    {
+      "id": "ratings-queue-missing-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": { "method": "GET", "path": "/ratings/queue/999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 0 }
+      ]
+    },
+    {
+      "id": "ratings-queue-invalid-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": { "method": "GET", "path": "/ratings/queue/invalid" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid player ID" }
+      ]
+    },
+    {
+      "id": "ratings-queue-zero-player",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": { "method": "GET", "path": "/ratings/queue/0" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "ratings-queue-invalid-filter",
+      "routeId": "GET /ratings/queue/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/queue/100?queueId=invalid"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    },
+    {
+      "id": "ratings-champion-sorted",
+      "routeId": "GET /ratings/champion/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/champion/100?sort=matches_played&order=desc"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/champion_id", "equals": 1 },
+        { "pointer": "/body/0/mu", "equals": "1650.00" }
+      ]
+    },
+    {
+      "id": "ratings-champion-filter",
+      "routeId": "GET /ratings/champion/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/champion/100?championId=2"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/champion_id", "equals": 2 }
+      ]
+    },
+    {
+      "id": "ratings-champion-invalid-player",
+      "routeId": "GET /ratings/champion/:playerId",
+      "request": { "method": "GET", "path": "/ratings/champion/no" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "ratings-champion-meta",
+      "routeId": "GET /ratings/champion/meta",
+      "request": { "method": "GET", "path": "/ratings/champion/meta" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/champion_id", "equals": 1 },
+        { "pointer": "/body/0/rating", "equals": 1700.5 }
+      ]
+    },
+    {
+      "id": "ratings-champion-match-history",
+      "routeId": "GET /ratings/champion/match-history/:championId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/champion/match-history/1?page=1&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/match_id", "equals": "301" },
+        { "pointer": "/body/0/pre_rating", "equals": "1625.2500" }
+      ]
+    },
+    {
+      "id": "ratings-champion-match-history-page",
+      "routeId": "GET /ratings/champion/match-history/:championId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/champion/match-history/1?page=2&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body/0/match_id", "equals": "300" },
+        { "pointer": "/body/0/post_rating", "equals": "1625.2500" }
+      ]
+    },
+    {
+      "id": "ratings-champion-match-history-invalid",
+      "routeId": "GET /ratings/champion/match-history/:championId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/champion/match-history/invalid"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    },
+    {
+      "id": "ratings-match-snapshots",
+      "routeId": "GET /ratings/snapshots/:matchId",
+      "request": { "method": "GET", "path": "/ratings/snapshots/300" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/player_name", "equals": "Preferred Name" },
+        { "pointer": "/body/1/player_name", "equals": "Visible Gamer" },
+        { "pointer": "/body/0/queue_mu_post", "equals": "1600.50" }
+      ]
+    },
+    {
+      "id": "ratings-match-snapshots-invalid",
+      "routeId": "GET /ratings/snapshots/:matchId",
+      "request": { "method": "GET", "path": "/ratings/snapshots/no" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid match ID" }
+      ]
+    },
+    {
+      "id": "ratings-match-snapshots-empty",
+      "routeId": "GET /ratings/snapshots/:matchId",
+      "request": { "method": "GET", "path": "/ratings/snapshots/999" },
+      "assertions": [
+        { "pointer": "/body", "length": 0 }
+      ]
+    },
+    {
+      "id": "ratings-player-snapshots",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/snapshots/player/100"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/match_id", "equals": "301" },
+        { "pointer": "/body/1/match_id", "equals": "300" }
+      ]
+    },
+    {
+      "id": "ratings-player-snapshots-from",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/snapshots/player/100?from=301"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/match_id", "equals": "301" }
+      ]
+    },
+    {
+      "id": "ratings-player-snapshots-queue",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/snapshots/player/100?queueId=486"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/match_id", "equals": "300" }
+      ]
+    },
+    {
+      "id": "ratings-player-snapshots-invalid-from",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/snapshots/player/100?from=invalid"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    },
+    {
+      "id": "ratings-player-snapshots-invalid-queue",
+      "routeId": "GET /ratings/snapshots/player/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/snapshots/player/100?queueId=invalid"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    },
+    {
+      "id": "ratings-distribution-default",
+      "routeId": "GET /ratings/distribution",
+      "request": { "method": "GET", "path": "/ratings/distribution" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/0/bin_start", "equals": "1400" },
+        { "pointer": "/body/1/bin_start", "equals": "1600" },
+        { "pointer": "/body/2/bin_start", "equals": "1700" }
+      ]
+    },
+    {
+      "id": "ratings-distribution-bin",
+      "routeId": "GET /ratings/distribution",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/distribution?binSize=100"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 },
+        { "pointer": "/body/2/bin_start", "equals": "1700" }
+      ]
+    },
+    {
+      "id": "ratings-distribution-zero-default",
+      "routeId": "GET /ratings/distribution",
+      "request": {
+        "method": "GET",
+        "path": "/ratings/distribution?binSize=0"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 3 }
+      ]
+    },
+    {
+      "id": "ratings-volatility",
+      "routeId": "GET /ratings/volatility/:playerId",
+      "request": { "method": "GET", "path": "/ratings/volatility/100" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/queue_id", "equals": 424 },
+        { "pointer": "/body/0/volatility", "equals": "0.1000" },
+        { "pointer": "/body/1/volatility", "equals": "0.0600" }
+      ]
+    },
+    {
+      "id": "ratings-volatility-invalid",
+      "routeId": "GET /ratings/volatility/:playerId",
+      "request": { "method": "GET", "path": "/ratings/volatility/invalid" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "description": "Player-ext reads are immutable; report mutations must create identical votes and moderation state.",
+  "tables": [
+    {
+      "name": "players_private",
+      "orderBy": ["id"],
+      "omitColumns": ["cheater_marked_at", "updated_at"]
+    },
+    {
+      "name": "private_account_community_votes",
+      "orderBy": ["private_player_id", "user_id", "vote_type"],
+      "omitColumns": ["id", "created_at"]
+    }
+  ]
+}

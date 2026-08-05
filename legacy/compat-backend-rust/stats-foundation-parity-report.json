@@ -1,0 +1,2908 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:46.082Z",
+  "inventorySha256": "49db1ad9212f0d18ed23050f33103760dcf20c509b3d51d4a7427d39254e330d",
+  "fixtureSha256": "b9a44c448c5863fbb6192d93b20c4540a93f86125d758dd302b905926275806c",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:58989",
+    "rust": "http://127.0.0.1:58990"
+  },
+  "summary": {
+    "fixtures": 27,
+    "passedFixtures": 27,
+    "failedFixtures": 0,
+    "coveredRoutes": 5,
+    "passingRoutes": 5
+  },
+  "passingRouteIds": [
+    "GET /stats/leagues",
+    "GET /stats/ranked-leaderboard",
+    "GET /stats/leaderboard-log",
+    "GET /stats/tier-population",
+    "GET /stats/champion-leaderboard"
+  ],
+  "results": [
+    {
+      "id": "stats-leagues-cache-miss-tracking-ignored",
+      "routeId": "GET /stats/leagues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "league_tier": 21,
+            "total_plays": "5",
+            "unique_players": "4",
+            "win_rate": "50.00"
+          },
+          {
+            "league_tier": 22,
+            "total_plays": "3",
+            "unique_players": "3",
+            "win_rate": "66.67"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "league_tier": 21,
+            "total_plays": "5",
+            "unique_players": "4",
+            "win_rate": "50.00"
+          },
+          {
+            "league_tier": 22,
+            "total_plays": "3",
+            "unique_players": "3",
+            "win_rate": "66.67"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-leagues-cache-hit-canonical",
+      "routeId": "GET /stats/leagues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "league_tier": 21,
+            "total_plays": "5",
+            "unique_players": "4",
+            "win_rate": "50.00"
+          },
+          {
+            "league_tier": 22,
+            "total_plays": "3",
+            "unique_players": "3",
+            "win_rate": "66.67"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "league_tier": 21,
+            "total_plays": "5",
+            "unique_players": "4",
+            "win_rate": "50.00"
+          },
+          {
+            "league_tier": 22,
+            "total_plays": "3",
+            "unique_players": "3",
+            "win_rate": "66.67"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-cache-miss",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          },
+          {
+            "player_id": "102",
+            "name": "Bravo",
+            "tier": 21,
+            "points": 1800,
+            "rank": 2,
+            "prev_rank": null,
+            "prev_tier": 20,
+            "trend": 0,
+            "tier_change": 1,
+            "wins": 15,
+            "losses": 15,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "winrate": 50,
+            "leaverate": 0
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          },
+          {
+            "player_id": "102",
+            "name": "Bravo",
+            "tier": 21,
+            "points": 1800,
+            "rank": 2,
+            "prev_rank": null,
+            "prev_tier": 20,
+            "trend": 0,
+            "tier_change": 1,
+            "wins": 15,
+            "losses": 15,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "winrate": 50,
+            "leaverate": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-cache-hit-canonical-order",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          },
+          {
+            "player_id": "102",
+            "name": "Bravo",
+            "tier": 21,
+            "points": 1800,
+            "rank": 2,
+            "prev_rank": null,
+            "prev_tier": 20,
+            "trend": 0,
+            "tier_change": 1,
+            "wins": 15,
+            "losses": 15,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "winrate": 50,
+            "leaverate": 0
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          },
+          {
+            "player_id": "102",
+            "name": "Bravo",
+            "tier": 21,
+            "points": 1800,
+            "rank": 2,
+            "prev_rank": null,
+            "prev_tier": 20,
+            "trend": 0,
+            "tier_change": 1,
+            "wins": 15,
+            "losses": 15,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "winrate": 50,
+            "leaverate": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-prefix-parsing",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-top-cap",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          },
+          {
+            "player_id": "102",
+            "name": "Bravo",
+            "tier": 21,
+            "points": 1800,
+            "rank": 2,
+            "prev_rank": null,
+            "prev_tier": 20,
+            "trend": 0,
+            "tier_change": 1,
+            "wins": 15,
+            "losses": 15,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "winrate": 50,
+            "leaverate": 0
+          },
+          {
+            "player_id": "103",
+            "name": "Charlie",
+            "tier": 21,
+            "points": 1700,
+            "rank": 4,
+            "prev_rank": 2,
+            "prev_tier": 21,
+            "trend": -2,
+            "tier_change": 0,
+            "wins": 9,
+            "losses": 11,
+            "leaves": 2,
+            "season": 8,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "winrate": 45,
+            "leaverate": 10
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "101",
+            "name": "Alpha",
+            "tier": 21,
+            "points": 1900,
+            "rank": 1,
+            "prev_rank": 3,
+            "prev_tier": 21,
+            "trend": 2,
+            "tier_change": 0,
+            "wins": 20,
+            "losses": 10,
+            "leaves": 1,
+            "season": 8,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "winrate": 66.67,
+            "leaverate": 3.33
+          },
+          {
+            "player_id": "102",
+            "name": "Bravo",
+            "tier": 21,
+            "points": 1800,
+            "rank": 2,
+            "prev_rank": null,
+            "prev_tier": 20,
+            "trend": 0,
+            "tier_change": 1,
+            "wins": 15,
+            "losses": 15,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "winrate": 50,
+            "leaverate": 0
+          },
+          {
+            "player_id": "103",
+            "name": "Charlie",
+            "tier": 21,
+            "points": 1700,
+            "rank": 4,
+            "prev_rank": 2,
+            "prev_tier": 21,
+            "trend": -2,
+            "tier_change": 0,
+            "wins": 9,
+            "losses": 11,
+            "leaves": 2,
+            "season": 8,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "winrate": 45,
+            "leaverate": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-zero-default",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "201",
+            "name": "Delta",
+            "tier": 22,
+            "points": 2100,
+            "rank": 1,
+            "prev_rank": 1,
+            "prev_tier": 22,
+            "trend": 0,
+            "tier_change": 0,
+            "wins": 30,
+            "losses": 5,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-04T00:00:00.000Z",
+            "winrate": 85.71,
+            "leaverate": 0
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "player_id": "201",
+            "name": "Delta",
+            "tier": 22,
+            "points": 2100,
+            "rank": 1,
+            "prev_rank": 1,
+            "prev_tier": 22,
+            "trend": 0,
+            "tier_change": 0,
+            "wins": 30,
+            "losses": 5,
+            "leaves": 0,
+            "season": 8,
+            "updated_at": "2026-03-04T00:00:00.000Z",
+            "winrate": 85.71,
+            "leaverate": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-missing-tier",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid tier. Must be 21-26 (Diamond 5 to Master)."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid tier. Must be 21-26 (Diamond 5 to Master)."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-tier-out-of-range",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid tier. Must be 21-26 (Diamond 5 to Master)."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid tier. Must be 21-26 (Diamond 5 to Master)."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-ranked-leaderboard-negative-limit",
+      "routeId": "GET /stats/ranked-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-a"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-10"
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-leaderboard-log-default-updated-at-order",
+      "routeId": "GET /stats/leaderboard-log",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "season": 8,
+            "round": 2,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22,
+              23
+            ],
+            "total_players": 150,
+            "trigger_type": "automatic",
+            "dev_id": null,
+            "next_auto": "2026-03-04T00:00:00.000Z",
+            "status": "completed"
+          },
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          },
+          {
+            "id": 1,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "season": 8,
+            "round": 1,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22
+            ],
+            "total_players": 100,
+            "trigger_type": "manual",
+            "dev_id": "dev-one",
+            "next_auto": "2026-03-02T00:00:00.000Z",
+            "status": "completed"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "season": 8,
+            "round": 2,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22,
+              23
+            ],
+            "total_players": 150,
+            "trigger_type": "automatic",
+            "dev_id": null,
+            "next_auto": "2026-03-04T00:00:00.000Z",
+            "status": "completed"
+          },
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          },
+          {
+            "id": 1,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "season": 8,
+            "round": 1,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22
+            ],
+            "total_players": 100,
+            "trigger_type": "manual",
+            "dev_id": "dev-one",
+            "next_auto": "2026-03-02T00:00:00.000Z",
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-leaderboard-log-pagination-prefix",
+      "routeId": "GET /stats/leaderboard-log",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-leaderboard-log-per-page-cap",
+      "routeId": "GET /stats/leaderboard-log",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "season": 8,
+            "round": 2,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22,
+              23
+            ],
+            "total_players": 150,
+            "trigger_type": "automatic",
+            "dev_id": null,
+            "next_auto": "2026-03-04T00:00:00.000Z",
+            "status": "completed"
+          },
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          },
+          {
+            "id": 1,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "season": 8,
+            "round": 1,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22
+            ],
+            "total_players": 100,
+            "trigger_type": "manual",
+            "dev_id": "dev-one",
+            "next_auto": "2026-03-02T00:00:00.000Z",
+            "status": "completed"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "season": 8,
+            "round": 2,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22,
+              23
+            ],
+            "total_players": 150,
+            "trigger_type": "automatic",
+            "dev_id": null,
+            "next_auto": "2026-03-04T00:00:00.000Z",
+            "status": "completed"
+          },
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          },
+          {
+            "id": 1,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "season": 8,
+            "round": 1,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22
+            ],
+            "total_players": 100,
+            "trigger_type": "manual",
+            "dev_id": "dev-one",
+            "next_auto": "2026-03-02T00:00:00.000Z",
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-leaderboard-log-zero-defaults",
+      "routeId": "GET /stats/leaderboard-log",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "season": 8,
+            "round": 2,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22,
+              23
+            ],
+            "total_players": 150,
+            "trigger_type": "automatic",
+            "dev_id": null,
+            "next_auto": "2026-03-04T00:00:00.000Z",
+            "status": "completed"
+          },
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          },
+          {
+            "id": 1,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "season": 8,
+            "round": 1,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22
+            ],
+            "total_players": 100,
+            "trigger_type": "manual",
+            "dev_id": "dev-one",
+            "next_auto": "2026-03-02T00:00:00.000Z",
+            "status": "completed"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "id": 2,
+            "updated_at": "2026-03-03T00:00:00.000Z",
+            "season": 8,
+            "round": 2,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22,
+              23
+            ],
+            "total_players": 150,
+            "trigger_type": "automatic",
+            "dev_id": null,
+            "next_auto": "2026-03-04T00:00:00.000Z",
+            "status": "completed"
+          },
+          {
+            "id": 3,
+            "updated_at": "2026-03-02T00:00:00.000Z",
+            "season": 8,
+            "round": 3,
+            "queue_id": 486,
+            "tiers_updated": [
+              24,
+              25,
+              26
+            ],
+            "total_players": 75,
+            "trigger_type": "manual",
+            "dev_id": "dev-two",
+            "next_auto": "2026-03-03T00:00:00.000Z",
+            "status": "failed"
+          },
+          {
+            "id": 1,
+            "updated_at": "2026-03-01T00:00:00.000Z",
+            "season": 8,
+            "round": 1,
+            "queue_id": 486,
+            "tiers_updated": [
+              21,
+              22
+            ],
+            "total_players": 100,
+            "trigger_type": "manual",
+            "dev_id": "dev-one",
+            "next_auto": "2026-03-02T00:00:00.000Z",
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-leaderboard-log-negative-offset",
+      "routeId": "GET /stats/leaderboard-log",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-f"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-15"
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-leaderboard-log-negative-limit",
+      "routeId": "GET /stats/leaderboard-log",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-g"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-16"
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-tier-population-cache-miss",
+      "routeId": "GET /stats/tier-population",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": 21,
+            "tier_name": "Diamond V",
+            "player_count": "50",
+            "percentage": "50.00"
+          },
+          {
+            "tier": 22,
+            "tier_name": "Diamond IV",
+            "player_count": "30",
+            "percentage": "30.00"
+          },
+          {
+            "tier": 26,
+            "tier_name": "Master",
+            "player_count": "20",
+            "percentage": "20.00"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": 21,
+            "tier_name": "Diamond V",
+            "player_count": "50",
+            "percentage": "50.00"
+          },
+          {
+            "tier": 22,
+            "tier_name": "Diamond IV",
+            "player_count": "30",
+            "percentage": "30.00"
+          },
+          {
+            "tier": 26,
+            "tier_name": "Master",
+            "player_count": "20",
+            "percentage": "20.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-tier-population-cache-hit-canonical",
+      "routeId": "GET /stats/tier-population",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": 21,
+            "tier_name": "Diamond V",
+            "player_count": "50",
+            "percentage": "50.00"
+          },
+          {
+            "tier": 22,
+            "tier_name": "Diamond IV",
+            "player_count": "30",
+            "percentage": "30.00"
+          },
+          {
+            "tier": 26,
+            "tier_name": "Master",
+            "player_count": "20",
+            "percentage": "20.00"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": 21,
+            "tier_name": "Diamond V",
+            "player_count": "50",
+            "percentage": "50.00"
+          },
+          {
+            "tier": 22,
+            "tier_name": "Diamond IV",
+            "player_count": "30",
+            "percentage": "30.00"
+          },
+          {
+            "tier": 26,
+            "tier_name": "Master",
+            "player_count": "20",
+            "percentage": "20.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-cache-miss",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "rank": 1,
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10
+          },
+          {
+            "rank": 2,
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10,
+            "rank": 1
+          },
+          {
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12,
+            "rank": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-cache-hit-canonical-order",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "rank": 1,
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10
+          },
+          {
+            "rank": 2,
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10,
+            "rank": 1
+          },
+          {
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12,
+            "rank": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-display-name-fallbacks",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "rank": 1,
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10
+          },
+          {
+            "rank": 2,
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12
+          },
+          {
+            "rank": 3,
+            "playerId": "3",
+            "playerName": "StoredCharlie",
+            "mu": "1600.75",
+            "phi": "100.00",
+            "matchesPlayed": 20,
+            "wins": 11,
+            "losses": 9
+          },
+          {
+            "rank": 4,
+            "playerId": "4",
+            "playerName": "Player 4",
+            "mu": "1500.00",
+            "phi": "350.00",
+            "matchesPlayed": 10,
+            "wins": 4,
+            "losses": 6
+          },
+          {
+            "rank": 5,
+            "playerId": "6",
+            "playerName": "Player 6",
+            "mu": "1400.00",
+            "phi": "300.00",
+            "matchesPlayed": 5,
+            "wins": 2,
+            "losses": 3
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10,
+            "rank": 1
+          },
+          {
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12,
+            "rank": 2
+          },
+          {
+            "playerId": "3",
+            "playerName": "StoredCharlie",
+            "mu": "1600.75",
+            "phi": "100.00",
+            "matchesPlayed": 20,
+            "wins": 11,
+            "losses": 9,
+            "rank": 3
+          },
+          {
+            "playerId": "4",
+            "playerName": "Player 4",
+            "mu": "1500.00",
+            "phi": "350.00",
+            "matchesPlayed": 10,
+            "wins": 4,
+            "losses": 6,
+            "rank": 4
+          },
+          {
+            "playerId": "6",
+            "playerName": "Player 6",
+            "mu": "1400.00",
+            "phi": "300.00",
+            "matchesPlayed": 5,
+            "wins": 2,
+            "losses": 3,
+            "rank": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-prefix-parsing",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "rank": 1,
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10,
+            "rank": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-limit-cap",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "rank": 1,
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10
+          },
+          {
+            "rank": 2,
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12
+          },
+          {
+            "rank": 3,
+            "playerId": "3",
+            "playerName": "StoredCharlie",
+            "mu": "1600.75",
+            "phi": "100.00",
+            "matchesPlayed": 20,
+            "wins": 11,
+            "losses": 9
+          },
+          {
+            "rank": 4,
+            "playerId": "4",
+            "playerName": "Player 4",
+            "mu": "1500.00",
+            "phi": "350.00",
+            "matchesPlayed": 10,
+            "wins": 4,
+            "losses": 6
+          },
+          {
+            "rank": 5,
+            "playerId": "6",
+            "playerName": "Player 6",
+            "mu": "1400.00",
+            "phi": "300.00",
+            "matchesPlayed": 5,
+            "wins": 2,
+            "losses": 3
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "playerId": "1",
+            "playerName": "PublicAlpha",
+            "mu": "1800.25",
+            "phi": "50.50",
+            "matchesPlayed": 40,
+            "wins": 30,
+            "losses": 10,
+            "rank": 1
+          },
+          {
+            "playerId": "2",
+            "playerName": "PublicBravo",
+            "mu": "1700.00",
+            "phi": "75.25",
+            "matchesPlayed": 30,
+            "wins": 18,
+            "losses": 12,
+            "rank": 2
+          },
+          {
+            "playerId": "3",
+            "playerName": "StoredCharlie",
+            "mu": "1600.75",
+            "phi": "100.00",
+            "matchesPlayed": 20,
+            "wins": 11,
+            "losses": 9,
+            "rank": 3
+          },
+          {
+            "playerId": "4",
+            "playerName": "Player 4",
+            "mu": "1500.00",
+            "phi": "350.00",
+            "matchesPlayed": 10,
+            "wins": 4,
+            "losses": 6,
+            "rank": 4
+          },
+          {
+            "playerId": "6",
+            "playerName": "Player 6",
+            "mu": "1400.00",
+            "phi": "300.00",
+            "matchesPlayed": 5,
+            "wins": 2,
+            "losses": 3,
+            "rank": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-invalid-id",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid championId."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid championId."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-missing-id",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid championId."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid championId."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-negative-limit",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-q"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-26"
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-champion-leaderboard-other-champion",
+      "routeId": "GET /stats/champion-leaderboard",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "rank": 1,
+            "playerId": "7",
+            "playerName": "OtherChampion",
+            "mu": "2200.00",
+            "phi": "40.00",
+            "matchesPlayed": 50,
+            "wins": 40,
+            "losses": 10
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "playerId": "7",
+            "playerName": "OtherChampion",
+            "mu": "2200.00",
+            "phi": "40.00",
+            "matchesPlayed": 50,
+            "wins": 40,
+            "losses": 10,
+            "rank": 1
+          }
+        ]
+      }
+    }
+  ]
+}

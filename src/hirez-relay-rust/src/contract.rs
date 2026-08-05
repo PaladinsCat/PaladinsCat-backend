@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::{model::CompletedMatchRequest, provider::RelayError};
 
 const CONTRACT_JSON: &str =
-    include_str!("../../backend/contracts/hirez-relay-operation-contract.json");
+    include_str!("../contracts/hirez-relay-operation-contract.json");
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

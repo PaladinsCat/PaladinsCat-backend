@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "site_versions", "orderBy": ["id"] },
+    { "name": "stack_versions", "orderBy": ["id"] },
+    {
+      "name": "item_counts_ranked",
+      "orderBy": ["item_id", "slot", "item_level"]
+    },
+    {
+      "name": "item_counts_casual",
+      "orderBy": ["item_id", "slot", "item_level"]
+    },
+    { "name": "talent_counts_ranked", "orderBy": ["talent_id"] },
+    { "name": "talent_counts_casual", "orderBy": ["talent_id"] },
+    {
+      "name": "card_counts_ranked",
+      "orderBy": ["card_id", "card_level"]
+    },
+    {
+      "name": "card_counts_casual",
+      "orderBy": ["card_id", "card_level"]
+    },
+    {
+      "name": "match_compositions_ranked",
+      "orderBy": ["comp_id", "lobby_tier"]
+    }
+  ]
+}

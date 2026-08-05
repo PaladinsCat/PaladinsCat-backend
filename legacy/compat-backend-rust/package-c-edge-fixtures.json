@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "description": "Package C edge read surfaces: search, live-match reads, and raw-response operator evidence.",
+  "defaultHeaders": {
+    "Authorization": "Bearer foundation-operator-fixture"
+  },
+  "fixtures": [
+    {
+      "id": "search-players-meili-read",
+      "routeId": "GET /search/players",
+      "request": { "method": "GET", "path": "/search/players?q=NabiCook&limit=5" }
+    },
+    {
+      "id": "search-matches-meili-read",
+      "routeId": "GET /search/matches",
+      "request": { "method": "GET", "path": "/search/matches?q=1281115795&limit=5" }
+    },
+    {
+      "id": "search-universal-local",
+      "routeId": "GET /search/universal",
+      "request": { "method": "GET", "path": "/search/universal?q=Androxus&limit=10" }
+    },
+    {
+      "id": "live-matches-default",
+      "routeId": "GET /live/matches",
+      "request": { "method": "GET", "path": "/live/matches?page=1&perPage=10" }
+    },
+    {
+      "id": "live-match-detail",
+      "routeId": "GET /live/matches/:matchId",
+      "request": { "method": "GET", "path": "/live/matches/1281115795" }
+    },
+    {
+      "id": "live-player-validation",
+      "routeId": "GET /live/players/:playerId",
+      "request": { "method": "GET", "path": "/live/players/0" }
+    },
+    {
+      "id": "live-drop-hack-suspects",
+      "routeId": "GET /live/drop-hack-suspects",
+      "request": { "method": "GET", "path": "/live/drop-hack-suspects?limit=10" }
+    },
+    {
+      "id": "live-ended",
+      "routeId": "GET /live/ended",
+      "request": { "method": "GET", "path": "/live/ended?limit=10" }
+    },
+    {
+      "id": "hirez-raw-list",
+      "routeId": "GET /api/hirez-raw-responses",
+      "request": { "method": "GET", "path": "/api/hirez-raw-responses?limit=5" }
+    },
+    {
+      "id": "hirez-raw-stats",
+      "routeId": "GET /api/hirez-raw-responses/stats",
+      "request": { "method": "GET", "path": "/api/hirez-raw-responses/stats" }
+    },
+    {
+      "id": "hirez-raw-detail",
+      "routeId": "GET /api/hirez-raw-responses/:id",
+      "request": { "method": "GET", "path": "/api/hirez-raw-responses/1" }
+    },
+    {
+      "id": "raw-buffer-list",
+      "routeId": "GET /api/raw-responses",
+      "request": { "method": "GET", "path": "/api/raw-responses?limit=5" }
+    },
+    {
+      "id": "raw-buffer-stats",
+      "routeId": "GET /api/raw-responses/stats",
+      "request": { "method": "GET", "path": "/api/raw-responses/stats" }
+    },
+    {
+      "id": "raw-buffer-detail",
+      "routeId": "GET /api/raw-responses/:id",
+      "request": { "method": "GET", "path": "/api/raw-responses/1" }
+    },
+    {
+      "id": "raw-buffer-match",
+      "routeId": "GET /api/raw-responses/match/:matchId",
+      "request": { "method": "GET", "path": "/api/raw-responses/match/1281115795" }
+    }
+  ]
+}

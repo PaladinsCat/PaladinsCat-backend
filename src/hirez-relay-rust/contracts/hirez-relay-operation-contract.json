@@ -1,0 +1,539 @@
+{
+  "schemaVersion": 1,
+  "transport": {
+    "callPath": "/v1/call",
+    "healthPath": "/health",
+    "metricsPath": "/metrics",
+    "validationStatus": 400,
+    "validationErrorCode": "VALIDATION_ERROR",
+    "runtimeStatus": 502,
+    "runtimeErrorCode": "RELAY_OPERATION_FAILED"
+  },
+  "dummyMatchScenarios": [
+    "complete",
+    "broken_skin",
+    "omit_from_multi",
+    "roster_failure",
+    "history_missing",
+    "no_player_anchors",
+    "pve_single_human",
+    "vendor_failure"
+  ],
+  "operations": [
+    {
+      "name": "getMatchDetailsBatch",
+      "modes": ["dummy", "real"],
+      "kind": "canonical_match",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "completedMatchRequests", "label": "requests", "minItems": 1, "maxItems": 10 }
+        ]
+      },
+      "validArgs": [[{ "matchId": 1280977354, "queueId": 486 }]],
+      "result": "completed_match_resolutions",
+      "upstream": ["getmatchdetailsbatch", "getplayerbatchfrommatch", "getmatchhistory", "getdemodetails"],
+      "storage": ["matches", "match_players", "match_ingest_status", "player_match_history_cache", "player_match_history_entries"],
+      "cache": "local_first_recovery",
+      "maxOutboundCalls": "data_dependent_recovery"
+    },
+    {
+      "name": "resumeMatchRecovery",
+      "modes": ["dummy", "real"],
+      "kind": "canonical_match_resume",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "completedMatchRequests", "label": "requests", "minItems": 1, "maxItems": 1 }
+        ]
+      },
+      "validArgs": [[{ "matchId": 1280977354, "queueId": 486 }]],
+      "result": "completed_match_resolutions",
+      "upstream": ["getdemodetails"],
+      "storage": ["player_match_history_cache", "player_match_history_entries"],
+      "cache": "local_history_only",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getDataUsed",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "nonEmptyString", "label": "devId" }] },
+      "validArgs": ["2116"],
+      "result": "raw_object",
+      "upstream": ["getdataused"],
+      "storage": ["api_log"],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "syncApiKeyUsage",
+      "modes": ["dummy", "real"],
+      "kind": "local_composite",
+      "validation": { "rules": [{ "index": 0, "kind": "nonEmptyString", "label": "devId" }] },
+      "validArgs": ["2116"],
+      "result": "boolean",
+      "upstream": ["getdataused"],
+      "storage": ["api_keys", "api_key_hourly_usage", "api_log"],
+      "cache": "in_memory_key_pool",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getMatchIdsByQueue",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "queueId" },
+          { "index": 1, "kind": "nonEmptyString", "label": "date" },
+          { "index": 2, "kind": "finiteNumber", "label": "hour" }
+        ]
+      },
+      "validArgs": [486, "20260728", 12],
+      "result": "number_array",
+      "upstream": ["getmatchidsbyqueue"],
+      "storage": ["hourly_ingest_state"],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getMatchIdsByQueueDetails",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "queueId" },
+          { "index": 1, "kind": "nonEmptyString", "label": "date" },
+          { "index": 2, "kind": "finiteNumber", "label": "hour" }
+        ]
+      },
+      "validArgs": [486, "20260728", 12],
+      "result": "match_id_observation_array",
+      "upstream": ["getmatchidsbyqueue"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getMatchDetailsBatchRaw",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_raw",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumberArray", "label": "matchIds" }] },
+      "validArgs": [[1280977354]],
+      "result": "raw_array",
+      "upstream": ["getmatchdetailsbatch"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": "ceil(matchIds/10)"
+    },
+    {
+      "name": "getMatchDetailsRaw",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_raw",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "matchId" }] },
+      "validArgs": [1280977354],
+      "result": "raw_array",
+      "upstream": ["getmatchdetails"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerChampions",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "playerId" }] },
+      "validArgs": [716515038],
+      "result": "raw_array",
+      "upstream": ["getplayerchampions"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getChampionRanks",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "playerId" }] },
+      "validArgs": [716515038],
+      "result": "raw_array",
+      "upstream": ["getchampionranks"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getChampions",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_static",
+      "validation": { "maxArgs": 0, "maxArgsError": "getChampions takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "raw_array",
+      "upstream": ["getchampions"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getItems",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_static",
+      "validation": { "maxArgs": 0, "maxArgsError": "getItems takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "raw_array",
+      "upstream": ["getitems"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getEsportsProLeagueDetails",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_static",
+      "validation": { "maxArgs": 0, "maxArgsError": "getEsportsProLeagueDetails takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "raw_array",
+      "upstream": ["getesportsproleaguedetails"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerLoadouts",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "playerId" }] },
+      "validArgs": [716515038],
+      "result": "raw_array",
+      "upstream": ["getplayerloadouts"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerStatus",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "playerId" }] },
+      "validArgs": [716515038],
+      "result": "raw_array",
+      "upstream": ["getplayerstatus"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getMatchPlayerDetails",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "matchId" }] },
+      "validArgs": [1280977354],
+      "result": "raw_array",
+      "upstream": ["getmatchplayerdetails"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getLeagueLeaderboard",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "queueId" },
+          { "index": 1, "kind": "finiteNumber", "label": "tier" },
+          { "index": 2, "kind": "finiteNumber", "label": "season" }
+        ]
+      },
+      "validArgs": [486, 26, 12],
+      "result": "raw_array",
+      "upstream": ["getleagueleaderboard"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getLeagueSeasons",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "queueId" }] },
+      "validArgs": [486],
+      "result": "raw_array",
+      "upstream": ["getleagueseasons"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerBatchFromMatch",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "matchId" }] },
+      "validArgs": [1280977354],
+      "result": "raw_array",
+      "upstream": ["getplayerbatchfrommatch"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getDemoDetails",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumber", "label": "matchId" }] },
+      "validArgs": [1280977354],
+      "result": "raw_object",
+      "upstream": ["getdemodetails"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerBatch",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumberArray", "label": "playerIds" }] },
+      "validArgs": [[716515038]],
+      "result": "raw_array",
+      "upstream": ["getplayerbatch"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": "ceil(playerIds/20)"
+    },
+    {
+      "name": "getPlayerBatchLookup",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": { "rules": [{ "index": 0, "kind": "finiteNumberArray", "label": "playerIds" }] },
+      "validArgs": [[716515038]],
+      "result": "raw_array",
+      "upstream": ["getplayerbatch"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": "ceil(playerIds/20)"
+    },
+    {
+      "name": "getMatchHistory",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_cached",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "playerId" },
+          { "index": 1, "kind": "finiteNumber", "label": "limit", "optional": true },
+          { "index": 2, "kind": "boolean", "label": "forceRefresh", "optional": true }
+        ]
+      },
+      "validArgs": [716515038, 50, false],
+      "result": "raw_array",
+      "upstream": ["getmatchhistory"],
+      "storage": ["player_match_history_cache", "player_match_history_entries"],
+      "cache": "postgres_local_first",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayers",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": { "rules": [{ "index": 0, "kind": "nonEmptyStringArray", "label": "names" }] },
+      "validArgs": [["NabiCook"]],
+      "result": "raw_array",
+      "upstream": ["getplayers"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": "ceil(names/10)"
+    },
+    {
+      "name": "getPlayerIdByName",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": { "rules": [{ "index": 0, "kind": "nonEmptyString", "label": "playerName" }] },
+      "validArgs": ["NabiCook"],
+      "result": "raw_array",
+      "upstream": ["getplayeridbyname"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "searchPlayers",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": { "rules": [{ "index": 0, "kind": "nonEmptyString", "label": "searchPlayer" }] },
+      "validArgs": ["Nabi"],
+      "result": "raw_array",
+      "upstream": ["searchplayers"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerIdsByGamerTag",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "portalId" },
+          { "index": 1, "kind": "nonEmptyString", "label": "gamerTag" }
+        ]
+      },
+      "validArgs": [1, "NabiCook"],
+      "result": "raw_array",
+      "upstream": ["getplayeridsbygamertag"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getPlayerIdByPortalUserId",
+      "modes": ["dummy", "real"],
+      "kind": "upstream_single_attempt",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "portalId" },
+          { "index": 1, "kind": "nonEmptyString", "label": "portalUserId" }
+        ]
+      },
+      "validArgs": [1, "76561198000000000"],
+      "result": "raw_array",
+      "upstream": ["getplayeridbyportaluserid"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "getMatchLeaderboard",
+      "modes": ["dummy", "real"],
+      "kind": "upstream",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "tier" },
+          { "index": 1, "kind": "finiteNumber", "label": "season" }
+        ]
+      },
+      "validArgs": [26, 12],
+      "result": "raw_array",
+      "upstream": ["getmatchleaderboard"],
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
+    },
+    {
+      "name": "dumpRawPayloads",
+      "modes": ["dummy", "real"],
+      "kind": "local_durable",
+      "validation": { "rules": [{ "index": 0, "kind": "rawPayloadArray", "label": "payloads" }] },
+      "validArgs": [[{ "endpoint": "getmatchdetailsbatch", "entity_type": "match", "entity_id": 1280977354, "raw_data": [] }]],
+      "result": "number",
+      "upstream": [],
+      "storage": ["raw_ingest_buffer", "match_ingest_status", "matches", "match_players"],
+      "cache": "database_dedupe",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "resetDummyApiCallCounts",
+      "modes": ["dummy", "real"],
+      "kind": "dummy_control",
+      "validation": { "maxArgs": 0, "maxArgsError": "resetDummyApiCallCounts takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "call_count_map",
+      "upstream": [],
+      "storage": [],
+      "cache": "dummy_memory",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "getDummyApiCallCounts",
+      "modes": ["dummy", "real"],
+      "kind": "dummy_control",
+      "validation": { "maxArgs": 0, "maxArgsError": "getDummyApiCallCounts takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "call_count_map",
+      "upstream": [],
+      "storage": [],
+      "cache": "dummy_memory",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "setDummyMatchScenario",
+      "modes": ["dummy"],
+      "kind": "dummy_control",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "finiteNumber", "label": "matchId" },
+          { "index": 0, "kind": "positiveInteger", "label": "matchId" },
+          {
+            "index": 1,
+            "kind": "enum",
+            "label": "scenario",
+            "valuesFrom": "dummyMatchScenarios",
+            "errorTemplate": "scenario must be one of: {values}"
+          }
+        ]
+      },
+      "validArgs": [1280977354, "broken_skin"],
+      "result": "boolean",
+      "upstream": [],
+      "storage": [],
+      "cache": "dummy_memory",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "resetDummyMatchScenarios",
+      "modes": ["dummy"],
+      "kind": "dummy_control",
+      "validation": { "maxArgs": 0, "maxArgsError": "resetDummyMatchScenarios takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "boolean",
+      "upstream": [],
+      "storage": [],
+      "cache": "dummy_memory",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "reloadApiKeyPool",
+      "modes": ["dummy", "real"],
+      "kind": "local_admin",
+      "validation": { "maxArgs": 0, "maxArgsError": "reloadApiKeyPool takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "boolean",
+      "upstream": [],
+      "storage": ["api_keys"],
+      "cache": "in_memory_key_pool",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "getApiKeyStatus",
+      "modes": ["dummy", "real"],
+      "kind": "local_admin",
+      "validation": { "maxArgs": 0, "maxArgsError": "getApiKeyStatus takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "api_key_status_array",
+      "upstream": [],
+      "storage": ["api_keys"],
+      "cache": "in_memory_key_pool",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "cleanupFetchedPlayersCache",
+      "modes": ["dummy", "real"],
+      "kind": "local_admin",
+      "validation": { "maxArgs": 0, "maxArgsError": "cleanupFetchedPlayersCache takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "void",
+      "upstream": [],
+      "storage": [],
+      "cache": "fetched_player_memory",
+      "maxOutboundCalls": 0
+    },
+    {
+      "name": "clearMatchHistoryCache",
+      "modes": ["dummy", "real"],
+      "kind": "local_admin",
+      "validation": { "maxArgs": 0, "maxArgsError": "clearMatchHistoryCache takes no args", "rules": [] },
+      "validArgs": [],
+      "result": "void",
+      "upstream": [],
+      "storage": [],
+      "cache": "match_history_memory",
+      "maxOutboundCalls": 0
+    }
+  ]
+}

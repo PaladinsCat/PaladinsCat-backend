@@ -1,0 +1,1 @@
+-- Non-ranked empty observation fixture; no external player-history data exists.

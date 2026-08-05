@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:56.668Z",
+  "manifestSha256": "60edf8dc1a04fac50b6684bc2d67b858260910e0df2be4f9f14b01f7d7a67e11",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40964/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:40964/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 6,
+    "passingTables": 6,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "champions",
+          "rowCount": 3,
+          "sha256": "3a200c6281f760fe9aa2b1d5b43181a88daf81d919037d0ef8779fedcc721d18"
+        },
+        {
+          "name": "items",
+          "rowCount": 3,
+          "sha256": "6ebe135b02dd52e916fd862d2aca6872cafc579b2aa07452fef64fa531e347f4"
+        },
+        {
+          "name": "stats_item_aggregate",
+          "rowCount": 6,
+          "sha256": "17304edbb9f26cd14d4dbb5aaf8726383dc3df6ae4bf2be780c5fb22aeb89e24"
+        },
+        {
+          "name": "stats_player_aggregate",
+          "rowCount": 5,
+          "sha256": "6b8e3ebc576bacfa1261624cbd63432acfa59b1c5a22875b7a30af934dd6cca6"
+        },
+        {
+          "name": "item_counts_casual",
+          "rowCount": 4,
+          "sha256": "ef2c7fcec1b3b83f2d53980d34d92b11193e1d7ebb47d912c9679312d84da76c"
+        },
+        {
+          "name": "item_counts_casual_matches",
+          "rowCount": 3,
+          "sha256": "2d562412872fe495d96b4ea897e5ca5a88cd2964e1140bd9130b890b96c70d9b"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "champions",
+          "rowCount": 3,
+          "sha256": "3a200c6281f760fe9aa2b1d5b43181a88daf81d919037d0ef8779fedcc721d18"
+        },
+        {
+          "name": "items",
+          "rowCount": 3,
+          "sha256": "6ebe135b02dd52e916fd862d2aca6872cafc579b2aa07452fef64fa531e347f4"
+        },
+        {
+          "name": "stats_item_aggregate",
+          "rowCount": 6,
+          "sha256": "17304edbb9f26cd14d4dbb5aaf8726383dc3df6ae4bf2be780c5fb22aeb89e24"
+        },
+        {
+          "name": "stats_player_aggregate",
+          "rowCount": 5,
+          "sha256": "6b8e3ebc576bacfa1261624cbd63432acfa59b1c5a22875b7a30af934dd6cca6"
+        },
+        {
+          "name": "item_counts_casual",
+          "rowCount": 4,
+          "sha256": "ef2c7fcec1b3b83f2d53980d34d92b11193e1d7ebb47d912c9679312d84da76c"
+        },
+        {
+          "name": "item_counts_casual_matches",
+          "rowCount": 3,
+          "sha256": "2d562412872fe495d96b4ea897e5ca5a88cd2964e1140bd9130b890b96c70d9b"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:35.562Z",
+  "manifestSha256": "0e78fa7cdb204a2a8a0aaba0880023da1cee2719ffdd39181b90884b75d21b3d",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41114/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:41114/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 5,
+    "passingTables": 5,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "players",
+          "rowCount": 5,
+          "sha256": "62cacee93e8f98c0edd4a5df9b2865b09db70b75b1e61de61e51b09eb68ca1cd"
+        },
+        {
+          "name": "player_relationships",
+          "rowCount": 5,
+          "sha256": "cf4e8c6fcd7af2e8b193ba107ad8a21331b2670dbbfbf58cafe07871ea95f239"
+        },
+        {
+          "name": "party_pair_stats",
+          "rowCount": 3,
+          "sha256": "930425aeb319155236d157147ea639416e4a6e66c98999c5cbf4aa0b016cf114"
+        },
+        {
+          "name": "party_stack_stats",
+          "rowCount": 3,
+          "sha256": "7486631a5f018602fc3df1a29805d06a56c190c0b035fe309afc943f01f13eac"
+        },
+        {
+          "name": "mv_player_coplay_stats",
+          "rowCount": 3,
+          "sha256": "140b97a46c7fab0142874888901732a0f903bc0850ff0acece30608ee3b9ac88"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "players",
+          "rowCount": 5,
+          "sha256": "62cacee93e8f98c0edd4a5df9b2865b09db70b75b1e61de61e51b09eb68ca1cd"
+        },
+        {
+          "name": "player_relationships",
+          "rowCount": 5,
+          "sha256": "cf4e8c6fcd7af2e8b193ba107ad8a21331b2670dbbfbf58cafe07871ea95f239"
+        },
+        {
+          "name": "party_pair_stats",
+          "rowCount": 3,
+          "sha256": "930425aeb319155236d157147ea639416e4a6e66c98999c5cbf4aa0b016cf114"
+        },
+        {
+          "name": "party_stack_stats",
+          "rowCount": 3,
+          "sha256": "7486631a5f018602fc3df1a29805d06a56c190c0b035fe309afc943f01f13eac"
+        },
+        {
+          "name": "mv_player_coplay_stats",
+          "rowCount": 3,
+          "sha256": "140b97a46c7fab0142874888901732a0f903bc0850ff0acece30608ee3b9ac88"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "description": "Package C canonical match read, recovery-entry, aggregate, and operator route contracts.",
+  "fixtures": [
+    {
+      "id": "matches-overview-default",
+      "routeId": "GET /matches/overview",
+      "request": { "method": "GET", "path": "/matches/overview?tierMin=27" }
+    },
+    {
+      "id": "matches-overview-activity-full",
+      "routeId": "GET /matches/overview",
+      "request": { "method": "GET", "path": "/matches/overview?view=activity-v3" }
+    },
+    {
+      "id": "matches-dropped-summary-validation",
+      "routeId": "GET /matches/dropped/summary",
+      "request": { "method": "GET", "path": "/matches/dropped/summary?date=invalid&refresh=false" }
+    },
+    {
+      "id": "matches-dropped-validation",
+      "routeId": "GET /matches/dropped",
+      "request": { "method": "GET", "path": "/matches/dropped?date=invalid&refresh=false" }
+    },
+    {
+      "id": "matches-dropped-nonranked-validation",
+      "routeId": "GET /matches/dropped/nonranked",
+      "request": { "method": "GET", "path": "/matches/dropped/nonranked?hour=24" }
+    },
+    {
+      "id": "matches-detail-stored",
+      "routeId": "GET /matches/:id",
+      "request": { "method": "GET", "path": "/matches/1281115795" }
+    },
+    {
+      "id": "matches-batch-stored",
+      "routeId": "GET /matches/batch",
+      "request": { "method": "GET", "path": "/matches/batch?ids=1281115795" }
+    },
+    {
+      "id": "matches-recent-ranked",
+      "routeId": "GET /matches/recent",
+      "request": { "method": "GET", "path": "/matches/recent?limit=3" }
+    },
+    {
+      "id": "matches-queue-ranked",
+      "routeId": "GET /matches/queue/:queueId",
+      "request": { "method": "GET", "path": "/matches/queue/486?limit=3" }
+    },
+    {
+      "id": "matches-pull-operator-guard",
+      "routeId": "POST /matches/pull",
+      "request": {
+        "method": "POST",
+        "path": "/matches/pull",
+        "headers": { "content-type": "application/json" },
+        "body": {}
+      }
+    },
+    {
+      "id": "matches-discover-operator-guard",
+      "routeId": "POST /matches/discover",
+      "request": {
+        "method": "POST",
+        "path": "/matches/discover",
+        "headers": { "content-type": "application/json" },
+        "body": {}
+      }
+    },
+    {
+      "id": "matches-live-player-validation",
+      "routeId": "GET /matches/live/:playerId",
+      "request": { "method": "GET", "path": "/matches/live/0" }
+    },
+    {
+      "id": "matches-live-player-provider-persisted",
+      "routeId": "GET /matches/live/:playerId",
+      "request": { "method": "GET", "path": "/matches/live/101" },
+      "normalize": [
+        { "operation": "omit", "pointer": "/body/match/detected_at" }
+      ]
+    },
+    {
+      "id": "matches-live-drop-hack-suspects",
+      "routeId": "GET /matches/live/drop-hack-suspects",
+      "request": { "method": "GET", "path": "/matches/live/drop-hack-suspects?limit=3" }
+    },
+    {
+      "id": "matches-raw-discover-audited",
+      "routeId": "GET /matches/raw/discover",
+      "request": {
+        "method": "GET",
+        "path": "/matches/raw/discover?queueId=486&date=20260730&hour=1",
+        "headers": { "authorization": "Bearer foundation-operator-fixture" }
+      },
+      "normalize": [
+        { "operation": "omit", "pointer": "/body/audit/created_at" }
+      ]
+    },
+    {
+      "id": "matches-raw-detail-audited",
+      "routeId": "GET /matches/raw/matchdetails",
+      "request": {
+        "method": "GET",
+        "path": "/matches/raw/matchdetails?ids=1281115795",
+        "headers": { "authorization": "Bearer foundation-operator-fixture" }
+      },
+      "normalize": [
+        { "operation": "omit", "pointer": "/body/audit/created_at" }
+      ]
+    },
+    {
+      "id": "matches-raw-demo-audited",
+      "routeId": "GET /matches/raw/demo",
+      "request": {
+        "method": "GET",
+        "path": "/matches/raw/demo?matchId=1281115795",
+        "headers": { "authorization": "Bearer foundation-operator-fixture" }
+      },
+      "normalize": [
+        { "operation": "omit", "pointer": "/body/audit/created_at" }
+      ]
+    },
+    {
+      "id": "matches-raw-playerbatch-audited",
+      "routeId": "GET /matches/raw/playerbatch",
+      "request": {
+        "method": "GET",
+        "path": "/matches/raw/playerbatch?matchId=1281115795",
+        "headers": { "authorization": "Bearer foundation-operator-fixture" }
+      },
+      "normalize": [
+        { "operation": "omit", "pointer": "/body/audit/created_at" }
+      ]
+    },
+    {
+      "id": "matches-search-validation",
+      "routeId": "GET /matches/search",
+      "request": { "method": "GET", "path": "/matches/search?championId=invalid" }
+    },
+    {
+      "id": "matches-search-filtered-cursor",
+      "routeId": "GET /matches/search",
+      "request": {
+        "method": "GET",
+        "path": "/matches/search?championId=2491&queueId=486&region=na&cursorMode=true&perPage=1"
+      }
+    },
+    {
+      "id": "matches-bans-ranked",
+      "routeId": "GET /matches/bans",
+      "request": { "method": "GET", "path": "/matches/bans?limit=3" }
+    },
+    {
+      "id": "matches-facts-stored",
+      "routeId": "GET /matches/fact/:matchId",
+      "request": { "method": "GET", "path": "/matches/fact/1281115795" }
+    },
+    {
+      "id": "matches-hourly-ranked",
+      "routeId": "GET /matches/hourly-stats",
+      "request": { "method": "GET", "path": "/matches/hourly-stats?tierMin=27" }
+    },
+    {
+      "id": "matches-hourly-full",
+      "routeId": "GET /matches/hourly-stats",
+      "request": { "method": "GET", "path": "/matches/hourly-stats?includePlayers=true" }
+    },
+    {
+      "id": "matches-compositions-ranked",
+      "routeId": "GET /matches/compositions",
+      "request": { "method": "GET", "path": "/matches/compositions?limit=5" }
+    }
+  ]
+}

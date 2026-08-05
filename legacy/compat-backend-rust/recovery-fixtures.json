@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "description": "Recovery diagnostics route cases. These are implementation fixtures, not migration evidence until the live comparator report passes.",
+  "defaultHeaders": {
+    "Authorization": "Bearer foundation-operator-fixture"
+  },
+  "fixtures": [
+    {
+      "id": "recovery-broken-skins-all",
+      "routeId": "GET /recovery/broken-skins",
+      "request": { "method": "GET", "path": "/recovery/broken-skins" }
+    },
+    {
+      "id": "recovery-broken-skins-filtered",
+      "routeId": "GET /recovery/broken-skins",
+      "request": { "method": "GET", "path": "/recovery/broken-skins?championId=101" }
+    },
+    {
+      "id": "recovery-broken-skins-invalid-filter",
+      "routeId": "GET /recovery/broken-skins",
+      "request": { "method": "GET", "path": "/recovery/broken-skins?championId=invalid" },
+      "normalize": [{ "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }]
+    },
+    {
+      "id": "recovery-broken-skins-prefix-integer",
+      "routeId": "GET /recovery/broken-skins/:championId",
+      "request": { "method": "GET", "path": "/recovery/broken-skins/101tail" }
+    },
+    {
+      "id": "recovery-broken-skins-invalid",
+      "routeId": "GET /recovery/broken-skins/:championId",
+      "request": { "method": "GET", "path": "/recovery/broken-skins/not-a-number" }
+    },
+    {
+      "id": "recovery-broken-skins-out-of-range",
+      "routeId": "GET /recovery/broken-skins/:championId",
+      "request": { "method": "GET", "path": "/recovery/broken-skins/9999999999" },
+      "normalize": [{ "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }]
+    },
+    {
+      "id": "recovery-stats-default-page",
+      "routeId": "GET /recovery/stats",
+      "request": { "method": "GET", "path": "/recovery/stats" }
+    },
+    {
+      "id": "recovery-stats-bounded-page",
+      "routeId": "GET /recovery/stats",
+      "request": { "method": "GET", "path": "/recovery/stats?page=2tail&perPage=1000" }
+    },
+    {
+      "id": "recovery-stats-date-range",
+      "routeId": "GET /recovery/stats",
+      "request": {
+        "method": "GET",
+        "path": "/recovery/stats?from=2026-01-01T00%3A00%3A00.000Z&to=2026-12-31T23%3A59%3A59.999Z"
+      }
+    },
+    {
+      "id": "recovery-stats-date-only",
+      "routeId": "GET /recovery/stats",
+      "request": { "method": "GET", "path": "/recovery/stats?from=2026-07-04" }
+    },
+    {
+      "id": "recovery-stats-to-only",
+      "routeId": "GET /recovery/stats",
+      "request": { "method": "GET", "path": "/recovery/stats?to=2026-07-03T23%3A59%3A59.999Z" }
+    },
+    {
+      "id": "recovery-stats-invalid-date",
+      "routeId": "GET /recovery/stats",
+      "request": { "method": "GET", "path": "/recovery/stats?from=not-a-date" },
+      "normalize": [{ "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }]
+    },
+    {
+      "id": "recovery-stats-match-found",
+      "routeId": "GET /recovery/stats/:matchId",
+      "request": { "method": "GET", "path": "/recovery/stats/1280000001" }
+    },
+    {
+      "id": "recovery-stats-match-missing",
+      "routeId": "GET /recovery/stats/:matchId",
+      "request": { "method": "GET", "path": "/recovery/stats/1280000999" }
+    },
+    {
+      "id": "recovery-stats-match-invalid",
+      "routeId": "GET /recovery/stats/:matchId",
+      "request": { "method": "GET", "path": "/recovery/stats/invalid" }
+    },
+    {
+      "id": "recovery-stats-match-prefix-integer",
+      "routeId": "GET /recovery/stats/:matchId",
+      "request": { "method": "GET", "path": "/recovery/stats/1280000001tail" }
+    },
+    {
+      "id": "recovery-pending-default",
+      "routeId": "GET /recovery/pending",
+      "request": { "method": "GET", "path": "/recovery/pending" }
+    },
+    {
+      "id": "recovery-pending-upper-bound",
+      "routeId": "GET /recovery/pending",
+      "request": { "method": "GET", "path": "/recovery/pending?limit=999" }
+    },
+    {
+      "id": "recovery-pending-zero-default",
+      "routeId": "GET /recovery/pending",
+      "request": { "method": "GET", "path": "/recovery/pending?limit=0" }
+    },
+    {
+      "id": "recovery-pending-invalid-default",
+      "routeId": "GET /recovery/pending",
+      "request": { "method": "GET", "path": "/recovery/pending?limit=invalid" }
+    },
+    {
+      "id": "recovery-pending-negative",
+      "routeId": "GET /recovery/pending",
+      "request": { "method": "GET", "path": "/recovery/pending?limit=-1" },
+      "normalize": [{ "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }]
+    }
+  ]
+}

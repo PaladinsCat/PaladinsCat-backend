@@ -1,0 +1,1 @@
+-- The fixture relay returns explicit errors; no network fallback is available.

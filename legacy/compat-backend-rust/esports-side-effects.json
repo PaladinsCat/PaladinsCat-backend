@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "players", "orderBy": ["id"] },
+    { "name": "esports_leagues", "orderBy": ["league_id"] },
+    { "name": "esports_teams", "orderBy": ["team_id"] },
+    {
+      "name": "esports_team_players",
+      "orderBy": ["team_id", "player_id"]
+    }
+  ]
+}

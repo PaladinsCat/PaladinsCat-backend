@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:39:59.123Z",
+  "manifestSha256": "311d7eff675cde61cb7e4b470620a102ba7dbe2d00735372f9c920754ac63fb1",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:42130/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:42130/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 4,
+    "passingTables": 4,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "players",
+          "rowCount": 4,
+          "sha256": "5edcbe93aa2b4f1b336a59d7fd1d55127b740517eab6eb77b04a1f88a2a86396"
+        },
+        {
+          "name": "esports_leagues",
+          "rowCount": 3,
+          "sha256": "bc96f7c7050143d52cba1833a6f18f4b29bf837ebee6364d23dd948d7a9f3178"
+        },
+        {
+          "name": "esports_teams",
+          "rowCount": 4,
+          "sha256": "5d64d3e99c56e6b8c690fa49781006217d6ba5e82bab68fbe24e4317f945a5f8"
+        },
+        {
+          "name": "esports_team_players",
+          "rowCount": 4,
+          "sha256": "af608a2eef9daf18710626b98c3d99dc2fa01df1d68e85bcbc1d021279c67e38"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "players",
+          "rowCount": 4,
+          "sha256": "5edcbe93aa2b4f1b336a59d7fd1d55127b740517eab6eb77b04a1f88a2a86396"
+        },
+        {
+          "name": "esports_leagues",
+          "rowCount": 3,
+          "sha256": "bc96f7c7050143d52cba1833a6f18f4b29bf837ebee6364d23dd948d7a9f3178"
+        },
+        {
+          "name": "esports_teams",
+          "rowCount": 4,
+          "sha256": "5d64d3e99c56e6b8c690fa49781006217d6ba5e82bab68fbe24e4317f945a5f8"
+        },
+        {
+          "name": "esports_team_players",
+          "rowCount": 4,
+          "sha256": "af608a2eef9daf18710626b98c3d99dc2fa01df1d68e85bcbc1d021279c67e38"
+        }
+      ]
+    }
+  }
+}

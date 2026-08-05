@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "description": "Complete player-ext package: public reads, validation, canonical private identities, and authenticated moderation mutations.",
+  "defaultHeaders": {
+    "Authorization": "Bearer player-ext-approved-token"
+  },
+  "fixtures": [
+    {
+      "id": "player-ext-name-history",
+      "routeId": "GET /player-ext/name-history/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/name-history/1001?page=1&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/name", "equals": "AlphaCat" }
+      ]
+    },
+    {
+      "id": "player-ext-name-history-validation",
+      "routeId": "GET /player-ext/name-history/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/name-history/0"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" }
+      ]
+    },
+    {
+      "id": "player-ext-merges",
+      "routeId": "GET /player-ext/merges/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/merges/1002"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/player_id", "equals": "1001" }
+      ]
+    },
+    {
+      "id": "player-ext-status",
+      "routeId": "GET /player-ext/status/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/status/1001"
+      },
+      "assertions": [
+        { "pointer": "/body/status_string", "equals": "In Match" },
+        { "pointer": "/body/current_match_id", "equals": "1281115795" }
+      ]
+    },
+    {
+      "id": "player-ext-status-missing",
+      "routeId": "GET /player-ext/status/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/status/9999"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/details/playerId", "equals": 9999 }
+      ]
+    },
+    {
+      "id": "player-ext-achievements",
+      "routeId": "GET /player-ext/achievements/:playerId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/achievements/1001"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/achievement_id", "equals": 10 }
+      ]
+    },
+    {
+      "id": "player-ext-private-list-filtered",
+      "routeId": "GET /player-ext/private",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/private?q=Shadow&suspicious=true&page=1&perPage=10"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/id", "equals": 2 },
+        { "pointer": "/body/0/top_reasons/0/reason", "equals": "Aim tracking" }
+      ]
+    },
+    {
+      "id": "player-ext-private-bulk",
+      "routeId": "GET /player-ext/private/bulk",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/private/bulk?ids=1,2rows,3,999"
+      },
+      "assertions": [
+        { "pointer": "/body/count", "equals": 2 },
+        { "pointer": "/body/notFound", "equals": [1, 999] }
+      ]
+    },
+    {
+      "id": "player-ext-private-bulk-validation",
+      "routeId": "GET /player-ext/private/bulk",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/private/bulk?ids=nope,0,-4"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" }
+      ]
+    },
+    {
+      "id": "player-ext-private-detail-canonical",
+      "routeId": "GET /player-ext/private/:privateId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/private/1"
+      },
+      "assertions": [
+        { "pointer": "/body/requested_private_id", "equals": 1 },
+        { "pointer": "/body/account/id", "equals": 2 },
+        { "pointer": "/body/observations", "length": 2 },
+        { "pointer": "/body/observations/0/tp_delta", "equals": 12 }
+      ]
+    },
+    {
+      "id": "player-ext-private-detail-missing",
+      "routeId": "GET /player-ext/private/:privateId",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/private/999"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/code", "equals": "NOT_FOUND" }
+      ]
+    },
+    {
+      "id": "player-ext-private-history",
+      "routeId": "GET /player-ext/private-history",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/private-history?page=1&perPage=1"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/match_id", "equals": "1281115795" }
+      ]
+    },
+    {
+      "id": "player-ext-player-bulk",
+      "routeId": "GET /player-ext/bulk",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/bulk?ids=1001,1002x,9999"
+      },
+      "assertions": [
+        { "pointer": "/body/count", "equals": 2 },
+        { "pointer": "/body/notFound", "equals": [1001, 1002, 9999] }
+      ]
+    },
+    {
+      "id": "player-ext-player-bulk-validation",
+      "routeId": "GET /player-ext/bulk",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/bulk?ids=nope"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "player-ext-search-filtered",
+      "routeId": "GET /player-ext/search",
+      "request": {
+        "method": "GET",
+        "path": "/player-ext/search?q=Cat&region=North%20America&platform=PC&tierMin=15&tierMax=26&cheater=false&page=1&perPage=10"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/name", "equals": "AlphaCat" }
+      ]
+    },
+    {
+      "id": "player-ext-report-authentication",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "request": {
+        "method": "POST",
+        "path": "/player-ext/private/1/report",
+        "headers": {
+          "Authorization": ""
+        },
+        "body": {
+          "type": "suspicious",
+          "reason": "No token"
+        }
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 401 },
+        { "pointer": "/body/error/code", "equals": "AUTH" }
+      ]
+    },
+    {
+      "id": "player-ext-report-suspicious-created",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "request": {
+        "method": "POST",
+        "path": "/player-ext/private/1/report",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "type": "suspicious",
+          "reason": "Repeated impossible tracking"
+        }
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body/already_voted", "equals": false },
+        { "pointer": "/body/private_id", "equals": 2 },
+        { "pointer": "/body/sus_count", "equals": 2 }
+      ]
+    },
+    {
+      "id": "player-ext-report-suspicious-duplicate",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "request": {
+        "method": "POST",
+        "path": "/player-ext/private/1/report",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "type": "suspicious",
+          "reason": "A changed reason must not create a second vote"
+        }
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body/already_voted", "equals": true },
+        { "pointer": "/body/sus_count", "equals": 2 }
+      ]
+    },
+    {
+      "id": "player-ext-report-cheater-permission",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "request": {
+        "method": "POST",
+        "path": "/player-ext/private/1/report",
+        "headers": {
+          "Authorization": "Bearer player-ext-regular-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "type": "cheater",
+          "reason": "Regular users cannot confirm this"
+        }
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 403 },
+        { "pointer": "/body/error/code", "equals": "PERMISSION" }
+      ]
+    },
+    {
+      "id": "player-ext-report-cheater-created",
+      "routeId": "POST /player-ext/private/:privateId/report",
+      "request": {
+        "method": "POST",
+        "path": "/player-ext/private/1/report",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "type": "cheater",
+          "reason": "Approved evidence review"
+        }
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body/already_voted", "equals": false },
+        { "pointer": "/body/private_id", "equals": 2 },
+        { "pointer": "/body/cheater", "equals": true }
+      ]
+    }
+  ]
+}

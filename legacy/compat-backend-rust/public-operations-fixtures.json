@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "description": "Public operations catalog, traffic, active-session, ingest-coverage, release, cache header, and parallel database response contract.",
+  "fixtures": [
+    {
+      "id": "public-operations-stats",
+      "routeId": "GET /operations/stats",
+      "request": { "method": "GET", "path": "/operations/stats" },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/generated_at",
+          "value": "<generated-at>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        {
+          "pointer": "/headers/cache-control",
+          "equals": "public, max-age=30, s-maxage=60, stale-while-revalidate=120"
+        },
+        { "pointer": "/body/release/version", "equals": "v0.8.2" },
+        { "pointer": "/body/release/git_commit_short", "equals": "abc1234" },
+        { "pointer": "/body/catalog/matches", "equals": 4 },
+        { "pointer": "/body/catalog/ranked_matches", "equals": 2 },
+        { "pointer": "/body/catalog/casual_matches", "equals": 2 },
+        { "pointer": "/body/catalog/players", "equals": 2 },
+        { "pointer": "/body/catalog/registered_users", "equals": 2 },
+        { "pointer": "/body/catalog/verified_users", "equals": 1 },
+        { "pointer": "/body/catalog/community_builds", "equals": 1 },
+        { "pointer": "/body/catalog/tier_lists", "equals": 1 },
+        { "pointer": "/body/catalog/community_posts", "equals": 2 },
+        { "pointer": "/body/catalog/recovered_matches", "equals": 1 },
+        { "pointer": "/body/catalog/incomplete_matches", "equals": 1 },
+        { "pointer": "/body/traffic/summary/visitors_today", "equals": 2 },
+        { "pointer": "/body/traffic/summary/views_today", "equals": 5 },
+        { "pointer": "/body/traffic/summary/visitor_days_7d", "equals": 3 },
+        { "pointer": "/body/traffic/summary/views_7d", "equals": 9 },
+        { "pointer": "/body/traffic/summary/active_users", "equals": 1 },
+        { "pointer": "/body/traffic/summary/active_window_seconds", "equals": 300 },
+        { "pointer": "/body/traffic/summary/heartbeat_seconds", "equals": 60 },
+        { "pointer": "/body/ingest_coverage/total_matches", "equals": 3 },
+        { "pointer": "/body/ingest_coverage/direct_matches", "equals": 1 },
+        { "pointer": "/body/ingest_coverage/recovered_matches", "equals": 1 },
+        { "pointer": "/body/ingest_coverage/nonranked_open_24h", "equals": 2 },
+        {
+          "pointer": "/body/ingest_coverage/nonranked_waiting_for_completion_24h",
+          "equals": 1
+        },
+        {
+          "pointer": "/body/ingest_coverage/nonranked_historical_open",
+          "equals": 1
+        }
+      ]
+    }
+  ]
+}

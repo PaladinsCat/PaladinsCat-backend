@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:40.974Z",
+  "manifestSha256": "20343e7e06ddee84f17a232fcdd086cc9cad7fb38b4ed97dcae0d04b87f78baf",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:42400/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:42400/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 9,
+    "passingTables": 9,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "site_versions",
+          "rowCount": 1,
+          "sha256": "c9893b2d8ba00b1b958473ca2650cf72a29f6e8eda8f71512cac6f4710372459"
+        },
+        {
+          "name": "stack_versions",
+          "rowCount": 7,
+          "sha256": "7ff180dc3c3c040d3cb86baec5f08bb531055a6cf1498927a4829fba1a78d162"
+        },
+        {
+          "name": "item_counts_ranked",
+          "rowCount": 4,
+          "sha256": "9d93f88a817a3b01ea7058ba9c7e745e320f47bc15feafe0a1a52428a4a38e4b"
+        },
+        {
+          "name": "item_counts_casual",
+          "rowCount": 2,
+          "sha256": "1d2b5bbaccd1f53e1c5c0050eb8bbd61609af976b738a5eb58295d5583faca24"
+        },
+        {
+          "name": "talent_counts_ranked",
+          "rowCount": 3,
+          "sha256": "1cef8993bac2cb4e78c593b98e7ca4e29c0bed6708382b0c5d68b7249f21d90c"
+        },
+        {
+          "name": "talent_counts_casual",
+          "rowCount": 2,
+          "sha256": "fb86e8a83cab58c905ec2d2cb29b7557fb8a1a8f5b56365f998006a741bd3c5a"
+        },
+        {
+          "name": "card_counts_ranked",
+          "rowCount": 3,
+          "sha256": "c98ac2142015fcc4569e55b14b5c405fd9c3d1df7daaf29549b0978e3fbb5f02"
+        },
+        {
+          "name": "card_counts_casual",
+          "rowCount": 2,
+          "sha256": "f4ab537345ec37a68c3840e54363ac8020d67d2b2e740115d0b1ea90c05f7b9f"
+        },
+        {
+          "name": "match_compositions_ranked",
+          "rowCount": 4,
+          "sha256": "9587398f60cdbfc1e5cc2f1302b536ce41ce4419d7a1ad5a77003a41afec8e07"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "site_versions",
+          "rowCount": 1,
+          "sha256": "c9893b2d8ba00b1b958473ca2650cf72a29f6e8eda8f71512cac6f4710372459"
+        },
+        {
+          "name": "stack_versions",
+          "rowCount": 7,
+          "sha256": "7ff180dc3c3c040d3cb86baec5f08bb531055a6cf1498927a4829fba1a78d162"
+        },
+        {
+          "name": "item_counts_ranked",
+          "rowCount": 4,
+          "sha256": "9d93f88a817a3b01ea7058ba9c7e745e320f47bc15feafe0a1a52428a4a38e4b"
+        },
+        {
+          "name": "item_counts_casual",
+          "rowCount": 2,
+          "sha256": "1d2b5bbaccd1f53e1c5c0050eb8bbd61609af976b738a5eb58295d5583faca24"
+        },
+        {
+          "name": "talent_counts_ranked",
+          "rowCount": 3,
+          "sha256": "1cef8993bac2cb4e78c593b98e7ca4e29c0bed6708382b0c5d68b7249f21d90c"
+        },
+        {
+          "name": "talent_counts_casual",
+          "rowCount": 2,
+          "sha256": "fb86e8a83cab58c905ec2d2cb29b7557fb8a1a8f5b56365f998006a741bd3c5a"
+        },
+        {
+          "name": "card_counts_ranked",
+          "rowCount": 3,
+          "sha256": "c98ac2142015fcc4569e55b14b5c405fd9c3d1df7daaf29549b0978e3fbb5f02"
+        },
+        {
+          "name": "card_counts_casual",
+          "rowCount": 2,
+          "sha256": "f4ab537345ec37a68c3840e54363ac8020d67d2b2e740115d0b1ea90c05f7b9f"
+        },
+        {
+          "name": "match_compositions_ranked",
+          "rowCount": 4,
+          "sha256": "9587398f60cdbfc1e5cc2f1302b536ce41ce4419d7a1ad5a77003a41afec8e07"
+        }
+      ]
+    }
+  }
+}

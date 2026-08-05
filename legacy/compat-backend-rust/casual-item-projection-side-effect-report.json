@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-30T16:03:06.120Z",
+  "manifestSha256": "9d757efefe245c99ee05966fb8c53de05a28cdbaeae3c4df361df5221850200f",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:38144/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:38144/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 3,
+    "passingTables": 3,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": [
+        {
+          "name": "item_counts_casual",
+          "rowCount": 1,
+          "sha256": "8174c9f7a1d9b6233e8fb001c2b6fdefbfa48ef9aa98a18fbfd79d72b32b3030"
+        },
+        {
+          "name": "item_counts_casual_matches",
+          "rowCount": 1,
+          "sha256": "6488f65274b9a95ac273f882b78f07a0e72d405ae5a28d531c75cf6f4e630f49"
+        },
+        {
+          "name": "item_counts_ranked",
+          "rowCount": 1,
+          "sha256": "cdc0d13ab52f46cb3a441675d5402d8bee83825ab3a58840cb16c4412b404941"
+        }
+      ]
+    },
+    "rust": {
+      "tables": [
+        {
+          "name": "item_counts_casual",
+          "rowCount": 1,
+          "sha256": "8174c9f7a1d9b6233e8fb001c2b6fdefbfa48ef9aa98a18fbfd79d72b32b3030"
+        },
+        {
+          "name": "item_counts_casual_matches",
+          "rowCount": 1,
+          "sha256": "6488f65274b9a95ac273f882b78f07a0e72d405ae5a28d531c75cf6f4e630f49"
+        },
+        {
+          "name": "item_counts_ranked",
+          "rowCount": 1,
+          "sha256": "cdc0d13ab52f46cb3a441675d5402d8bee83825ab3a58840cb16c4412b404941"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "regions", "orderBy": ["region_code"] }
+  ]
+}

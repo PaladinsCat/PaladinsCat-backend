@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "mode": "read-only-production-data-shadow",
+  "checkedAt": "2026-07-30T18:11:45.1577445+00:00",
+  "gitCommit": "cf4abe67efdf0b855a37f28050babeff5621f836",
+  "gitDirty": true,
+  "safety": {
+    "databaseDefaultTransactionReadOnly": true,
+    "redis": "isolated-local-container",
+    "meilisearch": "disabled",
+    "relay": "unreachable-loopback",
+    "schedulers": "disabled",
+    "workersStarted": false
+  },
+  "summary": {
+    "groups": 1,
+    "fixtures": 20,
+    "passedFixtures": 20,
+    "failedFixtures": 0,
+    "routes": 11,
+    "passingRoutes": 11
+  },
+  "results": [
+    {
+      "group": "package-c-player-ext",
+      "report": "package-c-player-ext-shadow-report.json",
+      "fixtures": 20,
+      "passedFixtures": 20,
+      "routes": 11,
+      "passingRoutes": 11
+    }
+  ]
+}

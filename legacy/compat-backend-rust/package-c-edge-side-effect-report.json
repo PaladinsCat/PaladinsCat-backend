@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-30T17:47:53.868Z",
+  "manifestSha256": "3ebe67f92c260a98f534c2ae181b9ab3d318e12c3a7112c1365ca3f3e9d4956e",
+  "databases": {
+    "typescript": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:39454/paladinscat_typescript",
+    "rust": "postgres://%3Credacted%3E:%3Credacted%3E@127.0.0.1:39454/paladinscat_rust"
+  },
+  "summary": {
+    "tables": 0,
+    "passingTables": 0,
+    "failingTables": 0
+  },
+  "differences": [],
+  "snapshots": {
+    "typescript": {
+      "tables": []
+    },
+    "rust": {
+      "tables": []
+    }
+  }
+}

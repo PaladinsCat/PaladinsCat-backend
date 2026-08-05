@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "description": "Notification database and read-through cache compatibility cases. Fixture order is intentional because it verifies MISS to HIT transitions.",
+  "fixtures": [
+    {
+      "id": "notifications-default-cold-miss",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications" }
+    },
+    {
+      "id": "notifications-default-hit",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications" }
+    },
+    {
+      "id": "notifications-tracking-cold-miss",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?limit=1&utm_source=fixture" }
+    },
+    {
+      "id": "notifications-tracking-canonical-hit",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?gclid=ignored&limit=1" }
+    },
+    {
+      "id": "notifications-upper-bound",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?limit=999" }
+    },
+    {
+      "id": "notifications-zero-default",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?limit=0" }
+    },
+    {
+      "id": "notifications-invalid-default",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?limit=invalid" }
+    },
+    {
+      "id": "notifications-prefix-integer",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?limit=1tail" }
+    },
+    {
+      "id": "notifications-negative-limit",
+      "routeId": "GET /notifications/",
+      "request": { "method": "GET", "path": "/notifications?limit=-1" },
+      "normalize": [
+        { "operation": "replace", "pointer": "/body/error/requestId", "value": "<request-id>" }
+      ]
+    }
+  ]
+}

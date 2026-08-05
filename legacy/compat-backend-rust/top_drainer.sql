@@ -1,0 +1,1 @@
+SELECT consumer, endpoint, SUM(call_count)::INT AS calls, ROUND(SUM(total_response_ms)::NUMERIC / NULLIF(SUM(call_count), 0), 0)::INT AS avg_ms FROM api_log WHERE hour >= now() - INTERVAL '23 hours' GROUP BY consumer, endpoint ORDER BY calls DESC LIMIT 20;

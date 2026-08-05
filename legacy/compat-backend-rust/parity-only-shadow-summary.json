@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "mode": "read-only-production-data-shadow",
+  "checkedAt": "2026-07-30T16:20:18.0593229+00:00",
+  "gitCommit": "fe61d3f5707fa1f7881b9024a6a3fd5da6309127",
+  "gitDirty": true,
+  "safety": {
+    "databaseDefaultTransactionReadOnly": true,
+    "redis": "isolated-local-container",
+    "meilisearch": "disabled",
+    "relay": "unreachable-loopback",
+    "schedulers": "disabled",
+    "workersStarted": false
+  },
+  "summary": {
+    "groups": 3,
+    "fixtures": 49,
+    "passedFixtures": 49,
+    "failedFixtures": 0,
+    "routes": 12,
+    "passingRoutes": 12
+  },
+  "results": [
+    {
+      "group": "coplay",
+      "report": "coplay-shadow-report.json",
+      "fixtures": 26,
+      "passedFixtures": 26,
+      "routes": 7,
+      "passingRoutes": 7
+    },
+    {
+      "group": "stats-items",
+      "report": "stats-items-shadow-report.json",
+      "fixtures": 14,
+      "passedFixtures": 14,
+      "routes": 1,
+      "passingRoutes": 1
+    },
+    {
+      "group": "foundation",
+      "report": "foundation-shadow-report.json",
+      "fixtures": 9,
+      "passedFixtures": 9,
+      "routes": 4,
+      "passingRoutes": 4
+    }
+  ]
+}

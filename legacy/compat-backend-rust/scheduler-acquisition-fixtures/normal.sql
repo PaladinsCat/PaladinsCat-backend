@@ -1,0 +1,1 @@
+-- Empty discovery fixture. Migrations create the complete disposable schema.

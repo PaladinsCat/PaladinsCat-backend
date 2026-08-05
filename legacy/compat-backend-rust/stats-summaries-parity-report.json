@@ -1,0 +1,5101 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T09:54:51.444Z",
+  "inventorySha256": "49db1ad9212f0d18ed23050f33103760dcf20c509b3d51d4a7427d39254e330d",
+  "fixtureSha256": "d6eb037d0dc752e2fcef62a3718d8fef1d8b67eaeb76215d5f984291631c75ff",
+  "endpoints": {
+    "typescript": "http://127.0.0.1:59011",
+    "rust": "http://127.0.0.1:59012"
+  },
+  "summary": {
+    "fixtures": 34,
+    "passedFixtures": 34,
+    "failedFixtures": 0,
+    "coveredRoutes": 6,
+    "passingRoutes": 6
+  },
+  "passingRouteIds": [
+    "GET /stats/queues",
+    "GET /stats/regions",
+    "GET /stats/platforms",
+    "GET /stats/loadouts",
+    "GET /stats/tiers",
+    "GET /stats/tiers/summary"
+  ],
+  "results": [
+    {
+      "id": "stats-queues-default-cache-miss",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "6",
+            "avg_duration": "700.00",
+            "win_rate": "0.6000"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5999",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "299",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "6",
+            "avg_duration": "700.00",
+            "win_rate": "0.6000"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-queues-default-cache-hit",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "6",
+            "avg_duration": "700.00",
+            "win_rate": "0.6000"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5998",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "298",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "6",
+            "avg_duration": "700.00",
+            "win_rate": "0.6000"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-queues-minimum-tier",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "4",
+            "avg_duration": "750.00",
+            "win_rate": "0.6667"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5997",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "297",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "4",
+            "avg_duration": "750.00",
+            "win_rate": "0.6667"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-queues-bounded-tier",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "5",
+            "avg_duration": "780.00",
+            "win_rate": "0.5000"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5996",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "296",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "queue_id": 486,
+            "total_matches": "5",
+            "avg_duration": "780.00",
+            "win_rate": "0.5000"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-queues-invalid-tier-zero",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5995",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "295",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-queues-invalid-tier-prefix",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5994",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "294",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-queues-invalid-reversed-bounds",
+      "routeId": "GET /stats/queues",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5993",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "293",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-regions-default-cache-miss",
+      "routeId": "GET /stats/regions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "10",
+            "avg_duration": "940.00"
+          },
+          {
+            "region": "North America",
+            "total_matches": "15",
+            "avg_duration": "666.67"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5992",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "292",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "10",
+            "avg_duration": "940.00"
+          },
+          {
+            "region": "North America",
+            "total_matches": "15",
+            "avg_duration": "666.67"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-regions-default-cache-hit",
+      "routeId": "GET /stats/regions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "10",
+            "avg_duration": "940.00"
+          },
+          {
+            "region": "North America",
+            "total_matches": "15",
+            "avg_duration": "666.67"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5991",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "291",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "10",
+            "avg_duration": "940.00"
+          },
+          {
+            "region": "North America",
+            "total_matches": "15",
+            "avg_duration": "666.67"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-regions-exact-tier",
+      "routeId": "GET /stats/regions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "8",
+            "avg_duration": "900.00"
+          },
+          {
+            "region": "North America",
+            "total_matches": "5",
+            "avg_duration": "800.00"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5990",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "290",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "8",
+            "avg_duration": "900.00"
+          },
+          {
+            "region": "North America",
+            "total_matches": "5",
+            "avg_duration": "800.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-regions-high-tier",
+      "routeId": "GET /stats/regions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "2",
+            "avg_duration": "1100.00"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5989",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "289",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "region": "Europe",
+            "total_matches": "2",
+            "avg_duration": "1100.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-regions-invalid-tier",
+      "routeId": "GET /stats/regions",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5988",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "288",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-platforms-default-cache-miss",
+      "routeId": "GET /stats/platforms",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "platform": "PSN",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "3",
+            "win_rate": 100,
+            "avg_dpm": 1000,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "15",
+            "win_rate": 53.33,
+            "avg_dpm": 900,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 2,
+            "champion_name": "Champion 2",
+            "total_matches": "8",
+            "win_rate": 50,
+            "avg_dpm": 500,
+            "avg_hpm": 0
+          },
+          {
+            "platform": "XboxLive",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "2",
+            "win_rate": 50,
+            "avg_dpm": null,
+            "avg_hpm": null
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5987",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "287",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "platform": "PSN",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "3",
+            "win_rate": 100,
+            "avg_dpm": 1000,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "15",
+            "win_rate": 53.33,
+            "avg_dpm": 900,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 2,
+            "champion_name": "Champion 2",
+            "total_matches": "8",
+            "win_rate": 50,
+            "avg_dpm": 500,
+            "avg_hpm": 0
+          },
+          {
+            "platform": "XboxLive",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "2",
+            "win_rate": 50,
+            "avg_dpm": null,
+            "avg_hpm": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-platforms-default-cache-hit",
+      "routeId": "GET /stats/platforms",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "platform": "PSN",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "3",
+            "win_rate": 100,
+            "avg_dpm": 1000,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "15",
+            "win_rate": 53.33,
+            "avg_dpm": 900,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 2,
+            "champion_name": "Champion 2",
+            "total_matches": "8",
+            "win_rate": 50,
+            "avg_dpm": 500,
+            "avg_hpm": 0
+          },
+          {
+            "platform": "XboxLive",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "2",
+            "win_rate": 50,
+            "avg_dpm": null,
+            "avg_hpm": null
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5986",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "286",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "platform": "PSN",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "3",
+            "win_rate": 100,
+            "avg_dpm": 1000,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "15",
+            "win_rate": 53.33,
+            "avg_dpm": 900,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 2,
+            "champion_name": "Champion 2",
+            "total_matches": "8",
+            "win_rate": 50,
+            "avg_dpm": 500,
+            "avg_hpm": 0
+          },
+          {
+            "platform": "XboxLive",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "2",
+            "win_rate": 50,
+            "avg_dpm": null,
+            "avg_hpm": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-platforms-bounded-tier",
+      "routeId": "GET /stats/platforms",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "platform": "PSN",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "3",
+            "win_rate": 100,
+            "avg_dpm": 1000,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "5",
+            "win_rate": 40,
+            "avg_dpm": 700,
+            "avg_hpm": 100
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5985",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "285",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "platform": "PSN",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "3",
+            "win_rate": 100,
+            "avg_dpm": 1000,
+            "avg_hpm": 100
+          },
+          {
+            "platform": "Steam",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": "5",
+            "win_rate": 40,
+            "avg_dpm": 700,
+            "avg_hpm": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-platforms-invalid-tier",
+      "routeId": "GET /stats/platforms",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5984",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "284",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-loadouts-default-cache-miss",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5983",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "283",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-default-cache-hit",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5982",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "282",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-minimum-plays",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5981",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "281",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-champion-prefix",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5980",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "280",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-limit-offset",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5979",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "279",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-tier-maximum",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5978",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "278",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-01T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-exact-tier",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5977",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "277",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-invalid-champion",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid championId."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5976",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "276",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Invalid championId."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-loadouts-empty-champion-is-ignored",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5975",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "275",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-loadouts-invalid-tier",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      },
+      "rust": {
+        "status": 400,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5974",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "274",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION",
+            "message": "Tier bounds must be between 1 and 26."
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-loadouts-negative-limit",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-r"
+          }
+        }
+      },
+      "rust": {
+        "status": 500,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5973",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "273",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "The request could not be completed.",
+            "requestId": "req-27"
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-loadouts-negative-offset-and-minimum-clamp",
+      "routeId": "GET /stats/loadouts",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5972",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "272",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5972",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "272",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "deck_hash": "3d10d5d6c1d7011b8323443aef78bb1f",
+            "champion_id": 3,
+            "champion_name": "Maeve",
+            "total_matches": 3,
+            "total_uses": 3,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-07T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "e4ba247dcaca78ed962bf55c98608888",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 2,
+            "total_uses": 2,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-02T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "bdba3af50c643630d9380304616909d3",
+            "champion_id": 1,
+            "champion_name": "Ash",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-03T00:00:00.000Z"
+          },
+          {
+            "deck_hash": "3b19e2a499d29de5d3af3f0b0e103bc0",
+            "champion_id": 4,
+            "champion_name": "Champion 4",
+            "total_matches": 1,
+            "total_uses": 1,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0,
+            "ranked_wins": 0,
+            "ranked_win_rate": 0,
+            "high_tier_wins": 0,
+            "high_tier_win_rate": 0,
+            "avg_kills": 0,
+            "avg_deaths": 0,
+            "avg_assists": 0,
+            "avg_dpm": 0,
+            "avg_hpm": 0,
+            "loadout_items": null,
+            "last_refreshed": "2026-04-04T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-tiers-profiles-default-cache-miss",
+      "routeId": "GET /stats/tiers",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5971",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "271",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Grandmaster",
+            "tier_sort": 27,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5971",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "271",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Grandmaster",
+            "tier_sort": 27,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-tiers-profiles-default-cache-hit",
+      "routeId": "GET /stats/tiers",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5970",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "270",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Grandmaster",
+            "tier_sort": 27,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5970",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "270",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Grandmaster",
+            "tier_sort": 27,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-tiers-matches-source",
+      "routeId": "GET /stats/tiers",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5969",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "269",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 2,
+            "percentage": 10,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 3,
+            "percentage": 15,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 5,
+            "percentage": 25,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 10,
+            "percentage": 50,
+            "avg_win_rate": null
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5969",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "269",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 2,
+            "percentage": 10,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 3,
+            "percentage": 15,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 5,
+            "percentage": 25,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 10,
+            "percentage": 50,
+            "avg_win_rate": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-tiers-source-is-case-sensitive",
+      "routeId": "GET /stats/tiers",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5968",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "268",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Grandmaster",
+            "tier_sort": 27,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          }
+        ]
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5968",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "268",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": [
+          {
+            "tier": "Named Tier 1",
+            "tier_sort": 1,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 2",
+            "tier_sort": 2,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 3",
+            "tier_sort": 3,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 4",
+            "tier_sort": 4,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 5",
+            "tier_sort": 5,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 6",
+            "tier_sort": 6,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 7",
+            "tier_sort": 7,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 8",
+            "tier_sort": 8,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 9",
+            "tier_sort": 9,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 10",
+            "tier_sort": 10,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 11",
+            "tier_sort": 11,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 12",
+            "tier_sort": 12,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 13",
+            "tier_sort": 13,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 14",
+            "tier_sort": 14,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 15",
+            "tier_sort": 15,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 16",
+            "tier_sort": 16,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 17",
+            "tier_sort": 17,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 18",
+            "tier_sort": 18,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 19",
+            "tier_sort": 19,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 20",
+            "tier_sort": 20,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 21",
+            "tier_sort": 21,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 22",
+            "tier_sort": 22,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 23",
+            "tier_sort": 23,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 24",
+            "tier_sort": 24,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Named Tier 25",
+            "tier_sort": 25,
+            "total_plays": 0,
+            "percentage": 0,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Master",
+            "tier_sort": 26,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          },
+          {
+            "tier": "Grandmaster",
+            "tier_sort": 27,
+            "total_plays": 1,
+            "percentage": 16.67,
+            "avg_win_rate": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "stats-tiers-summary-cache-miss",
+      "routeId": "GET /stats/tiers/summary",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5967",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "267",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "profile_players": 6,
+          "avg_profile_tier": 14,
+          "match_player_rows": 4,
+          "active_players": 3,
+          "ranked_matches": 2,
+          "avg_participation_tier": 7.25,
+          "avg_match_tier": 7.25,
+          "median_match_tier": 7.25
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "MISS",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5967",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "267",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "profile_players": 6,
+          "avg_profile_tier": 14,
+          "match_player_rows": 4,
+          "active_players": 3,
+          "ranked_matches": 2,
+          "avg_participation_tier": 7.25,
+          "avg_match_tier": 7.25,
+          "median_match_tier": 7.25
+        }
+      }
+    },
+    {
+      "id": "stats-tiers-summary-cache-hit",
+      "routeId": "GET /stats/tiers/summary",
+      "passed": true,
+      "differences": [],
+      "typescript": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5966",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "266",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "profile_players": 6,
+          "avg_profile_tier": 14,
+          "match_player_rows": 4,
+          "active_players": 3,
+          "ranked_matches": 2,
+          "avg_participation_tier": 7.25,
+          "avg_match_tier": 7.25,
+          "median_match_tier": 7.25
+        }
+      },
+      "rust": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "server-timing": "app;dur=<number>",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-cache": "HIT",
+          "x-cache-age": "0",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-global-ratelimit-limit": "6000",
+          "x-global-ratelimit-remaining": "5966",
+          "x-global-ratelimit-reset": "<reset>",
+          "x-permitted-cross-domain-policies": "none",
+          "x-ratelimit-limit": "300",
+          "x-ratelimit-remaining": "266",
+          "x-ratelimit-reset": "<reset>",
+          "x-xss-protection": "0"
+        },
+        "body": {
+          "profile_players": 6,
+          "avg_profile_tier": 14,
+          "match_player_rows": 4,
+          "active_players": 3,
+          "ranked_matches": 2,
+          "avg_participation_tier": 7.25,
+          "avg_match_tier": 7.25,
+          "median_match_tier": 7.25
+        }
+      }
+    }
+  ]
+}

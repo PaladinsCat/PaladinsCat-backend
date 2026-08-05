@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 1,
+  "description": "All 25 static reference routes, canonical ID columns, PostgreSQL JSON types, cache reuse, generic lookup, validation, missing rows, and database conversion failures.",
+  "fixtures": [
+    {
+      "id": "reference-champions-list",
+      "routeId": "GET /reference/champions",
+      "request": { "method": "GET", "path": "/reference/champions" },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/id", "equals": 1 },
+        { "pointer": "/body/1/name", "equals": "Barik" }
+      ]
+    },
+    {
+      "id": "reference-items-list",
+      "routeId": "GET /reference/items",
+      "request": { "method": "GET", "path": "/reference/items" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/item_id", "equals": 10 },
+        { "pointer": "/body/1/cost", "equals": null }
+      ]
+    },
+    {
+      "id": "reference-bounty-items-list",
+      "routeId": "GET /reference/bounty-items",
+      "request": { "method": "GET", "path": "/reference/bounty-items" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/bounty_item_id", "equals": "9000000001" },
+        { "pointer": "/body/0/is_active", "equals": true }
+      ]
+    },
+    {
+      "id": "reference-maps-list",
+      "routeId": "GET /reference/maps",
+      "request": { "method": "GET", "path": "/reference/maps" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/map_id", "equals": 20 },
+        { "pointer": "/body/0/queue_ids", "equals": [424, 486] }
+      ]
+    },
+    {
+      "id": "reference-tiers-list",
+      "routeId": "GET /reference/tiers",
+      "request": { "method": "GET", "path": "/reference/tiers" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/tier_id", "equals": 1 },
+        { "pointer": "/body/1/tier_name", "equals": "Grandmaster" }
+      ]
+    },
+    {
+      "id": "reference-regions-list",
+      "routeId": "GET /reference/regions",
+      "request": { "method": "GET", "path": "/reference/regions" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/region_code", "equals": "EU" },
+        { "pointer": "/body/1/created_at", "equals": "2026-05-02T00:00:00.000Z" }
+      ]
+    },
+    {
+      "id": "reference-talents-list",
+      "routeId": "GET /reference/talents",
+      "request": { "method": "GET", "path": "/reference/talents" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/talent_id", "equals": 30 }
+      ]
+    },
+    {
+      "id": "reference-queues-list",
+      "routeId": "GET /reference/queues",
+      "request": { "method": "GET", "path": "/reference/queues" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/queue_id", "equals": 424 },
+        { "pointer": "/body/1/is_ranked", "equals": true }
+      ]
+    },
+    {
+      "id": "reference-patches-list",
+      "routeId": "GET /reference/patches",
+      "request": { "method": "GET", "path": "/reference/patches" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/id", "equals": 1 },
+        { "pointer": "/body/1/release_date", "equals": "2026-05-01T00:00:00.000Z" }
+      ]
+    },
+    {
+      "id": "reference-cards-list",
+      "routeId": "GET /reference/cards",
+      "request": { "method": "GET", "path": "/reference/cards" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/card_id", "equals": 40 }
+      ]
+    },
+    {
+      "id": "reference-skins-list",
+      "routeId": "GET /reference/skins",
+      "request": { "method": "GET", "path": "/reference/skins" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/skin_id", "equals": 50 }
+      ]
+    },
+    {
+      "id": "reference-abilities-list",
+      "routeId": "GET /reference/abilities",
+      "request": { "method": "GET", "path": "/reference/abilities" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/id", "equals": 1 },
+        { "pointer": "/body/0/ability5_id", "equals": 105 }
+      ]
+    },
+    {
+      "id": "reference-champion-by-id",
+      "routeId": "GET /reference/champions/:id",
+      "request": { "method": "GET", "path": "/reference/champions/2" },
+      "assertions": [
+        { "pointer": "/body/id", "equals": 2 },
+        { "pointer": "/body/name", "equals": "Barik" }
+      ]
+    },
+    {
+      "id": "reference-item-by-id",
+      "routeId": "GET /reference/items/:id",
+      "request": { "method": "GET", "path": "/reference/items/11" },
+      "assertions": [
+        { "pointer": "/body/item_id", "equals": 11 },
+        { "pointer": "/body/item_name", "equals": "Bowling Ball" }
+      ]
+    },
+    {
+      "id": "reference-bounty-item-by-id",
+      "routeId": "GET /reference/bounty-items/:id",
+      "request": { "method": "GET", "path": "/reference/bounty-items/9000000002" },
+      "assertions": [
+        { "pointer": "/body/bounty_item_id", "equals": "9000000002" },
+        { "pointer": "/body/sale_end_datetime", "equals": null }
+      ]
+    },
+    {
+      "id": "reference-map-by-id",
+      "routeId": "GET /reference/maps/:id",
+      "request": { "method": "GET", "path": "/reference/maps/21" },
+      "assertions": [
+        { "pointer": "/body/map_id", "equals": 21 },
+        { "pointer": "/body/is_ranked", "equals": false }
+      ]
+    },
+    {
+      "id": "reference-tier-by-id",
+      "routeId": "GET /reference/tiers/:id",
+      "request": { "method": "GET", "path": "/reference/tiers/27" },
+      "assertions": [
+        { "pointer": "/body/tier_id", "equals": 27 },
+        { "pointer": "/body/tier_name", "equals": "Grandmaster" }
+      ]
+    },
+    {
+      "id": "reference-region-by-id",
+      "routeId": "GET /reference/regions/:id",
+      "request": { "method": "GET", "path": "/reference/regions/NA" },
+      "assertions": [
+        { "pointer": "/body/region_code", "equals": "NA" },
+        { "pointer": "/body/region_name", "equals": "North America" }
+      ]
+    },
+    {
+      "id": "reference-talent-by-id",
+      "routeId": "GET /reference/talents/:id",
+      "request": { "method": "GET", "path": "/reference/talents/31" },
+      "assertions": [
+        { "pointer": "/body/talent_id", "equals": 31 },
+        { "pointer": "/body/talent_name", "equals": "Fortify" }
+      ]
+    },
+    {
+      "id": "reference-queue-by-id",
+      "routeId": "GET /reference/queues/:id",
+      "request": { "method": "GET", "path": "/reference/queues/486" },
+      "assertions": [
+        { "pointer": "/body/queue_id", "equals": 486 },
+        { "pointer": "/body/stats_scope", "equals": "ranked" }
+      ]
+    },
+    {
+      "id": "reference-patch-by-id",
+      "routeId": "GET /reference/patches/:id",
+      "request": { "method": "GET", "path": "/reference/patches/2" },
+      "assertions": [
+        { "pointer": "/body/id", "equals": 2 },
+        { "pointer": "/body/version", "equals": "8.2" }
+      ]
+    },
+    {
+      "id": "reference-card-by-id",
+      "routeId": "GET /reference/cards/:id",
+      "request": { "method": "GET", "path": "/reference/cards/41" },
+      "assertions": [
+        { "pointer": "/body/card_id", "equals": 41 },
+        { "pointer": "/body/champion_id", "equals": 2 }
+      ]
+    },
+    {
+      "id": "reference-skin-by-id",
+      "routeId": "GET /reference/skins/:id",
+      "request": { "method": "GET", "path": "/reference/skins/51" },
+      "assertions": [
+        { "pointer": "/body/skin_id", "equals": 51 },
+        { "pointer": "/body/skin_name", "equals": "Default Barik" }
+      ]
+    },
+    {
+      "id": "reference-ability-by-id",
+      "routeId": "GET /reference/abilities/:id",
+      "request": { "method": "GET", "path": "/reference/abilities/2" },
+      "assertions": [
+        { "pointer": "/body/id", "equals": 2 },
+        { "pointer": "/body/ability1_id", "equals": 201 }
+      ]
+    },
+    {
+      "id": "reference-champions-list-cache-hit",
+      "routeId": "GET /reference/champions",
+      "request": { "method": "GET", "path": "/reference/champions" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/name", "equals": "Androxus" }
+      ]
+    },
+    {
+      "id": "reference-champion-id-cache-hit",
+      "routeId": "GET /reference/champions/:id",
+      "request": { "method": "GET", "path": "/reference/champions/2" },
+      "assertions": [
+        { "pointer": "/body/id", "equals": 2 }
+      ]
+    },
+    {
+      "id": "reference-missing-numeric-id",
+      "routeId": "GET /reference/champions/:id",
+      "request": { "method": "GET", "path": "/reference/champions/999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/code", "equals": "NOT_FOUND" },
+        { "pointer": "/body/error/details/id", "equals": "999" }
+      ]
+    },
+    {
+      "id": "reference-missing-text-id",
+      "routeId": "GET /reference/regions/:id",
+      "request": { "method": "GET", "path": "/reference/regions/MARS" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/message", "equals": "regions not found" }
+      ]
+    },
+    {
+      "id": "reference-invalid-numeric-id",
+      "routeId": "GET /reference/items/:id",
+      "request": { "method": "GET", "path": "/reference/items/not-a-number" },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "reference-lookup-missing-type",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Missing required query param: type" }
+      ]
+    },
+    {
+      "id": "reference-lookup-empty-type",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup?type=" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "reference-lookup-unknown-type",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup?type=unknown" },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "Unknown reference type: unknown. Valid types: champions, items, bounty-items, maps, tiers, regions, talents, queues, patches, cards, skins, abilities"
+        }
+      ]
+    },
+    {
+      "id": "reference-lookup-list",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup?type=maps" },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/map_id", "equals": 20 }
+      ]
+    },
+    {
+      "id": "reference-lookup-id",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup?type=regions&id=EU" },
+      "assertions": [
+        { "pointer": "/body/region_code", "equals": "EU" },
+        { "pointer": "/body/continent", "equals": "Europe" }
+      ]
+    },
+    {
+      "id": "reference-lookup-missing-id",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup?type=cards&id=999" },
+      "assertions": [
+        { "pointer": "/status", "equals": 404 },
+        { "pointer": "/body/error/message", "equals": "cards not found" }
+      ]
+    },
+    {
+      "id": "reference-lookup-invalid-numeric-id",
+      "routeId": "GET /reference/lookup",
+      "request": { "method": "GET", "path": "/reference/lookup?type=cards&id=invalid" },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 }
+      ]
+    }
+  ]
+}

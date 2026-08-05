@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "The selected Package C shadow fixtures are read-only; remote search and live vendor fallbacks are deliberately not triggered.",
+  "tables": []
+}

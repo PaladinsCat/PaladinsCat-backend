@@ -1,0 +1,473 @@
+{
+  "schemaVersion": 1,
+  "description": "Stats queue, region, platform, saved-loadout, profile/match tier distribution, tier summary, cache, filter, and JavaScript parsing compatibility.",
+  "fixtures": [
+    {
+      "id": "stats-queues-default-cache-miss",
+      "routeId": "GET /stats/queues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/queues?utm_source=fixture"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 200 },
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/queue_id", "equals": 486 },
+        { "pointer": "/body/0/total_matches", "equals": "6" },
+        { "pointer": "/body/0/avg_duration", "equals": "700.00" },
+        { "pointer": "/body/0/win_rate", "equals": "0.6000" }
+      ]
+    },
+    {
+      "id": "stats-queues-default-cache-hit",
+      "routeId": "GET /stats/queues",
+      "request": { "method": "GET", "path": "/stats/queues" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/headers/x-cache-age", "equals": "0" },
+        { "pointer": "/body/0/total_matches", "equals": "6" }
+      ]
+    },
+    {
+      "id": "stats-queues-minimum-tier",
+      "routeId": "GET /stats/queues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/queues?tierMin=10"
+      },
+      "assertions": [
+        { "pointer": "/body/0/total_matches", "equals": "4" },
+        { "pointer": "/body/0/avg_duration", "equals": "750.00" },
+        { "pointer": "/body/0/win_rate", "equals": "0.6667" }
+      ]
+    },
+    {
+      "id": "stats-queues-bounded-tier",
+      "routeId": "GET /stats/queues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/queues?tierMin=5&tierMax=10"
+      },
+      "assertions": [
+        { "pointer": "/body/0/total_matches", "equals": "5" },
+        { "pointer": "/body/0/avg_duration", "equals": "780.00" },
+        { "pointer": "/body/0/win_rate", "equals": "0.5000" }
+      ]
+    },
+    {
+      "id": "stats-queues-invalid-tier-zero",
+      "routeId": "GET /stats/queues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/queues?tierMin=0"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/code", "equals": "VALIDATION" }
+      ]
+    },
+    {
+      "id": "stats-queues-invalid-tier-prefix",
+      "routeId": "GET /stats/queues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/queues?tierMin=5tail"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        {
+          "pointer": "/body/error/message",
+          "equals": "Tier bounds must be between 1 and 26."
+        }
+      ]
+    },
+    {
+      "id": "stats-queues-invalid-reversed-bounds",
+      "routeId": "GET /stats/queues",
+      "request": {
+        "method": "GET",
+        "path": "/stats/queues?tierMin=20&tierMax=10"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "stats-regions-default-cache-miss",
+      "routeId": "GET /stats/regions",
+      "request": {
+        "method": "GET",
+        "path": "/stats/regions?gclid=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/region", "equals": "Europe" },
+        { "pointer": "/body/0/total_matches", "equals": "10" },
+        { "pointer": "/body/0/avg_duration", "equals": "940.00" },
+        { "pointer": "/body/1/region", "equals": "North America" },
+        { "pointer": "/body/1/avg_duration", "equals": "666.67" }
+      ]
+    },
+    {
+      "id": "stats-regions-default-cache-hit",
+      "routeId": "GET /stats/regions",
+      "request": { "method": "GET", "path": "/stats/regions" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/body", "length": 2 }
+      ]
+    },
+    {
+      "id": "stats-regions-exact-tier",
+      "routeId": "GET /stats/regions",
+      "request": {
+        "method": "GET",
+        "path": "/stats/regions?tierMin=10&tierMax=10"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/region", "equals": "Europe" },
+        { "pointer": "/body/0/total_matches", "equals": "8" },
+        { "pointer": "/body/0/avg_duration", "equals": "900.00" },
+        { "pointer": "/body/1/total_matches", "equals": "5" },
+        { "pointer": "/body/1/avg_duration", "equals": "800.00" }
+      ]
+    },
+    {
+      "id": "stats-regions-high-tier",
+      "routeId": "GET /stats/regions",
+      "request": {
+        "method": "GET",
+        "path": "/stats/regions?tierMin=20"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/region", "equals": "Europe" },
+        { "pointer": "/body/0/avg_duration", "equals": "1100.00" }
+      ]
+    },
+    {
+      "id": "stats-regions-invalid-tier",
+      "routeId": "GET /stats/regions",
+      "request": {
+        "method": "GET",
+        "path": "/stats/regions?tierMax=27"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "stats-platforms-default-cache-miss",
+      "routeId": "GET /stats/platforms",
+      "request": {
+        "method": "GET",
+        "path": "/stats/platforms?fbclid=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 4 },
+        { "pointer": "/body/0/platform", "equals": "PSN" },
+        { "pointer": "/body/0/champion_name", "equals": "Ash" },
+        { "pointer": "/body/0/total_matches", "equals": "3" },
+        { "pointer": "/body/0/win_rate", "equals": 100 },
+        { "pointer": "/body/1/platform", "equals": "Steam" },
+        { "pointer": "/body/1/total_matches", "equals": "15" },
+        { "pointer": "/body/1/win_rate", "equals": 53.33 },
+        { "pointer": "/body/1/avg_dpm", "equals": 900 },
+        { "pointer": "/body/2/champion_name", "equals": "Champion 2" },
+        { "pointer": "/body/3/platform", "equals": "XboxLive" },
+        { "pointer": "/body/3/avg_dpm", "equals": null }
+      ]
+    },
+    {
+      "id": "stats-platforms-default-cache-hit",
+      "routeId": "GET /stats/platforms",
+      "request": { "method": "GET", "path": "/stats/platforms" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/body", "length": 4 }
+      ]
+    },
+    {
+      "id": "stats-platforms-bounded-tier",
+      "routeId": "GET /stats/platforms",
+      "request": {
+        "method": "GET",
+        "path": "/stats/platforms?tierMin=10&tierMax=20"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/platform", "equals": "PSN" },
+        { "pointer": "/body/1/platform", "equals": "Steam" },
+        { "pointer": "/body/1/total_matches", "equals": "5" },
+        { "pointer": "/body/1/win_rate", "equals": 40 }
+      ]
+    },
+    {
+      "id": "stats-platforms-invalid-tier",
+      "routeId": "GET /stats/platforms",
+      "request": {
+        "method": "GET",
+        "path": "/stats/platforms?tierMin=1.5"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-default-cache-miss",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?utm_term=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 4 },
+        { "pointer": "/body/0/champion_name", "equals": "Maeve" },
+        { "pointer": "/body/0/total_uses", "equals": 3 },
+        { "pointer": "/body/1/champion_name", "equals": "Ash" },
+        { "pointer": "/body/1/total_uses", "equals": 2 },
+        { "pointer": "/body/1/win_rate", "equals": 0 },
+        { "pointer": "/body/1/loadout_items", "equals": null },
+        {
+          "pointer": "/body/1/last_refreshed",
+          "equals": "2026-04-02T00:00:00.000Z"
+        },
+        { "pointer": "/body/3/champion_name", "equals": "Champion 4" }
+      ]
+    },
+    {
+      "id": "stats-loadouts-default-cache-hit",
+      "routeId": "GET /stats/loadouts",
+      "request": { "method": "GET", "path": "/stats/loadouts" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/body", "length": 4 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-minimum-plays",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?minPlays=2"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/total_uses", "equals": 3 },
+        { "pointer": "/body/1/total_uses", "equals": 2 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-champion-prefix",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?championId=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/champion_id", "equals": 1 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-limit-offset",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?limit=1tail&offset=1tail"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/champion_name", "equals": "Ash" },
+        { "pointer": "/body/0/total_uses", "equals": 2 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-tier-maximum",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?tierMax=5"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 1 },
+        { "pointer": "/body/0/champion_name", "equals": "Ash" },
+        { "pointer": "/body/0/total_uses", "equals": 1 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-exact-tier",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?tierMin=10&tierMax=10"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 2 },
+        { "pointer": "/body/0/champion_name", "equals": "Ash" },
+        { "pointer": "/body/1/champion_name", "equals": "Ash" }
+      ]
+    },
+    {
+      "id": "stats-loadouts-invalid-champion",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?championId=-1"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 },
+        { "pointer": "/body/error/message", "equals": "Invalid championId." }
+      ]
+    },
+    {
+      "id": "stats-loadouts-empty-champion-is-ignored",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?championId="
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 4 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-invalid-tier",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?tierMin=26&tierMax=1"
+      },
+      "assertions": [
+        { "pointer": "/status", "equals": 400 }
+      ]
+    },
+    {
+      "id": "stats-loadouts-negative-limit",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?limit=-1"
+      },
+      "normalize": [
+        {
+          "operation": "replace",
+          "pointer": "/body/error/requestId",
+          "value": "<request-id>"
+        }
+      ],
+      "assertions": [
+        { "pointer": "/status", "equals": 500 },
+        { "pointer": "/body/error/code", "equals": "INTERNAL_ERROR" }
+      ]
+    },
+    {
+      "id": "stats-loadouts-negative-offset-and-minimum-clamp",
+      "routeId": "GET /stats/loadouts",
+      "request": {
+        "method": "GET",
+        "path": "/stats/loadouts?offset=-5&minPlays=-2&limit=0"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 4 },
+        { "pointer": "/body/0/champion_name", "equals": "Maeve" }
+      ]
+    },
+    {
+      "id": "stats-tiers-profiles-default-cache-miss",
+      "routeId": "GET /stats/tiers",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tiers?utm_content=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body", "length": 27 },
+        { "pointer": "/body/0/tier_sort", "equals": 1 },
+        { "pointer": "/body/0/total_plays", "equals": 1 },
+        { "pointer": "/body/0/percentage", "equals": 16.67 },
+        { "pointer": "/body/4/tier_sort", "equals": 5 },
+        { "pointer": "/body/9/total_plays", "equals": 1 },
+        { "pointer": "/body/25/tier", "equals": "Master" },
+        { "pointer": "/body/25/total_plays", "equals": 1 },
+        { "pointer": "/body/26/tier", "equals": "Grandmaster" },
+        { "pointer": "/body/26/total_plays", "equals": 1 }
+      ]
+    },
+    {
+      "id": "stats-tiers-profiles-default-cache-hit",
+      "routeId": "GET /stats/tiers",
+      "request": { "method": "GET", "path": "/stats/tiers" },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/body", "length": 27 }
+      ]
+    },
+    {
+      "id": "stats-tiers-matches-source",
+      "routeId": "GET /stats/tiers",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tiers?source=matches"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 26 },
+        { "pointer": "/body/0/total_plays", "equals": 2 },
+        { "pointer": "/body/0/percentage", "equals": 10 },
+        { "pointer": "/body/4/total_plays", "equals": 3 },
+        { "pointer": "/body/4/percentage", "equals": 15 },
+        { "pointer": "/body/9/percentage", "equals": 25 },
+        { "pointer": "/body/25/total_plays", "equals": 10 },
+        { "pointer": "/body/25/percentage", "equals": 50 }
+      ]
+    },
+    {
+      "id": "stats-tiers-source-is-case-sensitive",
+      "routeId": "GET /stats/tiers",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tiers?source=Matches"
+      },
+      "assertions": [
+        { "pointer": "/body", "length": 27 },
+        { "pointer": "/body/26/tier", "equals": "Grandmaster" }
+      ]
+    },
+    {
+      "id": "stats-tiers-summary-cache-miss",
+      "routeId": "GET /stats/tiers/summary",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tiers/summary?utm_source=fixture"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "MISS" },
+        { "pointer": "/body/profile_players", "equals": 6 },
+        { "pointer": "/body/avg_profile_tier", "equals": 14 },
+        { "pointer": "/body/match_player_rows", "equals": 4 },
+        { "pointer": "/body/active_players", "equals": 3 },
+        { "pointer": "/body/ranked_matches", "equals": 2 },
+        { "pointer": "/body/avg_participation_tier", "equals": 7.25 },
+        { "pointer": "/body/avg_match_tier", "equals": 7.25 },
+        { "pointer": "/body/median_match_tier", "equals": 7.25 }
+      ]
+    },
+    {
+      "id": "stats-tiers-summary-cache-hit",
+      "routeId": "GET /stats/tiers/summary",
+      "request": {
+        "method": "GET",
+        "path": "/stats/tiers/summary"
+      },
+      "assertions": [
+        { "pointer": "/headers/x-cache", "equals": "HIT" },
+        { "pointer": "/body/profile_players", "equals": 6 }
+      ]
+    }
+  ]
+}

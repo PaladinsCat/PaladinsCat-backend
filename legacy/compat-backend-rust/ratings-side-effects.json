@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "tables": [
+    { "name": "players", "orderBy": ["id"] },
+    { "name": "champions", "orderBy": ["id"] },
+    { "name": "matches", "orderBy": ["match_id"] },
+    { "name": "champion_ratings", "orderBy": ["champion_id"] },
+    {
+      "name": "champion_match_ratings",
+      "orderBy": ["match_id", "champion_id"]
+    },
+    {
+      "name": "player_queue_ratings",
+      "orderBy": ["player_id", "queue_id"]
+    },
+    {
+      "name": "player_champion_ratings",
+      "orderBy": ["player_id", "champion_id"]
+    },
+    {
+      "name": "match_rating_snapshots",
+      "orderBy": ["match_id", "player_id", "champion_id"]
+    }
+  ]
+}

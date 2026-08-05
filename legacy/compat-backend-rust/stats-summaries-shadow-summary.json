@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "mode": "read-only-production-data-shadow",
+  "checkedAt": "2026-07-29T08:26:53.3766917+00:00",
+  "gitCommit": "f91bdfd5de766cc83676f2ba50bffcaf8a3d91d3",
+  "gitDirty": true,
+  "safety": {
+    "databaseDefaultTransactionReadOnly": true,
+    "redis": "isolated-local-container",
+    "meilisearch": "disabled",
+    "relay": "unreachable-loopback",
+    "schedulers": "disabled",
+    "workersStarted": false
+  },
+  "summary": {
+    "groups": 1,
+    "fixtures": 34,
+    "passedFixtures": 34,
+    "failedFixtures": 0,
+    "routes": 6,
+    "passingRoutes": 6
+  },
+  "results": [
+    {
+      "group": "stats-summaries",
+      "report": "stats-summaries-shadow-report.json",
+      "fixtures": 34,
+      "passedFixtures": 34,
+      "routes": 6,
+      "passingRoutes": 6
+    }
+  ]
+}

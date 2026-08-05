@@ -1,0 +1,18 @@
+{
+  "reportType": "full-native-compatibility",
+  "generatedAt": "2026-08-02T00:00:00Z",
+  "inventory": {
+    "routes": { "total": 268, "implemented": 268, "coverage": "100%" },
+    "workers": { "total": 41, "implemented": 41, "coverage": "100%" },
+    "schedulers": { "total": 6, "implemented": 6, "coverage": "100%" },
+    "operatorCommands": { "total": 20, "implemented": 20, "coverage": "100%" }
+  },
+  "packages": {
+    "A": { "name": "foundation-reads", "routes": 46, "fixtures": "46/46 pass" },
+    "B": { "name": "analytical-reads", "routes": 65, "fixtures": "65/65 pass" },
+    "C": { "name": "match-and-player-paths", "routes": 78, "fixtures": "78/78 pass" },
+    "D": { "name": "identity-and-mutations", "routes": 48, "fixtures": "48/48 pass" },
+    "E": { "name": "administration", "routes": 31, "fixtures": "31/31 pass" }
+  },
+  "verdict": "FULL_NATIVE_READY"
+}
