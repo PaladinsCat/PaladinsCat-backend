@@ -180,7 +180,7 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             foundation.config.clone(),
         ))
         .merge(routes::reference::router(database.clone(), redis))
-        .merge(routes::raw_api_responses::router(database.clone()))
+        .merge(routes::raw_api_responses::router(database.clone(), &foundation))
         .merge(routes::public_operations::router(database))
         .fallback(not_found);
     Router::new()

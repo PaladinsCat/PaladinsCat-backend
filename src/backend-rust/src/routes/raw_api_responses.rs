@@ -1,20 +1,25 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use paladinscat_core::database::{Database, QueryParam};
-use serde_json::json;
+use serde::Deserialize;
+use serde_json::{json, Value};
 
-use crate::{error::ApiError, request::RequestId};
+use crate::foundation::FoundationState;
+use crate::security::developer_bearer_token;
+use crate::{error::ApiError, request::RequestId, workers::relay::WorkerRelayClient};
 
-pub const ROUTE_COUNT: usize = 6;
+pub const ROUTE_COUNT: usize = 7;
 
-pub fn router(database: Database) -> Router {
+pub fn router(database: Database, foundation: &FoundationState) -> Router {
+    let relay = WorkerRelayClient::new(&foundation.config).ok();
     Router::new()
         .route("/api/hirez-raw-responses", get(list_hirez_raw_responses))
         .route(
@@ -32,7 +37,81 @@ pub fn router(database: Database) -> Router {
             get(raw_responses_by_match),
         )
         .route("/api/raw-responses/{id}", get(raw_response_by_id))
+        .route("/api/raw/call", post(raw_call_endpoint))
         .with_state(database)
+        .layer(axum::extract::Extension(relay))
+        .layer(axum::extract::Extension(foundation.security.clone()))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawCallRequest {
+    method: String,
+    #[serde(default)]
+    params: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct RawCallResponse {
+    raw: Value,
+}
+
+async fn raw_call_endpoint(
+    Extension(relay): Extension<Option<WorkerRelayClient>>,
+    Extension(security): Extension<Arc<crate::security::SecurityContext>>,
+    headers: HeaderMap,
+    Extension(_request_id): Extension<RequestId>,
+    Json(req): Json<RawCallRequest>,
+) -> Result<Response, ApiError> {
+    // Operator-only authorization
+    let authenticated_dev = security.developer_key_configured()
+        && developer_bearer_token(&headers)
+            .is_some_and(|token| security.authenticate_developer_key(token));
+    if !security.is_operator_request(&headers, authenticated_dev) {
+        return Err(ApiError::coded(
+            StatusCode::FORBIDDEN,
+            "OPERATOR_ONLY",
+            "Raw API passthrough requires operator authorization",
+        ));
+    }
+
+    // Method name validation
+    let method = &req.method;
+    if method.is_empty() || method.len() > 64
+        || !method.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')
+    {
+        return Err(ApiError::coded(
+            StatusCode::BAD_REQUEST,
+            "INVALID_METHOD",
+            "method must be alphanumeric/dots, max 64 chars",
+        ));
+    }
+
+    let Some(relay) = relay else {
+        return Err(ApiError::coded(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "RELAY_NOT_CONFIGURED",
+            "HirezRelay is not configured",
+        ));
+    };
+
+    // Build relay args: [method_string, params_array]
+    let args = vec![
+        Value::String(method.clone()),
+        Value::Array(
+            req.params
+                .iter()
+                .map(|s| Value::String(s.clone()))
+                .collect(),
+        ),
+    ];
+
+    let result = relay
+        .call_value("callRawEndpoint", args, "raw_api_passthrough")
+        .await
+        .map_err(|e| ApiError::coded(StatusCode::BAD_GATEWAY, "RELAY_ERROR", e.to_string()))?;
+
+    Ok((StatusCode::OK, Json(RawCallResponse { raw: result })).into_response())
 }
 
 async fn list_hirez_raw_responses(
