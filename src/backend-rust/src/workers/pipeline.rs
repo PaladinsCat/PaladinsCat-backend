@@ -859,7 +859,7 @@ impl CanonicalIngestPipeline {
             .unwrap_or(6)
             .max(1);
         self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='discovered',quality=NULL,\
+            "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
              lease_until=NULL,terminal_reason=NULL,error_message=NULL,\
              updated_at=now()\
              WHERE status IN('fetching','service_deferred')\
@@ -1762,6 +1762,41 @@ mod tests {
             .expect("join propagation");
         assert!(duplicate_or_contract < propagate);
         assert!(dropped_task < propagate);
+    }
+
+    #[test]
+    fn interrupted_claim_reset_never_nulls_quality_or_drops_permanently() {
+        let source = include_str!("pipeline.rs");
+        let reset = source
+            .split("async fn terminalize_interrupted_nonranked_claims")
+            .nth(1)
+            .expect("interrupted terminalize fn")
+            .split("async fn fetch_nonranked_completed_continuously")
+            .next()
+            .expect("fn body");
+        // The reset branch must set a valid quality (column is NOT NULL) and must
+        // NOT permanently drop a merely-interrupted claim, or roster recovery stalls.
+        let reset_stmt = reset
+            .split("Anything still stuck in-flight past the fuse is permanently parked")
+            .next()
+            .expect("reset branch only");
+        assert!(
+            reset_stmt.contains("SET status='discovered',quality='unknown'"),
+            "interrupted-claim reset must set quality='unknown' (NOT NULL column), got:\n{reset_stmt}"
+        );
+        assert!(
+            reset_stmt.contains("status IN('fetching','service_deferred')"),
+            "reset targets in-flight claims"
+        );
+        assert!(
+            !reset_stmt.contains("status='dropped'"),
+            "interrupted-claim reset must NOT permanently drop; the bounded fuse branch is separate"
+        );
+        // The bounded fuse still parks genuinely-unavailable matches (churn guard).
+        assert!(
+            reset.contains("status='dropped',quality='unavailable'"),
+            "fuse branch parks over-attempted claims"
+        );
     }
 
     #[tokio::test]
