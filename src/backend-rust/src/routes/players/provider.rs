@@ -598,7 +598,7 @@ async fn refresh_champion_rows(
                    wins=EXCLUDED.wins,losses=EXCLUDED.losses,kills=EXCLUDED.kills,deaths=EXCLUDED.deaths, \
                    assists=EXCLUDED.assists,minutes_played=EXCLUDED.minutes_played,stats_populated=true,last_updated=now()",
                 &[
-                    &player_id,
+                    &i32::try_from(player_id).unwrap_or_default(),
                     &i32::try_from(champion_id).unwrap_or_default(),
                     &value_text(row, &["Champion", "champion"]),
                     &value_i64(row, &["XP", "Worshippers"]),
