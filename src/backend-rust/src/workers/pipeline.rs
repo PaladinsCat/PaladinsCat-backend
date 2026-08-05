@@ -855,7 +855,7 @@ impl CanonicalIngestPipeline {
         // parks genuinely-unavailable matches instead of churning forever.
         let attempt_cap = std::env::var("NONRANKED_ACQUISITION_INTERRUPT_MAX_ATTEMPTS")
             .ok()
-            .and_then(|raw| raw.parse::<i64>().ok())
+            .and_then(|raw| raw.parse::<i32>().ok())
             .unwrap_or(6)
             .max(1);
         self.database.query_json(
