@@ -29,6 +29,7 @@ pub struct RealRuntime {
     raw_buffer: Arc<RawBufferStore>,
     dummy_provider: Arc<DummyProvider>,
     key_file: Option<PathBuf>,
+    raw_api: Arc<HirezApiClient>,
 }
 
 pub struct RealRuntimeParts {
@@ -53,6 +54,7 @@ impl RealRuntime {
                 parts.history_cache,
                 parts.public_history_ttl_minutes,
             ),
+            raw_api: parts.api.clone(),
             player_lookup: PlayerBatchLookupService::new(parts.api, parts.player_names),
             match_provider: parts.match_provider,
             key_pool: parts.key_pool,
@@ -270,6 +272,32 @@ impl RealRuntime {
                     .await
                     .map_err(|error| RelayError::Upstream(error.to_string()))?;
                 Value::Bool(true)
+            }
+            "callRawEndpoint" => {
+                let method = text_arg(args, 0)?;
+                if method.len() > 64
+                    || !method.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')
+                {
+                    return Err(RelayError::Validation(
+                        "method must be alphanumeric/dots, max 64 chars".to_owned(),
+                    ));
+                }
+                let params: Vec<String> = args
+                    .get(1)
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
+                    })
+                    .unwrap_or_default();
+                self.raw_api
+                    .api_request(
+                        method,
+                        &params,
+                        crate::hirez_client::ApiRequestOptions::default(),
+                        consumer,
+                    )
+                    .await
+                    .map_err(|e| RelayError::Upstream(e.to_string()))?
             }
             "getApiKeyStatus" => to_value(self.key_pool.status())?,
             "cleanupFetchedPlayersCache" | "clearMatchHistoryCache" => return Ok(None),

@@ -534,6 +534,22 @@
       "storage": [],
       "cache": "match_history_memory",
       "maxOutboundCalls": 0
+    },
+    {
+      "name": "callRawEndpoint",
+      "modes": ["real"],
+      "kind": "upstream_raw",
+      "validation": {
+        "rules": [
+          { "index": 0, "kind": "nonEmptyString", "label": "method" },
+          { "index": 1, "kind": "nonEmptyStringArray", "label": "params", "optional": true }
+        ]
+      },
+      "validArgs": ["GetMatchHistory", ["16706730"]],
+      "result": "raw_array",
+      "storage": [],
+      "cache": "none",
+      "maxOutboundCalls": 1
     }
   ]
 }
