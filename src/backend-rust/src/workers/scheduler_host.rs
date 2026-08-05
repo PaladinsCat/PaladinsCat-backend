@@ -15,7 +15,7 @@ use paladinscat_core::{
     database::{Database, DatabaseError},
 };
 use serde_json::{Value, json};
-use time::{OffsetDateTime, Weekday, format_description::well_known::Rfc3339};
+use time::{Month, OffsetDateTime, Weekday, format_description::well_known::Rfc3339};
 use url::{Host, Url};
 
 use super::{
@@ -883,7 +883,7 @@ async fn ranked_gap_candidates(
         counts_by_key.insert((date, hour), row_i32(&row, "total_matches"));
     }
     let mut candidates = BTreeMap::new();
-    for (date, hour) in expected_elapsed_discovery_hours(now) {
+    for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
         let key = (date.clone(), hour);
         let handled = states_by_key.get(&key).map_or_else(
             || counts_by_key.get(&key).copied().unwrap_or_default() > 0,
@@ -912,7 +912,7 @@ async fn presence_gap_candidates(
     now: OffsetDateTime,
     min_date: &str,
 ) -> Result<Vec<GapCandidate>, DatabaseError> {
-    let Some((max_date, _)) = expected_elapsed_discovery_hours(now).last().cloned() else {
+    let Some((max_date, _)) = expected_elapsed_discovery_hours(now, min_date).last().cloned() else {
         return Ok(Vec::new());
     };
     let queue_ids = MATCH_COUNT_QUEUE_DEFINITIONS
@@ -942,7 +942,7 @@ async fn presence_gap_candidates(
     }
     let mut candidates = BTreeMap::new();
     for queue_id in &queue_ids {
-        for (date, hour) in expected_elapsed_discovery_hours(now) {
+        for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
             let key = (*queue_id, date.clone(), hour);
             if states.get(&key).is_none_or(presence_state_retryable) {
                 candidates.insert(key, GapCandidate::presence(*queue_id, date, hour));
@@ -1081,7 +1081,7 @@ async fn bracketed_missing_presence_hours(
         .filter(|queue| queue.track_presence && !queue.ranked)
         .map(|queue| queue.queue_id)
         .collect::<Vec<_>>();
-    let Some((max_date, max_hour)) = expected_elapsed_discovery_hours(now).last().cloned() else {
+    let Some((max_date, max_hour)) = expected_elapsed_discovery_hours(now, min_date).last().cloned() else {
         return Ok(Vec::new());
     };
     let max_hour = max_hour.to_string();
@@ -1106,7 +1106,10 @@ async fn bracketed_missing_presence_hours(
         .collect())
 }
 
-fn expected_elapsed_discovery_hours(now: OffsetDateTime) -> Vec<(String, i32)> {
+fn expected_elapsed_discovery_hours(
+    now: OffsetDateTime,
+    min_date: &str,
+) -> Vec<(String, i32)> {
     let latest_fetch_tick_hour = if now.minute() >= 30 {
         i32::from(now.hour())
     } else {
@@ -1115,19 +1118,36 @@ fn expected_elapsed_discovery_hours(now: OffsetDateTime) -> Vec<(String, i32)> {
     if latest_fetch_tick_hour < 0 {
         return Vec::new();
     }
-    let day_start = now
-        .replace_hour(0)
-        .and_then(|value| value.replace_minute(30))
-        .and_then(|value| value.replace_second(0))
-        .and_then(|value| value.replace_nanosecond(0))
-        .unwrap_or(now);
-    (0..=latest_fetch_tick_hour)
-        .map(|fetch_hour| {
-            let target = day_start + time::Duration::hours(i64::from(fetch_hour) - 1);
-            (target.date().to_string(), i32::from(target.hour()))
-        })
-        .filter(|(date, _)| date.as_str() >= GAP_CHECKER_MIN_DATE)
-        .collect()
+    let today = now.date();
+    let earliest = parse_date_boundary(min_date).unwrap_or(today);
+    let mut out = Vec::new();
+    let mut date = earliest;
+    while date <= today {
+        let max_hour = if date == today {
+            (latest_fetch_tick_hour - 1).max(0)
+        } else {
+            23
+        };
+        for hour in 0..=max_hour {
+            out.push((date.to_string(), hour));
+        }
+        let Some(next) = date.next_day() else {
+            break;
+        };
+        date = next;
+        if date > today {
+            break;
+        }
+    }
+    out
+}
+
+fn parse_date_boundary(value: &str) -> Option<time::Date> {
+    let mut parts = value.split('-');
+    let year = parts.next()?.parse::<i32>().ok()?;
+    let month = parts.next()?.parse::<u8>().ok()?;
+    let day = parts.next()?.parse::<u8>().ok()?;
+    time::Date::from_calendar_date(year, Month::try_from(month).ok()?, day).ok()
 }
 
 fn completed_discovery_window(now: OffsetDateTime) -> (String, i32) {
@@ -1390,14 +1410,40 @@ mod tests {
     }
 
     #[test]
-    fn expected_hours_match_typescript_elapsed_tick_grid() {
+    fn expected_hours_enumerate_prior_days_back_to_min_date() {
         let now = Date::from_calendar_date(2026, Month::August, 2)
             .expect("date")
             .with_time(Time::from_hms(5, 15, 0).expect("time"))
             .assume_offset(UtcOffset::UTC);
+        // min_date 08-01 => enumerate prior day fully (0..=23) + today up to
+        // latest elapsed tick (hour < 4, since minute 15 < 30 => tick 4, so
+        // today hours 0..=3 are elapsed).
         assert_eq!(
-            expected_elapsed_discovery_hours(now),
+            expected_elapsed_discovery_hours(now, "2026-08-01"),
             vec![
+                ("2026-08-01".to_owned(), 0),
+                ("2026-08-01".to_owned(), 1),
+                ("2026-08-01".to_owned(), 2),
+                ("2026-08-01".to_owned(), 3),
+                ("2026-08-01".to_owned(), 4),
+                ("2026-08-01".to_owned(), 5),
+                ("2026-08-01".to_owned(), 6),
+                ("2026-08-01".to_owned(), 7),
+                ("2026-08-01".to_owned(), 8),
+                ("2026-08-01".to_owned(), 9),
+                ("2026-08-01".to_owned(), 10),
+                ("2026-08-01".to_owned(), 11),
+                ("2026-08-01".to_owned(), 12),
+                ("2026-08-01".to_owned(), 13),
+                ("2026-08-01".to_owned(), 14),
+                ("2026-08-01".to_owned(), 15),
+                ("2026-08-01".to_owned(), 16),
+                ("2026-08-01".to_owned(), 17),
+                ("2026-08-01".to_owned(), 18),
+                ("2026-08-01".to_owned(), 19),
+                ("2026-08-01".to_owned(), 20),
+                ("2026-08-01".to_owned(), 21),
+                ("2026-08-01".to_owned(), 22),
                 ("2026-08-01".to_owned(), 23),
                 ("2026-08-02".to_owned(), 0),
                 ("2026-08-02".to_owned(), 1),
@@ -1405,6 +1451,18 @@ mod tests {
                 ("2026-08-02".to_owned(), 3),
             ]
         );
+        // min_date == today => only today's elapsed hours are enumerated.
+        assert_eq!(
+            expected_elapsed_discovery_hours(now, "2026-08-02"),
+            vec![
+                ("2026-08-02".to_owned(), 0),
+                ("2026-08-02".to_owned(), 1),
+                ("2026-08-02".to_owned(), 2),
+                ("2026-08-02".to_owned(), 3),
+            ]
+        );
+        // invalid min_date falls back gracefully (only today), never panics.
+        assert!(!expected_elapsed_discovery_hours(now, "not-a-date").is_empty());
     }
 
     #[test]

@@ -1668,7 +1668,7 @@ mod tests {
         if !schema_exists {
             client
                 .batch_execute(include_str!(
-                    "../../../../dev/compat/backend-rust/package-c-match-facts-seed.sql"
+                    "../../../../legacy/compat-backend-rust/package-c-match-facts-seed.sql"
                 ))
                 .await
                 .expect("seed schema");
