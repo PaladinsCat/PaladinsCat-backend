@@ -837,12 +837,36 @@ impl CanonicalIngestPipeline {
         if ids.is_empty() {
             return Ok(());
         }
+        // A whole acquisition lane failing is almost always a TRANSIENT infra
+        // event (relay lease lost, DB unavailable, quota exhausted) — not evidence
+        // of a bad payload. Permanently dropping the lane starved the roster/player
+        // tables and under-reported presence (the 38k `single_pass_worker_failure`
+        // incident). Reset lane-failed claims back to `discovered` so the next pass
+        // re-claims and persists them, bounded by an attempt fuse that parks only
+        // matches which repeatedly fail rather than churning forever.
+        let attempt_cap = std::env::var("NONRANKED_ACQUISITION_INTERRUPT_MAX_ATTEMPTS")
+            .ok()
+            .and_then(|raw| raw.parse::<i32>().ok())
+            .unwrap_or(6)
+            .max(1);
         self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',lease_until=NULL,\
-             terminal_reason='single_pass_worker_failure',error_message=$2,completed_at=now(),updated_at=now()\
-             WHERE match_id=ANY($1::bigint[]) AND status='fetching'",
-            &[&ids, &error],
-        ).await?;
+            "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
+             lease_until=NULL,terminal_reason=NULL,error_message=$2,updated_at=now()\
+             WHERE match_id=ANY($1::bigint[]) AND status='fetching'\
+               AND (detail_attempts IS NULL OR detail_attempts < $3::int)",
+            &[&ids, &error, &attempt_cap],
+        )
+        .await?;
+        // Failed too many times: park as dropped to avoid infinite churn.
+        self.database.query_json(
+            "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
+             lease_until=NULL,terminal_reason='worker_failure_attempt_fuse_exceeded',\
+             error_message=$2,completed_at=COALESCE(completed_at,now()),updated_at=now()\
+             WHERE match_id=ANY($1::bigint[]) AND status='fetching'\
+               AND detail_attempts >= $3::int",
+            &[&ids, &error, &attempt_cap],
+        )
+        .await?;
         Ok(())
     }
 
