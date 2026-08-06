@@ -254,7 +254,23 @@ pub fn json_cache_response(payload: Value, status: &'static str, fresh_until: i6
         HeaderName::from_static("x-cache"),
         HeaderValue::from_static(status),
     );
+    // Emit a browser/CDN cache lifetime so major public pages (matches,
+    // items, tiers, performance, activity) are not re-fetched on every visit.
+    // Derived from the server-side fresh window so clients never serve data
+    // newer than the origin would consider fresh; stale-while-revalidate lets
+    // CDNs keep a copy while the origin refreshes in the background.
     if status == "HIT" || status == "STALE" {
+        let fresh_seconds = (fresh_until - now_millis())
+            .div_euclid(Duration::from_secs(1).as_millis() as i64)
+            .max(0);
+        let stale_seconds = fresh_seconds.saturating_mul(3).max(60);
+        if let Ok(value) = HeaderValue::from_str(&format!(
+            "public, max-age={fresh_seconds}, s-maxage={fresh_seconds}, stale-while-revalidate={stale_seconds}"
+        )) {
+            response
+                .headers_mut()
+                .insert(HeaderName::from_static("cache-control"), value);
+        }
         let age = now_millis()
             .saturating_sub(fresh_until)
             .div_euclid(Duration::from_secs(1).as_millis() as i64)
