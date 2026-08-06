@@ -794,7 +794,7 @@ mod tests {
             .expect("claim stale");
         assert_eq!(
             batches.iter().map(Vec::len).collect::<Vec<_>>(),
-            vec![20, 2]
+            vec![20, 3]
         );
         assert!(
             batches

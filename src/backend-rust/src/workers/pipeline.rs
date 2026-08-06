@@ -1816,7 +1816,7 @@ mod tests {
         let client = database.connection().await.unwrap();
         client
             .execute(
-                "DELETE FROM hourly_ingest_state WHERE date=$1::date AND hour=$2 AND queue_id=486",
+                "DELETE FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=486",
                 &[&date, &hour],
             )
             .await
@@ -1851,7 +1851,7 @@ mod tests {
         .unwrap();
         let row = database
             .one_json(
-                "SELECT status,raw_match_count,staged_match_count,fetched,fetch_succeeded,lease_until::text,next_retry_at::text,error_message FROM hourly_ingest_state WHERE date=$1::date AND hour=$2 AND queue_id=486",
+                "SELECT status,raw_match_count,staged_match_count,fetched,fetch_succeeded,lease_until::text,next_retry_at::text,error_message FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=486",
                 &[&date, &hour],
             )
             .await
@@ -1882,7 +1882,7 @@ mod tests {
         let client = database.connection().await.unwrap();
         client
             .execute(
-                "DELETE FROM hourly_ingest_state WHERE date=$1::date AND hour=$2 AND queue_id=486",
+                "DELETE FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=486",
                 &[&date, &hour],
             )
             .await
