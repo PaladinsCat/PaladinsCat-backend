@@ -274,14 +274,9 @@ impl RealRuntime {
                 Value::Bool(true)
             }
             "callRawEndpoint" => {
+                // Raw passthrough — no validation, no transformation.
+                // User supplies method + params verbatim; Hi-Rez response returns verbatim.
                 let method = text_arg(args, 0)?;
-                if method.len() > 64
-                    || !method.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')
-                {
-                    return Err(RelayError::Validation(
-                        "method must be alphanumeric/dots, max 64 chars".to_owned(),
-                    ));
-                }
                 let params: Vec<String> = args
                     .get(1)
                     .and_then(|v| v.as_array())
@@ -291,7 +286,7 @@ impl RealRuntime {
                     .unwrap_or_default();
                 self.raw_api
                     .api_request(
-                        method,
+                        &method,
                         &params,
                         crate::hirez_client::ApiRequestOptions::default(),
                         consumer,
