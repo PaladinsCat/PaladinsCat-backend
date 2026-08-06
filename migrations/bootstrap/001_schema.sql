@@ -2289,6 +2289,7 @@ CREATE TABLE IF NOT EXISTS drop_hack_suspects (
     incident_count    INT NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_dhs_player ON drop_hack_suspects (player_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dhs_player_match ON drop_hack_suspects (player_id, match_id);
 CREATE INDEX IF NOT EXISTS idx_dhs_incident ON drop_hack_suspects (incident_count DESC);
 COMMENT ON TABLE drop_hack_suspects IS 'Tracks drop hack suspects. is_cassie auto-flagged if champion=Cassie. incident_count > 1 across multiple dropped matches = likely drop hacker.';
 

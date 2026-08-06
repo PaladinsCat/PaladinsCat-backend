@@ -822,7 +822,7 @@ async fn persist_player_status(
         database,
         row,
         r#"WITH rows AS(SELECT value raw FROM jsonb_array_elements($1::text::jsonb))
-        INSERT INTO player_status(player_id,status,status_string,match_id,queue_id,last_updated)
+        INSERT INTO player_status(player_id,status,status_string,current_match_id,queue_id,updated_at)
         SELECT COALESCE(NULLIF(raw->>'player_id','')::bigint,NULLIF(raw->>'playerId','')::bigint),
           COALESCE(NULLIF(raw->>'status','')::int,NULLIF(raw->>'status_id','')::int,0),
           COALESCE(raw->>'status_string',raw->>'status'),
@@ -830,7 +830,7 @@ async fn persist_player_status(
           COALESCE(NULLIF(raw->>'queue_id','')::int,NULLIF(raw->>'match_queue_id','')::int),now()
         FROM rows WHERE COALESCE(NULLIF(raw->>'player_id','')::bigint,NULLIF(raw->>'playerId','')::bigint)>0
         ON CONFLICT(player_id) DO UPDATE SET status=EXCLUDED.status,status_string=EXCLUDED.status_string,
-          match_id=EXCLUDED.match_id,queue_id=EXCLUDED.queue_id,last_updated=now()"#,
+          current_match_id=EXCLUDED.current_match_id,queue_id=EXCLUDED.queue_id,updated_at=now()"#,
     )
     .await
 }
@@ -903,19 +903,27 @@ async fn persist_live_match(database: &Database, row: &ClaimedRow) -> Result<(),
         database,
         row,
         r#"WITH rows AS(SELECT value raw FROM jsonb_array_elements($1::text::jsonb))
-        INSERT INTO live_match_players(match_id,player_id,player_name,champion_id,champion_name,team,queue_id,region,observed_at,raw_data)
+        INSERT INTO live_match_players(match_id,player_id,player_name,champion_id,champion_name,skin_id,skin_name,account_level,mastery_level,tier,tier_wins,tier_losses,task_force,platform)
         SELECT COALESCE(NULLIF(raw->>'match_id','')::bigint,NULLIF(raw->>'Match','')::bigint),
           COALESCE(NULLIF(raw->>'player_id','')::bigint,NULLIF(raw->>'playerId','')::bigint),
           COALESCE(raw->>'player_name',raw->>'playerName'),
           COALESCE(NULLIF(raw->>'champion_id','')::int,NULLIF(raw->>'ChampionId','')::int),
           COALESCE(raw->>'champion_name',raw->>'ChampionName'),
-          COALESCE(NULLIF(raw->>'team','')::smallint,NULLIF(raw->>'task_force','')::smallint,0),
-          COALESCE(NULLIF(raw->>'queue_id','')::int,NULLIF(raw->>'match_queue_id','')::int),
-          COALESCE(raw->>'region',raw->>'Region'),now(),raw
+          COALESCE(NULLIF(raw->>'skin_id','')::int,NULLIF(raw->>'SkinId','')::int,0),
+          COALESCE(raw->>'skin_name',raw->>'Skin',''),
+          COALESCE(NULLIF(raw->>'account_level','')::int,NULLIF(raw->>'Account_Level','')::int,0),
+          COALESCE(NULLIF(raw->>'mastery_level','')::int,NULLIF(raw->>'Mastery_Level','')::int,0),
+          COALESCE(NULLIF(raw->>'tier','')::int,NULLIF(raw->>'Tier','')::int,0),
+          COALESCE(NULLIF(raw->>'tier_wins','')::int,NULLIF(raw->>'tierWins','')::int,0),
+          COALESCE(NULLIF(raw->>'tier_losses','')::int,NULLIF(raw->>'tierLosses','')::int,0),
+          COALESCE(NULLIF(raw->>'task_force','')::int,NULLIF(raw->>'taskForce','')::int,NULLIF(raw->>'team','')::int,0),
+          COALESCE(NULLIF(raw->>'platform','')::int,NULLIF(raw->>'Platform','')::int,NULLIF(raw->>'playerPortalId','')::int,0)
         FROM rows WHERE COALESCE(NULLIF(raw->>'match_id','')::bigint,NULLIF(raw->>'Match','')::bigint)>0
         ON CONFLICT(match_id,player_id) DO UPDATE SET player_name=EXCLUDED.player_name,
-          champion_id=EXCLUDED.champion_id,champion_name=EXCLUDED.champion_name,team=EXCLUDED.team,
-          queue_id=EXCLUDED.queue_id,region=EXCLUDED.region,observed_at=now(),raw_data=EXCLUDED.raw_data"#,
+          champion_id=EXCLUDED.champion_id,champion_name=EXCLUDED.champion_name,skin_id=EXCLUDED.skin_id,
+          skin_name=EXCLUDED.skin_name,account_level=EXCLUDED.account_level,mastery_level=EXCLUDED.mastery_level,
+          tier=EXCLUDED.tier,tier_wins=EXCLUDED.tier_wins,tier_losses=EXCLUDED.tier_losses,
+          task_force=EXCLUDED.task_force,platform=EXCLUDED.platform"#,
     )
     .await
 }
