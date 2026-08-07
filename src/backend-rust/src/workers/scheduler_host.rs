@@ -67,6 +67,7 @@ struct BufferDrainTotals {
 
 async fn drain_buffer_continuously<E, F, Fut>(
     should_stop: &AtomicBool,
+    max_batches: Option<usize>,
     mut next_batch: F,
 ) -> Result<BufferDrainTotals, E>
 where
@@ -76,6 +77,9 @@ where
     let mut totals = BufferDrainTotals::default();
     loop {
         if should_stop.load(Ordering::Relaxed) {
+            break;
+        }
+        if max_batches.is_some_and(|max| totals.batches >= max) {
             break;
         }
         let result = next_batch().await?;
@@ -192,6 +196,31 @@ fn nonranked_acquisition_max_matches_per_run() -> usize {
 
 fn bounded_nonranked_acquisition_max_matches(value: Option<usize>) -> usize {
     value.unwrap_or(2_000).clamp(1, 20_000)
+}
+
+/// Cap on buffer batches drained per scheduler invocation. Bounding the drain
+/// (rather than draining until the inbox is empty) prevents a large or
+/// permanently non-empty raw inbox from pinning the scheduler job slot open
+/// for hours, which stalled discovery by keeping its post-discovery inline
+/// drain alive forever.
+fn bounded_buffer_drain_max_batches(value: Option<usize>) -> usize {
+    value.unwrap_or(20).clamp(1, 1_000)
+}
+
+fn buffer_drain_max_batches_per_run() -> usize {
+    // Prefer the new operator knob; fall back to the legacy
+    // RUST_BUFFER_DRAIN_MAX_BATCHES used by prior deployment configs, then the
+    // built-in default of 20.
+    bounded_buffer_drain_max_batches(
+        std::env::var("BUFFER_DRAIN_MAX_BATCHES_PER_RUN")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .or_else(|| {
+                std::env::var("RUST_BUFFER_DRAIN_MAX_BATCHES")
+                    .ok()
+                    .and_then(|value| value.parse().ok())
+            }),
+    )
 }
 
 fn auto_ingester_presence_source(trigger: &str) -> &'static str {
@@ -565,14 +594,18 @@ async fn dispatch(
         "auto-ingester:buffer-drain" => {
             let relay =
                 WorkerRelayClient::new(&services.config).map_err(|error| error.to_string())?;
-            let totals = drain_buffer_continuously(&services.should_stop, || {
-                process_buffer_batch_until(
-                    &services.database,
-                    Some(&relay),
-                    50,
-                    &services.should_stop,
-                )
-            })
+            let totals = drain_buffer_continuously(
+                &services.should_stop,
+                Some(buffer_drain_max_batches_per_run()),
+                || {
+                    process_buffer_batch_until(
+                        &services.database,
+                        Some(&relay),
+                        50,
+                        &services.should_stop,
+                    )
+                },
+            )
             .await
             .map_err(|error| error.to_string())?;
             Ok(json!({
@@ -1269,7 +1302,7 @@ mod tests {
     async fn buffer_drain_continues_until_backlog_is_empty() {
         let stop = AtomicBool::new(false);
         let mut remaining = 14_usize;
-        let totals = drain_buffer_continuously(&stop, || {
+        let totals = drain_buffer_continuously(&stop, None, || {
             let result = if remaining == 0 {
                 BufferBatchResult::default()
             } else {
@@ -1287,6 +1320,27 @@ mod tests {
 
         assert_eq!(totals.batches, 14);
         assert_eq!(totals.processed, 700);
+    }
+
+    #[tokio::test]
+    async fn buffer_drain_stops_at_batch_cap() {
+        let stop = AtomicBool::new(false);
+        let mut remaining = 50_usize;
+        let totals = drain_buffer_continuously(&stop, Some(5), || {
+            let result = BufferBatchResult {
+                processed: 50,
+                failed: 0,
+                deferred: 0,
+            };
+            remaining -= 1;
+            std::future::ready(Ok::<_, ()>(result))
+        })
+        .await
+        .expect("drain should succeed");
+
+        assert_eq!(totals.batches, 5);
+        assert_eq!(totals.processed, 250);
+        assert_eq!(remaining, 45);
     }
 
     #[test]
