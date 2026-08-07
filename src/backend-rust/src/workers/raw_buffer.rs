@@ -989,13 +989,16 @@ async fn run_json_upsert(
     sql: &str,
 ) -> Result<(), RawBufferError> {
     let raw = clean_json_text(&row.raw_data)?;
-    database.query_json(sql, &[&raw, &row.entity_id]).await?;
+    database.query_json(sql, &[&raw]).await?;
     Ok(())
 }
 
 fn clean_json_text(value: &Value) -> Result<String, RawBufferError> {
     serde_json::to_string(value)
-        .map(|value| value.replace('\0', ""))
+        // serde_json emits a literal NUL byte as the 6-char \u0000 escape sequence,
+        // which Postgres rejects ("unsupported Unicode escape sequence"). Strip both
+        // the raw NUL and the \u0000 escape from the serialized text.
+        .map(|value| value.replace('\0', "").replace("\\u0000", ""))
         .map_err(|error| RawBufferError::Invalid {
             row_id: 0,
             message: error.to_string(),
