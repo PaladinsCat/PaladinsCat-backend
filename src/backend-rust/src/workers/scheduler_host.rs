@@ -36,6 +36,7 @@ use super::{
     pipeline::CanonicalIngestPipeline,
     policy::{ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot},
     profile_enrichment::{ProfileEnrichmentRepository, ProfileEnrichmentResult},
+    projections,
     ranked_tracker::RankedTracker,
     relay::WorkerRelayClient,
     scheduler::{ScheduledJob, StartupPolicy, scheduled_jobs_for},
@@ -635,6 +636,16 @@ async fn dispatch(
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(json!({"jobId":result.job_id,"counts":result.counts}))
+        }
+        "ranked-projection:repair" => {
+            let page = std::env::var("PROJECTION_REPAIR_PAGE_SIZE")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(250);
+            let projected = projections::repair_ranked_projection_gaps(&services.database, page)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(json!({"projected": projected, "pageSize": page}))
         }
         "hourly-gap-checker:scan" => run_gap_check(services).await,
         "tier-stats:refresh" => serde_json::to_value(

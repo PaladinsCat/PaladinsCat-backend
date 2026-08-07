@@ -59,7 +59,7 @@ impl ScheduledJob {
     }
 }
 
-pub const SCHEDULED_JOBS: [ScheduledJob; 13] = [
+pub const SCHEDULED_JOBS: [ScheduledJob; 14] = [
     ScheduledJob {
         job_key: "ranked-tracker:leaderboard",
         scheduler_key: "ranked_tracker",
@@ -146,6 +146,14 @@ pub const SCHEDULED_JOBS: [ScheduledJob; 13] = [
         cron_expression: "30 3 * * *",
         minute: MinuteSchedule::Exact(30),
         hour: HourSchedule::Exact(3),
+        startup: StartupPolicy::None,
+    },
+    ScheduledJob {
+        job_key: "ranked-projection:repair",
+        scheduler_key: "derived_projection_tracker",
+        cron_expression: "*/10 * * * *",
+        minute: MinuteSchedule::Every(10),
+        hour: HourSchedule::Any,
         startup: StartupPolicy::None,
     },
     ScheduledJob {

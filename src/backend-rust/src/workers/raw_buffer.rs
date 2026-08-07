@@ -610,13 +610,24 @@ async fn persist_match(
         return Ok(());
     }
     if finalized.population == super::match_lifecycle::MatchPopulation::Ranked {
-        RankedProjectionRepository::new(database.clone())
-            .project_match(payload.match_id)
-            .await
-            .map_err(|error| RawBufferError::Invalid {
-                row_id: row.id,
-                message: error.to_string(),
-            })?;
+        // Ranked cumulative projection is owned by the bounded batch pass
+        // (apply_adaptive_ranked_projection_batches) and the bounded repair
+        // drain (repair_projection_gaps), both of which re-project idempotently
+        // from the stats_projection_matches registry in small pages. Re-running
+        // it inline per-row is redundant and, under load, can exceed the
+        // statement timeout and recycle the row forever. So a ranked projection
+        // failure here is NON-fatal: the facts have already landed (durable),
+        // so the row is marked terminal and the match is left OUT of the
+        // registry (stats_projection_matches), which is exactly the signal the
+        // repair drain uses to find and re-project it later.
+        let repository = RankedProjectionRepository::new(database.clone());
+        if let Err(error) = repository.project_match(payload.match_id).await {
+            tracing::warn!(
+                match_id = payload.match_id,
+                error = %error,
+                "ranked projection deferred inline (facts durable); bounded drain owns reprojection"
+            );
+        }
     } else {
         CasualMechanicsRepository::new(database.clone())
             .project_all_for_match(payload.match_id)

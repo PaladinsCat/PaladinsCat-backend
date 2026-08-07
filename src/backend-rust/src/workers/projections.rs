@@ -1,4 +1,5 @@
 use paladinscat_core::database::{Database, DatabaseError};
+use serde_json::Value;
 use tokio_postgres::Transaction;
 
 const ROLE_NAME_SQL: &str = r#"CASE
@@ -668,6 +669,85 @@ async fn project_metric_histograms(
     );
     transaction.execute(&champion, &[&match_ids]).await?;
     Ok(())
+}
+
+/// Bounded repair drain for ranked cumulative projections.
+///
+/// Mirrors the legacy TS `repairScalableStatsProjectionGapsWithClient`: instead
+/// of sweeping the whole backlog in one unbounded statement (which exceeded the
+/// 30s statement timeout and wedged the drain), we select a small *page* of
+/// complete ranked matches that are missing from the `stats_projection_matches`
+/// registry and project each page inside its own short transaction.
+///
+/// Calling `tick_derived_projections` with this repeatedly (via the scheduler
+/// or a manual admin op) lets the backlog clear incrementally without any single
+/// query timing out. Returns the number of additional matches projected this call.
+pub async fn repair_ranked_projection_gaps(
+    database: &Database,
+    page_size: usize,
+) -> Result<usize, DatabaseError> {
+    let page_size = page_size.clamp(1, 1000);
+    let page = database
+        .query_json(
+            "SELECT m.match_id AS match_id \
+             FROM matches m \
+             JOIN match_ingest_status mis ON mis.match_id=m.match_id AND mis.status='complete' \
+             LEFT JOIN stats_projection_matches spm \
+               ON spm.projection_version=1 AND spm.match_id=m.match_id \
+             WHERE spm.match_id IS NULL \
+               AND m.queue_id=486 AND COALESCE(m.limited,FALSE)=FALSE \
+             ORDER BY m.entry_datetime,m.match_id \
+             LIMIT $1",
+            &[&i64::try_from(page_size).unwrap_or(250)],
+        )
+        .await?;
+    let ids = page
+        .iter()
+        .filter_map(|row| row.get("match_id").and_then(Value::as_i64).filter(|id| *id > 0))
+        .collect::<Vec<_>>();
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let mut projected = 0usize;
+    for chunk in ids.chunks(page_size) {
+        let mut client = database.connection().await?;
+        let transaction = client.transaction().await?;
+        // Claim atomically so concurrent drain passes don't double-project;
+        // anything not claimed this pass is picked up by a later page.
+        let claimed = transaction
+            .query(
+                "INSERT INTO stats_projection_matches(projection_version,match_id) \
+                 SELECT 1,requested.match_id FROM unnest($1::BIGINT[]) AS requested(match_id) \
+                 ON CONFLICT DO NOTHING RETURNING match_id",
+                &[&chunk.to_vec()],
+            )
+            .await?
+            .into_iter()
+            .map(|row| row.get::<_, i64>(0))
+            .collect::<Vec<_>>();
+        if claimed.is_empty() {
+            let _ = transaction.rollback().await;
+            continue;
+        }
+        // Same set-based projection the batch drain uses, but over a bounded page.
+        if let Err(error) = project_scalable_many(&transaction, &claimed).await {
+            tracing::error!(page = chunk.len(), error = %error, "projection repair page failed");
+            let _ = transaction.rollback().await;
+            continue;
+        }
+        if let Err(error) = project_performance_many(&transaction, &claimed).await {
+            tracing::error!(page = chunk.len(), error = %error, "projection repair performance page failed");
+            let _ = transaction.rollback().await;
+            continue;
+        }
+        match transaction.commit().await {
+            Ok(()) => projected += claimed.len(),
+            Err(error) => {
+                tracing::error!(error = %error, "projection repair page commit failed");
+            }
+        }
+    }
+    Ok(projected)
 }
 
 #[cfg(test)]
