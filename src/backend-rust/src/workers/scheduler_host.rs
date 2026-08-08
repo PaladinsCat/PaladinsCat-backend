@@ -573,6 +573,15 @@ async fn dispatch(
                 "nonranked_acquired":nonranked
             }))
         }
+        "auto-ingester:nonranked-acquisition" => {
+            let worker = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
+                .map_err(|error| error.to_string())?;
+            let acquired = worker
+                .run_nonranked_acquisition(nonranked_acquisition_max_matches_per_run(), 120)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(json!({"nonranked_acquired": acquired}))
+        }
         "auto-ingester:profile-enrichment" => {
             let max_calls = profile_enrichment_allowed_calls(
                 profile_enrichment_max_calls(),
