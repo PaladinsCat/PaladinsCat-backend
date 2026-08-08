@@ -252,6 +252,9 @@ fn oidc_bff_token_matches(expected: Option<&str>, candidate: Option<&str>) -> bo
 #[cfg(test)]
 mod oidc_tests {
     use super::*;
+    use axum::{body::Body, http::Request};
+    use paladinscat_core::config::BackendConfig;
+    use tower::ServiceExt;
     #[test]
     fn bff_token_is_fail_closed_and_transaction_input_is_bounded() {
         let token = "x".repeat(32);
@@ -262,6 +265,42 @@ mod oidc_tests {
         assert!(oidc_state(&json!({"state":"x".repeat(32)})).is_some());
         assert!(oidc_state(&json!({"state":"x".repeat(31)})).is_none());
         assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
+    }
+
+    #[tokio::test]
+    #[ignore = "requires PALADINSCAT_TEST_REDIS_URL and PALADINSCAT_TEST_DATABASE_URL"]
+    async fn live_bff_transactions_are_one_use() {
+        let redis_url = std::env::var("PALADINSCAT_TEST_REDIS_URL").expect("test redis URL");
+        let database_url = std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
+        let bff_token = "b".repeat(32);
+        let config = BackendConfig::from_lookup(|name| match name {
+            "DATABASE_URL" => Some(database_url.clone()),
+            "REDIS_URL" => Some(redis_url.clone()),
+            "PALADINSCAT_OIDC_BFF_SERVICE_TOKEN" => Some(bff_token.clone()),
+            _ => None,
+        }).expect("test config");
+        let app = router(
+            Database::new(&config, "oidc-route-e2e").expect("test database pool"),
+            paladinscat_core::cache::RedisCache::new(&redis_url).expect("test redis client"),
+            std::sync::Arc::new(config),
+        );
+        async fn request(app: Router, token: Option<&str>, uri: &str, body: Value) -> StatusCode {
+            let mut request = Request::builder().method("POST").uri(uri).header("content-type", "application/json").body(Body::from(body.to_string())).expect("request");
+            if let Some(token) = token { request.headers_mut().insert(AUTHORIZATION, format!("Bearer {token}").parse().expect("authorization")); }
+            request.extensions_mut().insert(RequestId("oidc-route-e2e".to_owned()));
+            app.oneshot(request).await.expect("response").status()
+        }
+        let state = "s".repeat(32);
+        let transaction = json!({"state":state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
+        assert_eq!(request(app.clone(), None, "/auth/oidc/transactions", transaction.clone()).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(request(app.clone(), Some("wrong"), "/auth/oidc/transactions", transaction.clone()).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", transaction.clone()).await, StatusCode::CREATED);
+        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", transaction).await, StatusCode::CONFLICT);
+        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions/consume", json!({"state":state})).await, StatusCode::OK);
+        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions/consume", json!({"state":state})).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(request(app.clone(), None, "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(request(app.clone(), Some("wrong"), "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(request(app, Some(&bff_token), "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::NOT_FOUND);
     }
 }
 
