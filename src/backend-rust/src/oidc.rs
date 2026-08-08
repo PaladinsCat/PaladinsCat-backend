@@ -1,4 +1,5 @@
 //! Fail-closed OIDC access-token checks.  Discovery/JWKS URLs are never token-controlled.
+use futures::StreamExt;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 use std::{
@@ -132,7 +133,16 @@ impl OidcVerifier {
         {
             return Err(TokenError::Invalid);
         }
-        let document: Jwks = response.json().await.map_err(|_| TokenError::Invalid)?;
+        let mut bytes = Vec::new();
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|_| TokenError::Invalid)?;
+            if bytes.len().saturating_add(chunk.len()) > 262_144 {
+                return Err(TokenError::Invalid);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let document = parse_jwks(&bytes)?;
         let mut keys = HashMap::new();
         for jwk in document.keys.into_iter().filter(|jwk| {
             jwk.kty == "RSA"
@@ -149,6 +159,13 @@ impl OidcVerifier {
         cache.last_unknown_refresh = Instant::now();
         cache.keys.get(kid).cloned().ok_or(TokenError::KeyId)
     }
+}
+
+fn parse_jwks(bytes: &[u8]) -> Result<Jwks, TokenError> {
+    if bytes.len() > 262_144 {
+        return Err(TokenError::Invalid);
+    }
+    serde_json::from_slice(bytes).map_err(|_| TokenError::Invalid)
 }
 
 /// Validates only RS256 access tokens. ID tokens and claims supplied by clients never grant roles.
@@ -225,6 +242,27 @@ mod tests {
         assert_eq!(
             validate_access_token(&token, "https://issuer", "api", &key),
             Err(TokenError::TokenType)
+        );
+    }
+    #[test]
+    fn jwks_body_cap_applies_without_a_content_length() {
+        assert_eq!(
+            parse_jwks(&vec![b' '; 262_145]).err(),
+            Some(TokenError::Invalid)
+        );
+        assert!(
+            OidcVerifier::new(
+                "https://user:pass@auth.paladinscat.com/realms/paladinscat".into(),
+                "api".into()
+            )
+            .is_err()
+        );
+        assert!(
+            OidcVerifier::new(
+                "https://auth.paladinscat.com:444/realms/paladinscat".into(),
+                "api".into()
+            )
+            .is_err()
         );
     }
 }
