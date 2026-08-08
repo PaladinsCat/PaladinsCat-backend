@@ -269,6 +269,22 @@ pub async fn application_foundation(
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
 
+    if has_session_cookie(request.headers())
+        && !cookie_request_is_safe(&state, &request, origin.as_deref())
+    {
+        return finalize_response(
+            (
+                StatusCode::FORBIDDEN,
+                "Cookie authentication requires HTTPS, same-origin and CSRF protection",
+            )
+                .into_response(),
+            &state,
+            origin.as_deref(),
+            started,
+            true,
+        );
+    }
+
     if let Some(response) = preflight_response(&state, &request) {
         return finalize_response(response, &state, origin.as_deref(), started, false);
     }
@@ -579,6 +595,60 @@ pub async fn application_foundation(
     } else {
         finalize_response(response, &state, origin.as_deref(), started, true)
     }
+}
+
+fn has_session_cookie(headers: &HeaderMap) -> bool {
+    headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(';')
+                .any(|part| part.trim_start().starts_with("__Host-pc_session="))
+        })
+}
+
+fn cookie_request_is_safe(
+    state: &FoundationState,
+    request: &Request,
+    origin: Option<&str>,
+) -> bool {
+    // Caddy overwrites this header at the trusted origin boundary; direct HTTP callers fail closed.
+    if request
+        .headers()
+        .get("x-forwarded-proto")
+        .and_then(|value| value.to_str().ok())
+        != Some("https")
+    {
+        return false;
+    }
+    if matches!(
+        *request.method(),
+        Method::GET | Method::HEAD | Method::OPTIONS
+    ) {
+        return true;
+    }
+    if !origin.is_some_and(|origin| state.security.is_allowed_cors_origin(origin)) {
+        return false;
+    }
+    let csrf_header = request
+        .headers()
+        .get("x-csrf-token")
+        .and_then(|value| value.to_str().ok());
+    let csrf_cookie = request
+        .headers()
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            value
+                .split(';')
+                .find_map(|part| part.trim().strip_prefix("__Host-pc_csrf="))
+        });
+    csrf_header
+        .zip(csrf_cookie)
+        .is_some_and(|(header, cookie)| {
+            header.len() >= 32 && crate::security::constant_time_equal_public(header, cookie)
+        })
 }
 
 #[derive(Clone, Copy)]

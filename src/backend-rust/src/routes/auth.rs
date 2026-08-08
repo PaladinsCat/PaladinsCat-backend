@@ -17,6 +17,7 @@ use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
     error::ApiError,
+    oidc::OidcVerifier,
     raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response},
     request::RequestId,
     routes::live::{request_identity, vendor_guard},
@@ -37,6 +38,7 @@ struct AuthState {
     database: Database,
     redis: paladinscat_core::cache::RedisCache,
     relay: Option<WorkerRelayClient>,
+    oidc: Option<OidcVerifier>,
 }
 
 pub fn router(
@@ -47,6 +49,12 @@ pub fn router(
     Router::new()
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
+        .route("/auth/oidc/exchange", post(oidc_exchange))
+        .route("/auth/oidc/transactions", post(oidc_transaction_create))
+        .route(
+            "/auth/oidc/transactions/consume",
+            post(oidc_transaction_consume),
+        )
         .route("/auth/logout", post(logout))
         .route("/auth/me", get(me))
         .route("/auth/profile", put(profile))
@@ -81,7 +89,133 @@ pub fn router(
             database,
             redis,
             relay: WorkerRelayClient::new(&config).ok(),
+            oidc: config
+                .oidc_issuer
+                .clone()
+                .zip(config.oidc_audience.clone())
+                .and_then(|(issuer, audience)| OidcVerifier::new(issuer, audience).ok()),
         })
+}
+
+/// BFF sends an access token only.  ID tokens, e-mail and groups are not accepted here.
+async fn oidc_exchange(
+    State(state): State<AuthState>,
+    Extension(request_id): Extension<RequestId>,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    let Some(verifier) = state.oidc.as_ref() else {
+        return Ok(simple_error(StatusCode::NOT_FOUND, "OIDC is not enabled"));
+    };
+    let Some(token) = body
+        .get("access_token")
+        .and_then(Value::as_str)
+        .filter(|v| v.len() <= 16_384)
+    else {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Missing access token",
+        ));
+    };
+    let identity = match verifier.validate(token).await {
+        Ok(identity) => identity,
+        Err(_) => {
+            return Ok(simple_error(
+                StatusCode::UNAUTHORIZED,
+                "Invalid OIDC access token",
+            ));
+        }
+    };
+    let Some(user) = state.database.one_json(
+        "SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM user_identities i JOIN users u ON u.id=i.user_id LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state='linked' AND u.is_active=true LIMIT 1",
+        &[&identity.issuer, &identity.subject]).await.map_err(|e| ApiError::database(e, &request_id))? else { return Ok(simple_error(StatusCode::FORBIDDEN, "OIDC identity is not linked")); };
+    let user_id = as_i64(user.get("id"))
+        .and_then(|v| i32::try_from(v).ok())
+        .ok_or_else(|| ApiError::internal(&request_id))?;
+    let (session, expires) = create_session(&state, user_id, &request_id).await?;
+    state.database.query_json("UPDATE user_identities SET last_login_at=now() WHERE issuer=$1 AND subject=$2 RETURNING user_id", &[&identity.issuer, &identity.subject]).await.map_err(|e| ApiError::database(e, &request_id))?;
+    Ok(json_response(
+        StatusCode::OK,
+        json!({"token":session,"expires_at":expires,"user":auth_user(&user)}),
+    ))
+}
+
+fn oidc_state(body: &Value) -> Option<&str> {
+    body.get("state").and_then(Value::as_str).filter(|value| {
+        value.len() >= 32
+            && value.len() <= 128
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    })
+}
+
+/// Redis-backed, 10-minute one-use BFF transaction. The verifier never reaches a browser cookie.
+async fn oidc_transaction_create(
+    State(state): State<AuthState>,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    let Some(state_value) = oidc_state(&body) else {
+        return Ok(simple_error(StatusCode::BAD_REQUEST, "Invalid OIDC state"));
+    };
+    if !body
+        .get("nonce")
+        .and_then(Value::as_str)
+        .is_some_and(|v| v.len() >= 32)
+        || !body
+            .get("verifier")
+            .and_then(Value::as_str)
+            .is_some_and(|v| (43..=128).contains(&v.len()))
+    {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Invalid OIDC transaction",
+        ));
+    }
+    let key = format!("oidc:transaction:{state_value}");
+    if state.redis.exists(&key).await {
+        return Ok(simple_error(
+            StatusCode::CONFLICT,
+            "OIDC state already exists",
+        ));
+    }
+    if !state.redis.set_required(&key, &body, Some(600)).await {
+        return Ok(simple_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OIDC transaction store unavailable",
+        ));
+    }
+    Ok(json_response(
+        StatusCode::CREATED,
+        json!({"state":state_value,"expires_in":600}),
+    ))
+}
+
+async fn oidc_transaction_consume(
+    State(state): State<AuthState>,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    let Some(state_value) = oidc_state(&body) else {
+        return Ok(simple_error(StatusCode::BAD_REQUEST, "Invalid OIDC state"));
+    };
+    let key = format!("oidc:transaction:{state_value}");
+    let lease = format!("{key}:consume");
+    let token = random_hex(16);
+    if state.redis.acquire_lease(&lease, &token, 10_000).await != Some(true) {
+        return Ok(simple_error(
+            StatusCode::CONFLICT,
+            "OIDC state already consumed",
+        ));
+    }
+    let transaction: Option<Value> = state.redis.get(&key).await;
+    let _ = state.redis.del(&key).await;
+    state.redis.release_lease(&lease, &token).await;
+    match transaction {
+        Some(value) => Ok(json_response(StatusCode::OK, value)),
+        None => Ok(simple_error(
+            StatusCode::UNAUTHORIZED,
+            "OIDC state expired or consumed",
+        )),
+    }
 }
 
 fn bearer(headers: &HeaderMap) -> Option<&str> {
@@ -90,6 +224,17 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .filter(|value| !value.is_empty())
+        .or_else(|| {
+            headers
+                .get("cookie")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| {
+                    value
+                        .split(';')
+                        .find_map(|part| part.trim().strip_prefix("__Host-pc_session="))
+                        .filter(|value| !value.is_empty())
+                })
+        })
 }
 
 fn sha256(value: impl AsRef<[u8]>) -> String {

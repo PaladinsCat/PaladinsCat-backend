@@ -408,6 +408,10 @@ fn constant_time_equal(candidate: &str, expected: &str) -> bool {
     bool::from(candidate_digest.ct_eq(&expected_digest))
 }
 
+pub fn constant_time_equal_public(candidate: &str, expected: &str) -> bool {
+    constant_time_equal(candidate, expected)
+}
+
 fn decode_sha256(value: &str) -> Result<[u8; 32], SecurityContextError> {
     if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(SecurityContextError::InvalidDeveloperKeyHash);

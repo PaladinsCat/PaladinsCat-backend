@@ -81,6 +81,10 @@ pub enum ConfigError {
     DuplicateServiceTokens,
     #[error("PALADINSCAT_DEVELOPER_API_KEY_SHA256 must contain exactly 64 hexadecimal characters")]
     InvalidDeveloperApiKeyHash,
+    #[error("PALADINSCAT_OIDC_ISSUER and PALADINSCAT_OIDC_AUDIENCE must be configured together")]
+    IncompleteOidcConfiguration,
+    #[error("PALADINSCAT_OIDC_ISSUER must be an HTTPS URL without query or fragment")]
+    InvalidOidcIssuer,
 }
 
 impl BackendConfig {
@@ -115,6 +119,16 @@ impl BackendConfig {
             .is_some_and(|value| !is_sha256_hex(value))
         {
             return Err(ConfigError::InvalidDeveloperApiKeyHash);
+        }
+        let oidc_issuer = nonempty(lookup("PALADINSCAT_OIDC_ISSUER"));
+        let oidc_audience = nonempty(lookup("PALADINSCAT_OIDC_AUDIENCE"));
+        if oidc_issuer.is_some() != oidc_audience.is_some() {
+            return Err(ConfigError::IncompleteOidcConfiguration);
+        }
+        if oidc_issuer.as_deref().is_some_and(|value| {
+            !value.starts_with("https://") || value.contains('?') || value.contains('#')
+        }) {
+            return Err(ConfigError::InvalidOidcIssuer);
         }
 
         Ok(Self {
@@ -156,8 +170,8 @@ impl BackendConfig {
                 lookup("ACCOUNT_AUTH_WINDOW_MS"),
                 DEFAULT_ACCOUNT_AUTH_WINDOW_MS,
             ),
-            oidc_issuer: nonempty(lookup("PALADINSCAT_OIDC_ISSUER")),
-            oidc_audience: nonempty(lookup("PALADINSCAT_OIDC_AUDIENCE")),
+            oidc_issuer,
+            oidc_audience,
             service_token,
             previous_service_token,
             admin_secret: nonempty(lookup("ADMIN_SECRET")),
