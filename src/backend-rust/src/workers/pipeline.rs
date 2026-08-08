@@ -99,15 +99,23 @@ RETURNING acquisition.match_id, acquisition.queue_id, acquisition.source_date::t
 "#;
 
 const RECONCILE_PERSISTED_NONRANKED_SQL: &str = r#"
-WITH persisted AS (
+WITH due AS MATERIALIZED (
+  SELECT match_id
+  FROM nonranked_match_acquisition
+  WHERE (status='discovered' OR (status='fetching' AND lease_until<=now()))
+    AND (NOT $1::boolean OR source_date>=
+         date_trunc('week',now() AT TIME ZONE 'UTC')::date)
+), persisted AS (
   SELECT m.match_id,m.quality,m.player_count,
     COUNT(*) FILTER(WHERE p.source='roster')::int AS roster_players
-  FROM casual_matches m JOIN casual_match_players p USING(match_id)
+  FROM due JOIN casual_matches m USING(match_id)
+  JOIN casual_match_players p USING(match_id)
   GROUP BY m.match_id,m.quality,m.player_count
   UNION ALL
   SELECT m.match_id,m.quality,m.player_count,
     COUNT(*) FILTER(WHERE p.source='roster')::int AS roster_players
-  FROM special_matches m JOIN special_match_players p USING(match_id)
+  FROM due JOIN special_matches m USING(match_id)
+  JOIN special_match_players p USING(match_id)
   GROUP BY m.match_id,m.quality,m.player_count
 ), reconciled AS (
   UPDATE nonranked_match_acquisition acquisition
@@ -128,7 +136,7 @@ WITH persisted AS (
          date_trunc('week',now() AT TIME ZONE 'UTC')::date)
   RETURNING acquisition.match_id
 )
-SELECT COUNT(*)::bigint AS reconciled FROM reconciled
+SELECT COUNT(*)::int AS reconciled FROM reconciled
 "#;
 
 #[derive(Clone)]
