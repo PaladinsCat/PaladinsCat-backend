@@ -248,6 +248,58 @@ where
     ))
 }
 
+pub async fn cached_database_value<F, Fut>(
+    cache: RouteCache,
+    key: String,
+    fresh_ttl_seconds: u64,
+    stale_ttl_seconds: u64,
+    loader: F,
+) -> Result<Value, DatabaseError>
+where
+    F: Fn() -> Fut + Clone + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, DatabaseError>> + Send + 'static,
+{
+    if let Some(cached) = cache.get(&key).await {
+        if cached.fresh_until <= now_millis() && cache.begin_refresh(&key).await {
+            let refresh_cache = cache.clone();
+            let refresh_key = key.clone();
+            let refresh_loader = loader.clone();
+            tokio::spawn(async move {
+                let lease = refresh_cache.acquire_cold_miss(&refresh_key).await;
+                if matches!(lease, ColdMissLease::Owner { .. })
+                    && let Ok(payload) = refresh_loader().await
+                {
+                    refresh_cache
+                        .store(&refresh_key, payload, fresh_ttl_seconds, stale_ttl_seconds)
+                        .await;
+                }
+                refresh_cache.release(&lease).await;
+                refresh_cache.finish_refresh(&refresh_key).await;
+            });
+        }
+        return Ok(cached.payload);
+    }
+
+    let lease = cache.acquire_cold_miss(&key).await;
+    if matches!(lease, ColdMissLease::Follower)
+        && let Some(cached) = cache.wait_for_cold_miss(&key).await
+    {
+        return Ok(cached.payload);
+    }
+    let payload = match loader().await {
+        Ok(payload) => payload,
+        Err(error) => {
+            cache.release(&lease).await;
+            return Err(error);
+        }
+    };
+    cache
+        .store(&key, payload.clone(), fresh_ttl_seconds, stale_ttl_seconds)
+        .await;
+    cache.release(&lease).await;
+    Ok(payload)
+}
+
 pub fn json_cache_response(payload: Value, status: &'static str, fresh_until: i64) -> Response {
     let mut response = (StatusCode::OK, Json(payload)).into_response();
     response.headers_mut().insert(

@@ -21,7 +21,7 @@ use crate::{
     error::ApiError,
     raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response},
     request::RequestId,
-    route_cache::RouteCache,
+    route_cache::{RouteCache, cached_database_value},
     routes::live::{request_identity, resolve_player_live_match, vendor_guard},
     workers::{
         relay::WorkerRelayClient,
@@ -2101,10 +2101,20 @@ async fn hourly_stats_payload(
     let daily_players = if include_players {
         let daily_players_cache_key =
             format!("route:matches:/matches/hourly-stats:daily-players:{week_start}:{today}");
-        if let Some(cached) = state.route_cache.get(&daily_players_cache_key).await {
-            cached.payload.as_array().cloned().unwrap_or_default()
-        } else {
-            let rows = state.database.query_json_params(
+        let database = state.database.clone();
+        let start = week_start.clone();
+        let end = today.clone();
+        cached_database_value(
+            state.route_cache.clone(),
+            daily_players_cache_key,
+            600,
+            6 * 60 * 60,
+            move || {
+                let database = database.clone();
+                let start = start.clone();
+                let end = end.clone();
+                async move {
+                    database.query_json_params(
             "WITH observations AS MATERIALIZED (\
                SELECT (mp.entry_datetime AT TIME ZONE 'UTC')::date AS activity_date,\
                  $3::int AS queue_id,mp.player_id FROM match_players mp \
@@ -2123,19 +2133,16 @@ async fn hourly_stats_payload(
              ) SELECT activity_date::text AS date,queue_id,COUNT(DISTINCT player_id)::int AS players \
              FROM observations GROUP BY GROUPING SETS ((activity_date),(activity_date,queue_id)) \
              ORDER BY activity_date,queue_id NULLS FIRST",
-                &[QueryParam::Text(week_start.clone()),QueryParam::Text(today.clone()),QueryParam::Int32(RANKED_QUEUE_ID)],
-            ).await.map_err(|error| hourly_database_error(error,request_id,"daily player rows"))?;
-            state
-                .route_cache
-                .store(
-                    &daily_players_cache_key,
-                    Value::Array(rows.clone()),
-                    600,
-                    1_200,
-                )
-                .await;
-            rows
-        }
+                &[QueryParam::Text(start),QueryParam::Text(end),QueryParam::Int32(RANKED_QUEUE_ID)],
+                    ).await.map(Value::Array)
+                }
+            },
+        )
+        .await
+        .map_err(|error| hourly_database_error(error,request_id,"daily player rows"))?
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     } else {
         Vec::new()
     };
