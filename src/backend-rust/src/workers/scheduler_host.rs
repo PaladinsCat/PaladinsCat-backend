@@ -47,6 +47,7 @@ use super::{
 const OWNERSHIP_LEASE: Duration = Duration::from_secs(60);
 const STARTUP_OWNERSHIP_LEASE: Duration = Duration::from_secs(5 * 60);
 const OWNERSHIP_HEARTBEAT: Duration = Duration::from_secs(15);
+const OWNERSHIP_HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const JOB_LEASE: Duration = Duration::from_secs(60 * 60);
 const GAP_CHECKER_MIN_DATE: &str = "2026-05-31";
 
@@ -349,7 +350,29 @@ pub async fn run_scheduler_domain(
         tokio::select! {
             _ = &mut shutdown => break SchedulerRuntimeExit::Shutdown,
             _ = heartbeat.tick() => {
-                if !coordination.heartbeat_scheduler_owner(&scheduler_key, &owner_id, OWNERSHIP_LEASE).await.unwrap_or(false) {
+                let retained = match wait_with_timeout(
+                    OWNERSHIP_HEARTBEAT_TIMEOUT,
+                    coordination.heartbeat_scheduler_owner(
+                        &scheduler_key,
+                        &owner_id,
+                        OWNERSHIP_LEASE,
+                    ),
+                ).await {
+                    Some(Ok(true)) => true,
+                    Some(Ok(false)) => {
+                        tracing::error!(scheduler=%scheduler_key, "scheduler ownership lease was lost");
+                        false
+                    }
+                    Some(Err(error)) => {
+                        tracing::error!(scheduler=%scheduler_key,error=?error,"scheduler ownership heartbeat failed");
+                        false
+                    }
+                    None => {
+                        tracing::error!(scheduler=%scheduler_key,"scheduler ownership heartbeat timed out");
+                        false
+                    }
+                };
+                if !retained {
                     break SchedulerRuntimeExit::OwnershipLost;
                 }
             }
@@ -378,6 +401,9 @@ pub async fn run_scheduler_domain(
         }
     };
     services.should_stop.store(true, Ordering::Relaxed);
+    if exit == SchedulerRuntimeExit::OwnershipLost {
+        abort_scheduler_work(&startup_handles, &active);
+    }
     for handle in startup_handles {
         let _ = handle.await;
     }
@@ -388,6 +414,25 @@ pub async fn run_scheduler_domain(
         .release_scheduler_owner(&scheduler_key, &owner_id)
         .await;
     Ok(exit)
+}
+
+async fn wait_with_timeout<F, T>(duration: Duration, future: F) -> Option<T>
+where
+    F: Future<Output = T>,
+{
+    tokio::time::timeout(duration, future).await.ok()
+}
+
+fn abort_scheduler_work(
+    startup_handles: &[tokio::task::JoinHandle<()>],
+    active: &BTreeMap<&'static str, tokio::task::JoinHandle<()>>,
+) {
+    for handle in startup_handles {
+        handle.abort();
+    }
+    for handle in active.values() {
+        handle.abort();
+    }
 }
 
 async fn wait_for_startup_delay(delay_seconds: u64, should_stop: Arc<AtomicBool>) -> bool {
@@ -1417,6 +1462,43 @@ mod tests {
         running_stop.store(true, Ordering::Relaxed);
         running.await.expect("running startup task");
         assert!(finished.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn ownership_heartbeat_wait_is_bounded() {
+        let result =
+            wait_with_timeout(Duration::from_millis(10), std::future::pending::<()>()).await;
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn ownership_loss_aborts_pending_scheduler_work() {
+        let startup_handles = vec![tokio::spawn(std::future::pending::<()>())];
+        let mut active = BTreeMap::new();
+        active.insert(
+            "auto-ingester:discovery",
+            tokio::spawn(std::future::pending::<()>()),
+        );
+
+        abort_scheduler_work(&startup_handles, &active);
+
+        for handle in startup_handles {
+            assert!(
+                handle
+                    .await
+                    .expect_err("startup task should be aborted")
+                    .is_cancelled()
+            );
+        }
+        for (_, handle) in active {
+            assert!(
+                handle
+                    .await
+                    .expect_err("active task should be aborted")
+                    .is_cancelled()
+            );
+        }
     }
 
     #[tokio::test]
