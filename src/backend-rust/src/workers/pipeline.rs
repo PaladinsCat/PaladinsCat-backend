@@ -98,6 +98,39 @@ RETURNING acquisition.match_id, acquisition.queue_id, acquisition.source_date::t
           acquisition.discovered_entry_datetime::text, acquisition.active_flag
 "#;
 
+const RECONCILE_PERSISTED_NONRANKED_SQL: &str = r#"
+WITH persisted AS (
+  SELECT m.match_id,m.quality,m.player_count,
+    COUNT(*) FILTER(WHERE p.source='roster')::int AS roster_players
+  FROM casual_matches m JOIN casual_match_players p USING(match_id)
+  GROUP BY m.match_id,m.quality,m.player_count
+  UNION ALL
+  SELECT m.match_id,m.quality,m.player_count,
+    COUNT(*) FILTER(WHERE p.source='roster')::int AS roster_players
+  FROM special_matches m JOIN special_match_players p USING(match_id)
+  GROUP BY m.match_id,m.quality,m.player_count
+), reconciled AS (
+  UPDATE nonranked_match_acquisition acquisition
+  SET status=CASE persisted.quality
+      WHEN 'complete' THEN 'complete_direct'
+      WHEN 'partial' THEN 'partial_roster'
+      ELSE 'roster_only' END,
+    quality=persisted.quality,
+    direct_player_count=LEAST(persisted.player_count,32767)::smallint,
+    roster_player_count=LEAST(persisted.roster_players,32767)::smallint,
+    lease_until=NULL,completed_at=COALESCE(acquisition.completed_at,now()),
+    terminal_reason='reconciled_existing_match_facts',error_message=NULL,updated_at=now()
+  FROM persisted
+  WHERE acquisition.match_id=persisted.match_id
+    AND (acquisition.status='discovered' OR
+         (acquisition.status='fetching' AND acquisition.lease_until<=now()))
+    AND (NOT $1::boolean OR acquisition.source_date>=
+         date_trunc('week',now() AT TIME ZONE 'UTC')::date)
+  RETURNING acquisition.match_id
+)
+SELECT COUNT(*)::bigint AS reconciled FROM reconciled
+"#;
+
 #[derive(Clone)]
 pub struct CanonicalIngestPipeline {
     database: Database,
@@ -725,6 +758,13 @@ impl CanonicalIngestPipeline {
         if limit == 0 {
             return Ok(0);
         }
+        let reconciled = self
+            .database
+            .one_json(RECONCILE_PERSISTED_NONRANKED_SQL, &[&recent_only])
+            .await?
+            .and_then(|row| row.get("reconciled").and_then(Value::as_i64))
+            .unwrap_or_default();
+        tracing::info!(reconciled, recent_only, "reconciled persisted non-ranked facts before API claims");
         self.terminalize_interrupted_nonranked_claims().await?;
         let started = Instant::now();
         let max_run = Duration::from_millis(
@@ -1522,6 +1562,14 @@ mod tests {
         );
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("LIMIT $1"));
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("FOR UPDATE SKIP LOCKED"));
+    }
+
+    #[test]
+    fn nonranked_reconciliation_reuses_persisted_facts_before_api_claims() {
+        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("JOIN casual_match_players"));
+        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("JOIN special_match_players"));
+        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("lease_until<=now()"));
+        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("reconciled_existing_match_facts"));
     }
 
     #[test]
