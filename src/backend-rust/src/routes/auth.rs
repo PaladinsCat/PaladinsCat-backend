@@ -134,18 +134,33 @@ async fn oidc_exchange(
             ));
         }
     };
-    let Some(user) = state.database.one_json(
-        "SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM user_identities i JOIN users u ON u.id=i.user_id LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state='linked' AND u.is_active=true LIMIT 1",
-        &[&identity.issuer, &identity.subject]).await.map_err(|e| ApiError::database(e, &request_id))? else { return Ok(simple_error(StatusCode::FORBIDDEN, "OIDC identity is not linked")); };
+    let Some(user) = promote_oidc_identity(&state.database, &identity, &request_id).await? else {
+        return Ok(simple_error(
+            StatusCode::FORBIDDEN,
+            "OIDC identity is not linked",
+        ));
+    };
     let user_id = as_i64(user.get("id"))
         .and_then(|v| i32::try_from(v).ok())
         .ok_or_else(|| ApiError::internal(&request_id))?;
     let (session, expires) = create_session(&state, user_id, &request_id).await?;
-    state.database.query_json("UPDATE user_identities SET last_login_at=now() WHERE issuer=$1 AND subject=$2 RETURNING user_id", &[&identity.issuer, &identity.subject]).await.map_err(|e| ApiError::database(e, &request_id))?;
     Ok(json_response(
         StatusCode::OK,
         json!({"token":session,"expires_at":expires,"user":auth_user(&user)}),
     ))
+}
+
+async fn promote_oidc_identity(
+    database: &Database,
+    identity: &crate::oidc::AccessIdentity,
+    request_id: &RequestId,
+) -> Result<Option<Value>, ApiError> {
+    database.one_json(
+        "WITH admitted AS (UPDATE user_identities i SET migration_state='linked',last_login_at=now() FROM users active WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state IN ('linked','reset_required') AND active.id=i.user_id AND active.is_active=true RETURNING i.user_id) SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM admitted i JOIN users u ON u.id=i.user_id LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id LIMIT 1",
+        &[&identity.issuer, &identity.subject],
+    )
+    .await
+    .map_err(|error| ApiError::database(error, request_id))
 }
 
 fn oidc_state(body: &Value) -> Option<&str> {
@@ -188,17 +203,20 @@ async fn oidc_transaction_create(
         ));
     }
     let key = format!("oidc:transaction:{state_value}");
-    if state.redis.exists(&key).await {
-        return Ok(simple_error(
-            StatusCode::CONFLICT,
-            "OIDC state already exists",
-        ));
-    }
-    if !state.redis.set_required(&key, &body, Some(600)).await {
-        return Ok(simple_error(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "OIDC transaction store unavailable",
-        ));
+    match state.redis.set_if_absent_required(&key, &body, 600).await {
+        Some(true) => {}
+        Some(false) => {
+            return Ok(simple_error(
+                StatusCode::CONFLICT,
+                "OIDC state already exists",
+            ));
+        }
+        None => {
+            return Ok(simple_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "OIDC transaction store unavailable",
+            ));
+        }
     }
     Ok(json_response(
         StatusCode::CREATED,
@@ -296,11 +314,47 @@ mod oidc_tests {
         assert_eq!(request(app.clone(), Some("wrong"), "/auth/oidc/transactions", transaction.clone()).await, StatusCode::UNAUTHORIZED);
         assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", transaction.clone()).await, StatusCode::CREATED);
         assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", transaction).await, StatusCode::CONFLICT);
+        let concurrent_state = "c".repeat(32);
+        let concurrent = json!({"state":concurrent_state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
+        let (first, second) = tokio::join!(
+            request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", concurrent.clone()),
+            request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", concurrent),
+        );
+        assert!(matches!((first, second), (StatusCode::CREATED, StatusCode::CONFLICT) | (StatusCode::CONFLICT, StatusCode::CREATED)));
         assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions/consume", json!({"state":state})).await, StatusCode::OK);
         assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions/consume", json!({"state":state})).await, StatusCode::UNAUTHORIZED);
         assert_eq!(request(app.clone(), None, "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::UNAUTHORIZED);
         assert_eq!(request(app.clone(), Some("wrong"), "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::UNAUTHORIZED);
         assert_eq!(request(app, Some(&bff_token), "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::NOT_FOUND);
+
+        let promotion_config = BackendConfig::from_lookup(|name| {
+            (name == "DATABASE_URL").then(|| database_url.clone())
+        })
+        .expect("database config");
+        let database = Database::new(&promotion_config, "oidc-promotion-e2e")
+            .expect("promotion database");
+        for sql in [
+            "CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,email TEXT,avatar_url TEXT,bio TEXT,time_zone TEXT,is_admin BOOLEAN,is_approved BOOLEAN,created_at TIMESTAMPTZ,last_login TIMESTAMPTZ,linked_player_id INTEGER,is_active BOOLEAN NOT NULL)",
+            "CREATE TABLE players(id INTEGER PRIMARY KEY,name TEXT)",
+            "CREATE TABLE user_identities(user_id INTEGER NOT NULL,issuer TEXT NOT NULL,subject TEXT NOT NULL,migration_state TEXT NOT NULL,last_login_at TIMESTAMPTZ,PRIMARY KEY(issuer,subject))",
+            "INSERT INTO users(id,username,is_active) VALUES(1,'reset',true),(2,'disabled',true),(3,'inactive',false)",
+            "INSERT INTO user_identities(user_id,issuer,subject,migration_state) VALUES(1,'https://auth.test/realms/test','reset','reset_required'),(2,'https://auth.test/realms/test','disabled','disabled'),(3,'https://auth.test/realms/test','inactive','reset_required')",
+        ] {
+            database
+                .query_json(sql, &[])
+                .await
+                .expect("promotion fixture");
+        }
+        let request_id = RequestId("oidc-promotion-e2e".to_owned());
+        let identity = |subject: &str| crate::oidc::AccessIdentity {
+            issuer: "https://auth.test/realms/test".to_owned(),
+            subject: subject.to_owned(),
+        };
+        assert!(promote_oidc_identity(&database, &identity("reset"), &request_id).await.expect("reset promotion").is_some());
+        assert!(promote_oidc_identity(&database, &identity("disabled"), &request_id).await.expect("disabled admission").is_none());
+        assert!(promote_oidc_identity(&database, &identity("inactive"), &request_id).await.expect("inactive admission").is_none());
+        let states = database.query_json("SELECT subject,migration_state,last_login_at IS NOT NULL AS logged_in FROM user_identities ORDER BY subject", &[]).await.expect("promotion states");
+        assert_eq!(states, vec![json!({"subject":"disabled","migration_state":"disabled","logged_in":false}), json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}), json!({"subject":"reset","migration_state":"linked","logged_in":true})]);
     }
 }
 

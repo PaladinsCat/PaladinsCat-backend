@@ -149,6 +149,46 @@ impl RedisCache {
         true
     }
 
+    /// Atomically create a JSON value only when the key does not exist.
+    /// `None` means serialization or Redis failed; `Some(false)` means the key exists.
+    pub async fn set_if_absent_required<T: Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl_seconds: u64,
+    ) -> Option<bool> {
+        let mut serialized = serde_json::to_string(value).ok()?;
+        if serialized == "null" {
+            serialized = r#"{"v":null}"#.to_owned();
+        }
+        let mut connection = self.connection().await?;
+        let result: redis::RedisResult<Option<String>> = match tokio::time::timeout(
+            self.command_timeout,
+            redis::cmd("SET")
+                .arg(key)
+                .arg(serialized)
+                .arg("EX")
+                .arg(ttl_seconds)
+                .arg("NX")
+                .query_async(&mut connection),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                self.mark_failed().await;
+                return None;
+            }
+        };
+        match result {
+            Ok(value) => Some(value.as_deref() == Some("OK")),
+            Err(_) => {
+                self.mark_failed().await;
+                None
+            }
+        }
+    }
+
     /// Acquire a cross-process lease using the same `SET PX NX` contract as
     /// the TypeScript route cache.
     ///
