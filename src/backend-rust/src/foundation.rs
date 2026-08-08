@@ -722,7 +722,12 @@ async fn authorize_prehandler(
             None,
         );
     }
-    if method == Method::POST && matches!(effective_path, "/auth/login" | "/auth/register") {
+    if method == Method::POST
+        && matches!(
+            effective_path,
+            "/auth/login" | "/auth/register" | "/auth/oidc/transactions"
+        )
+    {
         let address =
             resolve_client_address(headers, peer, state.security.trust_cloudflare_headers);
         let result = state
