@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -15,6 +15,7 @@ struct Claims {
     sub: String,
     aud: serde_json::Value,
     exp: usize,
+    iat: usize,
     #[serde(default)]
     nbf: Option<usize>,
 }
@@ -65,7 +66,14 @@ struct Jwk {
 impl OidcVerifier {
     pub fn new(issuer: String, audience: String) -> Result<Self, TokenError> {
         let base = Url::parse(&issuer).map_err(|_| TokenError::Invalid)?;
-        if base.scheme() != "https" || base.query().is_some() || base.fragment().is_some() {
+        if base.scheme() != "https"
+            || !base.username().is_empty()
+            || base.password().is_some()
+            || !matches!(base.port(), None | Some(443))
+            || base.query().is_some()
+            || base.fragment().is_some()
+            || !base.path().starts_with("/realms/")
+        {
             return Err(TokenError::Invalid);
         }
         let jwks_url = Url::parse(&format!(
@@ -154,7 +162,7 @@ pub fn validate_access_token(
     if header.alg != Algorithm::RS256 {
         return Err(TokenError::Algorithm);
     }
-    if header.typ.as_deref() != Some("at+jwt") {
+    if !matches!(header.typ.as_deref(), Some("at+jwt" | "JWT")) {
         return Err(TokenError::TokenType);
     }
     if header.kid.as_deref().filter(|v| !v.is_empty()).is_none() {
@@ -169,10 +177,15 @@ pub fn validate_access_token(
         serde_json::Value::Array(values) => values.iter().any(|v| v.as_str() == Some(audience)),
         _ => false,
     };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| TokenError::Invalid)?
+        .as_secs() as usize;
     if !audience_matches
         || decoded.claims.iss != issuer
         || decoded.claims.sub.is_empty()
         || decoded.claims.exp == 0
+        || decoded.claims.iat > now.saturating_add(60)
         || decoded.claims.nbf.is_some_and(|n| n > decoded.claims.exp)
     {
         return Err(TokenError::Invalid);
@@ -207,7 +220,7 @@ mod tests {
         );
         let token = format!(
             "{}.e30.signature",
-            URL_SAFE_NO_PAD.encode(r#"{"alg":"RS256","typ":"JWT","kid":"x"}"#)
+            URL_SAFE_NO_PAD.encode(r#"{"alg":"RS256","typ":"id+jwt","kid":"x"}"#)
         );
         assert_eq!(
             validate_access_token(&token, "https://issuer", "api", &key),
