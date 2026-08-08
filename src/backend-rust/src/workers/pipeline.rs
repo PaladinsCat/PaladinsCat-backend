@@ -77,8 +77,8 @@ WITH due AS (
   WHERE (status = 'discovered' OR (status = 'waiting_for_completion'
          AND last_observed_at <= now() - ($2::int * interval '1 minute')))
     AND (lease_until IS NULL OR lease_until <= now())
-    AND (NOT $3::boolean OR source_date + (source_hour * interval '1 hour') >=
-         (now() AT TIME ZONE 'UTC') - ($4::int * interval '1 hour'))
+    AND (NOT $3::boolean OR source_date >=
+         date_trunc('week', now() AT TIME ZONE 'UTC')::date)
   ORDER BY
     CASE WHEN source_date + (source_hour * interval '1 hour') >= (now() AT TIME ZONE 'UTC') - interval '24 hours' THEN 0 ELSE 1 END,
     CASE WHEN source_date + (source_hour * interval '1 hour') >= (now() AT TIME ZONE 'UTC') - interval '24 hours' THEN source_date + (source_hour * interval '1 hour') END DESC,
@@ -703,25 +703,23 @@ impl CanonicalIngestPipeline {
     pub async fn run_nonranked_acquisition(
         &self,
         limit: usize,
-        lookback_hours: i32,
+        _lookback_hours: i32,
     ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition_scoped(limit, lookback_hours, false)
+        self.run_nonranked_acquisition_scoped(limit, false)
             .await
     }
 
-    pub async fn run_recent_nonranked_acquisition(
+    pub async fn run_current_week_nonranked_acquisition(
         &self,
         limit: usize,
-        lookback_hours: i32,
     ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition_scoped(limit, lookback_hours, true)
+        self.run_nonranked_acquisition_scoped(limit, true)
             .await
     }
 
     async fn run_nonranked_acquisition_scoped(
         &self,
         limit: usize,
-        lookback_hours: i32,
         recent_only: bool,
     ) -> Result<usize, PipelineError> {
         if limit == 0 {
@@ -765,12 +763,7 @@ impl CanonicalIngestPipeline {
                 .database
                 .query_json(
                     CLAIM_INCOMPLETE_NONRANKED_SQL,
-                    &[
-                        &claim_limit_i64,
-                        &active_grace,
-                        &recent_only,
-                        &lookback_hours,
-                    ],
+                    &[&claim_limit_i64, &active_grace, &recent_only],
                 )
                 .await?;
             let requests = rows
@@ -1513,7 +1506,7 @@ mod tests {
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("(now() AT TIME ZONE 'UTC')"));
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("$2::int * interval '1 minute'"));
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("NOT $3::boolean"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("$4::int * interval '1 hour'"));
+        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("date_trunc('week'"));
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("THEN 0 ELSE 1 END"));
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("END DESC"));
         assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("END ASC"));

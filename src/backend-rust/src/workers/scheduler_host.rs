@@ -577,7 +577,7 @@ async fn dispatch(
             let worker = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
                 .map_err(|error| error.to_string())?;
             let acquired = worker
-                .run_recent_nonranked_acquisition(nonranked_acquisition_max_matches_per_run(), 168)
+                .run_current_week_nonranked_acquisition(nonranked_acquisition_max_matches_per_run())
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(json!({"nonranked_acquired": acquired}))
