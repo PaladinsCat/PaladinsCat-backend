@@ -640,7 +640,7 @@ test('operator and runtime retirement ledgers have fixed unique denominators', (
 
 test('the 100 percent retirement gate rejects every legacy backend runtime path', () => {
   assert.deepEqual(workPackages.retirementVerification.requiredAbsentPaths, [
-    'src/backend',
+    'legacy/src-backend',
     'docker/Dockerfile.backend',
     'docker/Dockerfile.relay',
     'docker/backend-entrypoint.sh',
@@ -648,15 +648,15 @@ test('the 100 percent retirement gate rejects every legacy backend runtime path'
 
   assert.deepEqual(workPackages.retirementVerification.retainedArtifactRelocations, [
     {
-      legacy: 'src/backend/db',
+      legacy: 'legacy/src-backend/db',
       target: 'migrations',
     },
     {
-      legacy: 'src/backend/contracts/hirez-relay-operation-contract.json',
+      legacy: 'legacy/src-backend/contracts/hirez-relay-operation-contract.json',
       target: 'src/paladinscat-core/resources/hirez-relay-operation-contract.json',
     },
     {
-      legacy: 'src/backend/config/broken-skins.json',
+      legacy: 'legacy/src-backend/config/broken-skins.json',
       target: 'src/paladinscat-core/resources/broken-skins.json',
     },
   ]);

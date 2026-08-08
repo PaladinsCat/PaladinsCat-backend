@@ -55,7 +55,7 @@ It is intentionally not a production backend yet:
 The fixed denominator is generated with:
 
 ```powershell
-cd src/backend
+cd legacy/src-backend
 npm run migration:inventory
 ```
 

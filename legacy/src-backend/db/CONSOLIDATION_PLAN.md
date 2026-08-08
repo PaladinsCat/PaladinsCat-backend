@@ -326,7 +326,7 @@ ON CONFLICT DO NOTHING;
 ## 7. Final File Structure
 
 ```
-src/backend/db/
+legacy/src-backend/db/
 ├── 001_schema.sql              (2,513 lines) — Base schema (UNCHANGED)
 ├── 002_extended_schema.sql     (~300 lines)  — New tables, columns, functions, triggers
 ├── 003_data_migrations.sql     (~400 lines)  — Ordered data migrations

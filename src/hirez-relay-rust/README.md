@@ -34,7 +34,7 @@ The service owns:
   single-owner lease, graceful drain, and dependency shutdown
 
 Both implementations consume the checked-in contract at
-`src/backend/contracts/hirez-relay-operation-contract.json`. The Rust process
+`legacy/src-backend/contracts/hirez-relay-operation-contract.json`. The Rust process
 validates it at startup, and the differential suites execute every declared
 operation.
 

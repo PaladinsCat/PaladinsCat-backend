@@ -23,10 +23,10 @@ const sourceRoots = [
   {
     id: 'typescript-backend',
     label: 'Legacy TypeScript backend',
-    path: join(repositoryRoot, 'src', 'backend'),
+    path: join(repositoryRoot, 'legacy', 'src-backend'),
     language: 'typescript',
     extensions: new Set(['.ts']),
-    tsConfig: join(repositoryRoot, 'src', 'backend', 'tsconfig.json'),
+    tsConfig: join(repositoryRoot, 'legacy', 'src-backend', 'tsconfig.json'),
     excludedDirectories: new Set(['dist', 'node_modules', 'test', 'tests']),
     excludedFileSuffixes: [],
   },
@@ -369,7 +369,7 @@ function addHttpContract(module, sourceSymbol, targetModule, sourceFile, node, c
 
 function crossStackContracts(module, sourceFile) {
   if (!['frontend', 'discord-bot'].includes(module.sourceRootId)) return;
-  const backendEntry = moduleByPath.get(resolve(repositoryRoot, 'src', 'backend', 'index.ts'));
+  const backendEntry = moduleByPath.get(resolve(repositoryRoot, 'legacy', 'src-backend', 'index.ts'));
   const discordRenderer = moduleByPath.get(resolve(repositoryRoot, 'src', 'discord-bot', 'src', 'health.ts'));
   if (!backendEntry) throw new Error('Expected the TypeScript backend entry point for stack contract edges');
   if (!discordRenderer) throw new Error('Expected the Discord renderer boundary for stack contract edges');
@@ -794,8 +794,8 @@ ${ordered.map(module => {
 
 function writeMoc(areas) {
   const entryPointPaths = [
-    'src/backend/index.ts',
-    'src/backend/hirez-relay/server.ts',
+    'legacy/src-backend/index.ts',
+    'legacy/src-backend/hirez-relay/server.ts',
     'src/backend-rust/src/bin/api.rs',
     'src/backend-rust/src/bin/worker.rs',
     'src/backend-rust/src/bin/admin.rs',
@@ -856,7 +856,7 @@ has an inspectable impact path.
 Regenerate after a source-structure change:
 
 \`\`\`powershell
-cd src/backend
+cd legacy/src-backend
 npm run code-map:generate
 \`\`\`
 
@@ -872,7 +872,7 @@ python scripts/code-map/query-code-map.py calls dispatchRelayOperation
 python scripts/code-map/query-code-map.py callers dumpRawPayloads
 python scripts/code-map/query-code-map.py contracts frontend
 python scripts/code-map/query-code-map.py contracts discord-bot
-python scripts/code-map/query-code-map.py dependencies src/backend/hirez-relay/dispatcher.ts
+python scripts/code-map/query-code-map.py dependencies legacy/src-backend/hirez-relay/dispatcher.ts
 python scripts/code-map/query-code-map.py dependents src/paladinscat-core/src/database.rs
 \`\`\`
 
@@ -989,9 +989,9 @@ function main() {
   const graph = {
     metadata: {
       schema_version: 1,
-      generator: 'src/backend/scripts/generate-code-map.mjs',
+      generator: 'legacy/src-backend/scripts/generate-code-map.mjs',
       revision: gitRevision(),
-      source_scope: 'src/backend (without test), src/backend-rust/src, src/hirez-relay-rust/src, src/paladinscat-core/src',
+      source_scope: 'legacy/src-backend (without test), src/backend-rust/src, src/hirez-relay-rust/src, src/paladinscat-core/src',
     },
     sourceRoots: sourceRoots.map(root => ({
       id: root.id,

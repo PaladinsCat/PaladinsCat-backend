@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
-// Load production .env from project root, NOT from src/backend/
+// Load production .env from project root, NOT from legacy/src-backend/
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import { healthCheck, one, shutdown as closeDatabase } from './config/db';
 import { close as closeRedis } from './services/cache';

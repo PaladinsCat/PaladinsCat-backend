@@ -34,7 +34,7 @@
  *
  * Called by:
  * - rating-calculator.ts (batchUpdate for match processing)
- * - src/backend/workers/rating-ingestion.ts (background rating pipeline)
+ * - workers/rating-ingestion.ts (background rating pipeline)
  *
  * Source: PaladinsCat backend services layer.
  * =====================================================================
