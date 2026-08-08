@@ -237,7 +237,7 @@ fn normalize_region(value: Option<&str>) -> &'static str {
     {
         "NA" | "NORTH AMERICA" => "NA",
         "EU" | "EUROPE" => "EU",
-        "ASIA" => "Asia",
+        "ASIA" => "ASIA",
         "SEA" => "SEA",
         "JPN" | "JAPAN" => "JPN",
         "RUS" | "RUSSIA" => "RUS",

@@ -171,14 +171,18 @@ fn synthetic_name(value: &str) -> bool {
 
 fn normalize_region(value: &str) -> String {
     match value.trim().to_ascii_lowercase().as_str() {
-        "north america" | "na" => "North America".to_owned(),
-        "europe" | "eu" => "Europe".to_owned(),
-        "brazil" | "br" => "Brazil".to_owned(),
-        "latin america north" | "latam north" => "Latin America North".to_owned(),
-        "latin america south" | "latam south" => "Latin America South".to_owned(),
-        "southeast asia" | "sea" => "Southeast Asia".to_owned(),
-        "australia" | "oceania" => "Australia".to_owned(),
-        "japan" => "Japan".to_owned(),
+        "north america" | "na" => "NA".to_owned(),
+        "europe" | "eu" => "EU".to_owned(),
+        "brazil" | "br" => "BR".to_owned(),
+        // Latin America North/South are not in REGION_MAP/VALID_SHORT_CODES →
+        // TS normalizeRegion flags them Unknown. Short-code SA is valid.
+        "south america" | "sa" => "SA".to_owned(),
+        "latin america north" | "latam north" | "latin america south" | "latam south" => "Unknown".to_owned(),
+        "southeast asia" | "sea" => "SEA".to_owned(),
+        "australia" | "oceania" | "oce" => "OCE".to_owned(),
+        "japan" | "jpn" => "JPN".to_owned(),
+        "russia" | "rus" => "RUS".to_owned(),
+        "unknown" => "Unknown".to_owned(),
         _ if value.trim().is_empty() => "Unknown".to_owned(),
         _ => value.trim().to_owned(),
     }

@@ -185,7 +185,7 @@ impl NonrankedAcquisitionRepository {
             "UPDATE nonranked_match_acquisition SET status=$2,quality=$3,direct_player_count=$4,\
              roster_player_count=$5,roster_attempts=CASE WHEN $6 THEN roster_attempts+1 ELSE roster_attempts END,\
              terminal_reason=$7,error_message=NULL,lease_until=NULL,completed_at=now(),updated_at=now() WHERE match_id=$1",
-            &[&result.match_id, &result.state.database(), &quality, &direct_count, &roster_count,
+            &[&result.match_id, &result.state.database(), &quality, &(direct_count as i16), &(roster_count as i16),
               &attempted_roster, &result.terminal_reason],
         ).await?;
         transaction.commit().await?;

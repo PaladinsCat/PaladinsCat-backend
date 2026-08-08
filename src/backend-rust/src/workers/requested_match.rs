@@ -18,7 +18,8 @@ use super::{
 
 const COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(200);
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RequestedMatchStatus {
     Ready,
     NotFound,

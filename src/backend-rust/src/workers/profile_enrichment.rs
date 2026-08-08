@@ -474,15 +474,18 @@ fn synthetic_name(value: &str) -> bool {
 fn normalized_region(value: Option<String>) -> String {
     let value = value.unwrap_or_default();
     match value.trim().to_ascii_lowercase().as_str() {
-        "north america" | "na" => "North America".to_owned(),
-        "europe" | "eu" => "Europe".to_owned(),
-        "brazil" | "br" => "Brazil".to_owned(),
-        "latin america north" | "latam north" => "Latin America North".to_owned(),
-        "latin america south" | "latam south" => "Latin America South".to_owned(),
-        "southeast asia" | "sea" => "Southeast Asia".to_owned(),
-        "australia" | "oceania" => "Australia".to_owned(),
-        "japan" => "Japan".to_owned(),
-        "" => "Unknown".to_owned(),
+        "north america" | "na" => "NA".to_owned(),
+        "europe" | "eu" => "EU".to_owned(),
+        "brazil" | "br" => "BR".to_owned(),
+        // Latin America North/South are not in REGION_MAP/VALID_SHORT_CODES →
+        // TS normalizeRegion flags them Unknown. Short-code SA is valid.
+        "south america" | "sa" => "SA".to_owned(),
+        "latin america north" | "latam north" | "latin america south" | "latam south" => "Unknown".to_owned(),
+        "southeast asia" | "sea" => "SEA".to_owned(),
+        "australia" | "oceania" | "oce" => "OCE".to_owned(),
+        "japan" | "jpn" => "JPN".to_owned(),
+        "russia" | "rus" => "RUS".to_owned(),
+        "unknown" => "Unknown".to_owned(),
         _ => value.trim().to_owned(),
     }
 }
@@ -720,7 +723,11 @@ mod tests {
 
     #[test]
     fn profile_normalization_matches_current_typescript_basics() {
-        assert_eq!(normalized_region(Some("NA".to_owned())), "North America");
+        assert_eq!(normalized_region(Some("NA".to_owned())), "NA");
+        assert_eq!(normalized_region(Some("North America".to_owned())), "NA");
+        assert_eq!(normalized_region(Some("Europe".to_owned())), "EU");
+        assert_eq!(normalized_region(Some("Latin America North".to_owned())), "Unknown");
+        assert_eq!(normalized_region(Some("Australia".to_owned())), "OCE");
         assert_eq!(calculated_level(0, 999), 999);
         assert!(synthetic_name("DummyPlayer1234"));
         assert!(!synthetic_name("Real Player"));

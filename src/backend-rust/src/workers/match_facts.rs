@@ -3,12 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{OffsetDateTime, Time, format_description::well_known::Rfc3339};
 use tokio_postgres::Transaction;
 
 use super::match_lifecycle::MatchPopulation;
 use super::private_identity::persist_and_resolve_private_identities;
 
+const RANKED_STATS_QUEUE_ID: i32 = 486;
 const FACT_STAGES: [&str; 3] = ["core", "player_facts", "match_bans"];
 const PRIVATE_ACCOUNT_NAME: &str = "PRIVATEACCOUNT";
 
@@ -347,6 +348,9 @@ impl MatchFactRepository {
         if !stages.contains("core") {
             if population == MatchPopulation::Ranked {
                 persist_match(&transaction, payload, population, quality).await?;
+                // Upsert hourly_match_counts after ranked match persistence,
+                // matching TS upsertHourlyCount() behavior.
+                upsert_hourly_count(&transaction, payload).await?;
             } else {
                 persist_nonranked_match(&transaction, payload, population, quality).await?;
             }
@@ -364,9 +368,9 @@ impl MatchFactRepository {
         persist_and_resolve_private_identities(&transaction, payload, &players, quality.limited)
             .await?;
         if !stages.contains("match_bans") {
-            if population == MatchPopulation::Ranked {
-                persist_bans(&transaction, payload.match_id, &bans).await?;
-            }
+            // Persist bans for all match populations; TS inserts bans for every match
+            // as part of the match-detail read model (buffer-processor.ts:2054).
+            persist_bans(&transaction, payload.match_id, &bans).await?;
             add_stage(&transaction, payload.match_id, "match_bans").await?;
             stages.insert("match_bans".to_owned());
         }
@@ -595,6 +599,109 @@ async fn persist_match(
             ],
         )
         .await?;
+    Ok(())
+}
+
+/// Upsert `hourly_match_counts` after a ranked match is persisted to `matches`.
+/// Matches TS `upsertHourlyCount()`: recomputes counts from `matches` table
+/// (excluding limited) to ensure idempotent, consistent state.
+async fn upsert_hourly_count(
+    transaction: &Transaction<'_>,
+    payload: &CanonicalMatchPayload,
+) -> Result<(), MatchFactError> {
+    // Only update for ranked stats queue (486), matching TS `isRankedStatsQueue`.
+    if payload.queue_id != RANKED_STATS_QUEUE_ID {
+        return Ok(());
+    }
+    let entry = &payload.entry_datetime;
+    if entry.is_empty() {
+        return Ok(());
+    }
+    // Use the same hour-bound calculation as TS: start of hour to end of hour.
+    let parsed = OffsetDateTime::parse(entry, &Rfc3339).map_err(|_| {
+        MatchFactError::InvalidPayload(format!(
+            "upsert_hourly_count: unparseable entry_datetime {entry}"
+        ))
+    })?;
+
+    let date = parsed.date();
+    let hour = parsed.hour();
+    let next_hour = (hour + 1) % 24;
+    let start_of_hour = parsed.replace_time(
+        Time::from_hms(hour, 0, 0).map_err(|_| {
+            MatchFactError::InvalidPayload(format!(
+                "upsert_hourly_count: invalid hour {hour}"
+            ))
+        })?,
+    );
+    let end_of_hour = parsed.replace_time(
+        Time::from_hms(next_hour, 0, 0).map_err(|_| {
+            MatchFactError::InvalidPayload(format!(
+                "upsert_hourly_count: invalid next hour {next_hour}"
+            ))
+        })?,
+    );
+
+    // Recompute region and total counts from matches table, excluding limited matches.
+    // This matches TS upsertHourlyCount which uses COUNT(*) FILTER (WHERE region = $4).
+    let row = transaction
+        .query_opt(
+            r#"
+            SELECT count(*) FILTER (WHERE region = $4)::int AS region_count,
+                   count(*)::int AS total_count
+            FROM matches
+            WHERE queue_id = $1
+              AND entry_datetime >= $2
+              AND entry_datetime < $3
+              AND COALESCE(limited, false) = false
+            "#,
+            &[
+                &payload.queue_id,
+                &start_of_hour,
+                &end_of_hour,
+                &normalized_region(&payload.region),
+            ],
+        )
+        .await?;
+
+    let Some(row) = row else {
+        return Ok(());
+    };
+
+    let region_count: i32 = row.get("region_count");
+    let total_count: i32 = row.get("total_count");
+
+    // Determine region column name from the normalized region string.
+    let region_str = normalized_region(&payload.region);
+    let col = match region_str.as_str() {
+        "NA" => "matches_na",
+        "EU" => "matches_eu",
+        "SEA" => "matches_sea",
+        "JPN" => "matches_jpn",
+        "RUS" => "matches_rus",
+        "BR" => "matches_br",
+        "OCE" => "matches_oce",
+        "SA" => "matches_sa",
+        _ => "matches_unknown",
+    };
+
+    transaction
+        .execute(
+            &format!(
+                r#"
+                INSERT INTO hourly_match_counts (date, hour, queue_id, {col}, total_matches, fetched_at)
+                VALUES ($1::DATE, $2, $3, $4, $5, now())
+                ON CONFLICT (date, hour, queue_id)
+                DO UPDATE SET
+                  {col} = $4,
+                  total_matches = $5,
+                  fetched_at = now()
+                "#
+            ),
+            &[&date.to_string(), &(hour as i32), &payload.queue_id, &region_count, &total_count],
+        )
+        .await?;
+
     Ok(())
 }
 

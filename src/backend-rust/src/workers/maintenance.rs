@@ -291,8 +291,69 @@ async fn rebuild_derived_projections(
         "match_player_cards",
         "card_id",
         true,
-    )
+)
     .await?;
+    // Rebuild match_compositions_ranked from source facts (parity with TS derived-projection-tracker).
+    transaction.execute("DELETE FROM match_compositions_ranked", &[]).await?;
+    transaction.execute(
+        "\
+         WITH team_comps AS (\
+           SELECT mp.match_id, mp.entry_datetime, mp.task_force, m.winning_task_force, mlt.lobby_tier,\
+             COUNT(*) FILTER(WHERE c.roles ILIKE '%Frontline%' OR c.roles ILIKE '%Front Line%')::INT AS frontline,\
+             COUNT(*) FILTER(WHERE c.roles ILIKE '%Damage%')::INT AS damage,\
+             COUNT(*) FILTER(WHERE c.roles ILIKE '%Flank%')::INT AS flank,\
+             COUNT(*) FILTER(WHERE c.roles ILIKE '%Support%')::INT AS support\
+           FROM match_players mp\
+           JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime\
+           JOIN match_lobby_tiers mlt ON mlt.match_id=m.match_id AND mlt.entry_datetime=m.entry_datetime\
+           JOIN champions c ON c.id=mp.champion_id\
+           WHERE m.queue_id=486 AND NOT COALESCE(m.limited,FALSE)\
+             AND mp.task_force IS NOT NULL AND mp.task_force!=0 AND mp.champion_id>0\
+             AND COALESCE(mp.source,'direct') IN ('direct','recovered')\
+           GROUP BY mp.match_id, mp.entry_datetime, mp.task_force, m.winning_task_force, mlt.lobby_tier\
+           HAVING COUNT(*)=5\
+         )\
+         INSERT INTO match_compositions_ranked(comp_id,lobby_tier,frontline,damage,flank,support,count,wins,losses,updated_at)\
+         SELECT frontline||'-'||damage||'-'||flank||'-'||support AS comp_id,lobby_tier,frontline,damage,flank,support,\
+           COUNT(*)::INT AS count,\
+           COUNT(*) FILTER(WHERE task_force=winning_task_force)::INT AS wins,\
+           COUNT(*) FILTER(WHERE task_force!=winning_task_force)::INT AS losses,\
+           now()\
+         FROM team_comps WHERE frontline+damage+flank+support=5\
+         GROUP BY lobby_tier,frontline,damage,flank,support",
+        &[],
+    ).await?;
+    // Rebuild legacy match_compositions from tier-bucketed projection.
+    transaction.execute("DELETE FROM match_compositions", &[]).await?;
+    transaction.execute(
+        "INSERT INTO match_compositions(comp_id,frontline,damage,flank,support,count,wins,losses,winrate,updated_at)\
+         SELECT comp_id,frontline,damage,flank,support,SUM(count)::INT,SUM(wins)::INT,SUM(losses)::INT,\
+           ROUND(100.0*SUM(wins)::NUMERIC/NULLIF((SUM(wins)+SUM(losses))::NUMERIC,0),2),now()\
+         FROM match_compositions_ranked GROUP BY comp_id,frontline,damage,flank,support",
+        &[],
+    ).await?;
+    // Rebuild bans_ranked from source facts.
+    transaction.execute("DELETE FROM bans_ranked", &[]).await?;
+    transaction.execute(
+        "INSERT INTO bans_ranked(champion_id,champion_name,ban_total,slot1,slot2,slot3,slot4,slot5,slot6,slot7,slot8,updated_at)\
+         SELECT mb.champion_id,\
+           COALESCE(c.name,'Champion '||mb.champion_id::TEXT) AS champion_name,\
+           COUNT(*)::INT AS ban_total,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=1)::INT AS slot1,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=2)::INT AS slot2,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=3)::INT AS slot3,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=4)::INT AS slot4,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=5)::INT AS slot5,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=6)::INT AS slot6,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=7)::INT AS slot7,\
+           COUNT(*) FILTER(WHERE mb.ban_slot=8)::INT AS slot8,\
+           now()\
+         FROM match_bans mb JOIN matches m ON m.match_id=mb.match_id\
+         LEFT JOIN champions c ON c.id=mb.champion_id\
+         WHERE m.queue_id=486 AND NOT COALESCE(m.limited,FALSE) AND mb.champion_id>0\
+         GROUP BY mb.champion_id, c.name",
+        &[],
+    ).await?;
     rebuild_casual_mechanics(&transaction).await?;
     transaction.commit().await?;
     let mut counts = BTreeMap::new();
@@ -304,6 +365,9 @@ async fn rebuild_derived_projections(
         "talent_counts_casual",
         "card_counts_ranked",
         "card_counts_casual",
+        "match_compositions_ranked",
+        "match_compositions",
+        "bans_ranked",
     ] {
         let sql = format!("SELECT COUNT(*)::BIGINT AS count FROM {table}");
         let row = database.one_json(&sql, &[]).await?;
