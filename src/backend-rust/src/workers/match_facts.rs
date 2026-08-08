@@ -716,7 +716,7 @@ async fn upsert_hourly_count(
                   fetched_at = now()
                 "#
             ),
-            &[&date.to_string(), &(hour as i32), &payload.queue_id, &region_count, &total_count],
+            &[&date, &(hour as i32), &payload.queue_id, &region_count, &total_count],
         )
         .await?;
 
@@ -1743,6 +1743,20 @@ mod tests {
         assert_eq!(parsed.day(), 8);
         assert_eq!(parsed.hour(), 8);
         assert_eq!(parsed.minute(), 38);
+    }
+
+    #[test]
+    fn hourly_count_uses_a_typed_postgres_date_parameter() {
+        let source = include_str!("match_facts.rs");
+        let hourly_count = source
+            .split_once("async fn upsert_hourly_count")
+            .expect("hourly count implementation")
+            .1
+            .split_once("async fn persist_nonranked_match")
+            .expect("hourly count implementation end")
+            .0;
+        assert!(hourly_count.contains("&[&date,"));
+        assert!(!hourly_count.contains("&date.to_string()"));
     }
 
     #[test]

@@ -102,7 +102,7 @@ async fn process_raw_buffer_batch_inner(
         .and_then(|value| value.parse().ok())
         .unwrap_or(100);
     let headroom = api_headroom_snapshot(database, reserve).await?;
-    requeue_recent_timestamp_parse_failures(database).await?;
+    requeue_recent_hourly_count_failures(database).await?;
     if !headroom.has_usable_keys {
         requeue_recent_quota_paused_rows(database).await?;
     }
@@ -1104,9 +1104,9 @@ async fn requeue_recent_quota_paused_rows(database: &Database) -> Result<(), Dat
     Ok(())
 }
 
-async fn requeue_recent_timestamp_parse_failures(database: &Database) -> Result<(), DatabaseError> {
+async fn requeue_recent_hourly_count_failures(database: &Database) -> Result<(), DatabaseError> {
     database.query_json(
-        "UPDATE raw_ingest_buffer rib SET status='pending',retry_count=0,error_message='requeued after timestamp parser repair',processed_at=NULL,available_at=now() WHERE rib.status='failed' AND rib.entity_type='match' AND rib.endpoint='getmatchdetailsbatch' AND rib.created_at>=now()-INTERVAL '6 hours' AND rib.error_message LIKE 'invalid canonical match payload: upsert_hourly_count: unparseable entry_datetime %' AND EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.match_id::TEXT=rib.entity_id AND debt.status IN('pending','staged'))",
+        "UPDATE raw_ingest_buffer rib SET status='pending',retry_count=0,error_message='requeued after hourly-count finalizer repair',processed_at=NULL,available_at=now() WHERE rib.status='failed' AND rib.entity_type='match' AND rib.endpoint='getmatchdetailsbatch' AND rib.created_at>=now()-INTERVAL '6 hours' AND (rib.error_message LIKE 'invalid canonical match payload: upsert_hourly_count: unparseable entry_datetime %' OR rib.error_message='error serializing parameter 0') AND EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.match_id::TEXT=rib.entity_id AND debt.status IN('pending','staged'))",
         &[],
     ).await?;
     Ok(())
@@ -1205,7 +1205,7 @@ mod tests {
     }
 
     #[test]
-    fn timestamp_parse_failures_requeue_before_claim_without_relay_headroom() {
+    fn hourly_count_failures_requeue_before_claim_without_relay_headroom() {
         let source = include_str!("raw_buffer.rs");
         let body = source
             .split_once("async fn process_raw_buffer_batch_inner")
@@ -1215,17 +1215,18 @@ mod tests {
             .expect("batch implementation end")
             .0;
         assert!(
-            body.find("requeue_recent_timestamp_parse_failures")
+            body.find("requeue_recent_hourly_count_failures")
                 < body.find("if !headroom.has_usable_keys")
         );
         let repair = source
-            .split_once("async fn requeue_recent_timestamp_parse_failures")
-            .expect("timestamp repair")
+            .split_once("async fn requeue_recent_hourly_count_failures")
+            .expect("hourly count repair")
             .1
             .split_once("fn integer")
-            .expect("timestamp repair end")
+            .expect("hourly count repair end")
             .0;
         assert!(repair.contains("upsert_hourly_count: unparseable entry_datetime %"));
+        assert!(repair.contains("error serializing parameter 0"));
         assert!(repair.contains("debt.status IN('pending','staged')"));
         assert!(repair.contains("status='pending',retry_count=0"));
     }
