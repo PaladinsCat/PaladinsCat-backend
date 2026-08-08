@@ -39,6 +39,7 @@ struct AuthState {
     redis: paladinscat_core::cache::RedisCache,
     relay: Option<WorkerRelayClient>,
     oidc: Option<OidcVerifier>,
+    oidc_bff_service_token: Option<String>,
 }
 
 pub fn router(
@@ -94,6 +95,7 @@ pub fn router(
                 .clone()
                 .zip(config.oidc_audience.clone())
                 .and_then(|(issuer, audience)| OidcVerifier::new(issuer, audience).ok()),
+            oidc_bff_service_token: config.oidc_bff_service_token.clone(),
         })
 }
 
@@ -101,8 +103,15 @@ pub fn router(
 async fn oidc_exchange(
     State(state): State<AuthState>,
     Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
+    if !oidc_bff_authorized(&state, &headers) {
+        return Ok(simple_error(
+            StatusCode::UNAUTHORIZED,
+            "OIDC BFF authorization required",
+        ));
+    }
     let Some(verifier) = state.oidc.as_ref() else {
         return Ok(simple_error(StatusCode::NOT_FOUND, "OIDC is not enabled"));
     };
@@ -152,8 +161,15 @@ fn oidc_state(body: &Value) -> Option<&str> {
 /// Redis-backed, 10-minute one-use BFF transaction. The verifier never reaches a browser cookie.
 async fn oidc_transaction_create(
     State(state): State<AuthState>,
+    headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
+    if !oidc_bff_authorized(&state, &headers) {
+        return Ok(simple_error(
+            StatusCode::UNAUTHORIZED,
+            "OIDC BFF authorization required",
+        ));
+    }
     let Some(state_value) = oidc_state(&body) else {
         return Ok(simple_error(StatusCode::BAD_REQUEST, "Invalid OIDC state"));
     };
@@ -192,8 +208,15 @@ async fn oidc_transaction_create(
 
 async fn oidc_transaction_consume(
     State(state): State<AuthState>,
+    headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
+    if !oidc_bff_authorized(&state, &headers) {
+        return Ok(simple_error(
+            StatusCode::UNAUTHORIZED,
+            "OIDC BFF authorization required",
+        ));
+    }
     let Some(state_value) = oidc_state(&body) else {
         return Ok(simple_error(StatusCode::BAD_REQUEST, "Invalid OIDC state"));
     };
@@ -216,6 +239,16 @@ async fn oidc_transaction_consume(
             "OIDC state expired or consumed",
         )),
     }
+}
+
+fn oidc_bff_authorized(state: &AuthState, headers: &HeaderMap) -> bool {
+    state
+        .oidc_bff_service_token
+        .as_deref()
+        .zip(bearer(headers))
+        .is_some_and(|(expected, candidate)| {
+            crate::security::constant_time_equal_public(candidate, expected)
+        })
 }
 
 fn bearer(headers: &HeaderMap) -> Option<&str> {

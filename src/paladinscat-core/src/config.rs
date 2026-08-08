@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, fs};
 
 use serde::Serialize;
 use thiserror::Error;
@@ -52,6 +52,8 @@ pub struct BackendConfig {
     pub oidc_issuer: Option<String>,
     pub oidc_audience: Option<String>,
     #[serde(skip_serializing)]
+    pub oidc_bff_service_token: Option<String>,
+    #[serde(skip_serializing)]
     pub service_token: Option<String>,
     #[serde(skip_serializing)]
     pub previous_service_token: Option<String>,
@@ -85,6 +87,8 @@ pub enum ConfigError {
     IncompleteOidcConfiguration,
     #[error("PALADINSCAT_OIDC_ISSUER must be an HTTPS URL without query or fragment")]
     InvalidOidcIssuer,
+    #[error("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN must contain at least 32 bytes")]
+    OidcBffTokenTooShort,
 }
 
 impl BackendConfig {
@@ -122,6 +126,12 @@ impl BackendConfig {
         }
         let oidc_issuer = nonempty(lookup("PALADINSCAT_OIDC_ISSUER"));
         let oidc_audience = nonempty(lookup("PALADINSCAT_OIDC_AUDIENCE"));
+        let oidc_bff_service_token = nonempty(lookup("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN"))
+            .or_else(|| {
+                nonempty(lookup("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN_FILE"))
+                    .and_then(|path| fs::read_to_string(path).ok())
+                    .and_then(|value| nonempty(Some(value)))
+            });
         if oidc_issuer.is_some() != oidc_audience.is_some() {
             return Err(ConfigError::IncompleteOidcConfiguration);
         }
@@ -129,6 +139,12 @@ impl BackendConfig {
             !value.starts_with("https://") || value.contains('?') || value.contains('#')
         }) {
             return Err(ConfigError::InvalidOidcIssuer);
+        }
+        if oidc_bff_service_token
+            .as_deref()
+            .is_some_and(|value| value.len() < 32)
+        {
+            return Err(ConfigError::OidcBffTokenTooShort);
         }
 
         Ok(Self {
@@ -172,6 +188,7 @@ impl BackendConfig {
             ),
             oidc_issuer,
             oidc_audience,
+            oidc_bff_service_token,
             service_token,
             previous_service_token,
             admin_secret: nonempty(lookup("ADMIN_SECRET")),
