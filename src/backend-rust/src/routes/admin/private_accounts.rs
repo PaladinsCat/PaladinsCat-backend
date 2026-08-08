@@ -101,15 +101,12 @@ pub(super) async fn verify_name(
             "evidenceRef is required and must be at most 2000 characters",
         ));
     }
-    if evidence_sha256
-        .as_ref()
-        .is_some_and(|value| {
-            let Some(re) = Regex::new("^[0-9a-f]{64}$").ok() else {
-                return true;
-            };
-            !re.is_match(value)
-        })
-    {
+    if evidence_sha256.as_ref().is_some_and(|value| {
+        let Some(re) = Regex::new("^[0-9a-f]{64}$").ok() else {
+            return true;
+        };
+        !re.is_match(value)
+    }) {
         return Ok(super::coded_error(
             StatusCode::BAD_REQUEST,
             "VALIDATION",

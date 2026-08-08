@@ -703,7 +703,11 @@ pub async fn repair_ranked_projection_gaps(
         .await?;
     let ids = page
         .iter()
-        .filter_map(|row| row.get("match_id").and_then(Value::as_i64).filter(|id| *id > 0))
+        .filter_map(|row| {
+            row.get("match_id")
+                .and_then(Value::as_i64)
+                .filter(|id| *id > 0)
+        })
         .collect::<Vec<_>>();
     if ids.is_empty() {
         return Ok(0);

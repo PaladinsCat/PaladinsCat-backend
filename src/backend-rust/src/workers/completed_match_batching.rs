@@ -33,7 +33,11 @@ pub async fn batch_completed_matches(
     let mut ids: Vec<i64> = Vec::new();
     let mut seen = HashSet::new();
     for row in rows {
-        if let Some(id) = row.get("match_id").and_then(Value::as_i64).filter(|id| *id > 0 && seen.insert(*id)) {
+        if let Some(id) = row
+            .get("match_id")
+            .and_then(Value::as_i64)
+            .filter(|id| *id > 0 && seen.insert(*id))
+        {
             ids.push(id);
         }
     }
@@ -68,7 +72,11 @@ pub async fn batch_nonranked_completed(
     let mut ids: Vec<i64> = Vec::new();
     let mut seen = HashSet::new();
     for row in rows {
-        if let Some(id) = row.get("match_id").and_then(Value::as_i64).filter(|id| *id > 0 && seen.insert(*id)) {
+        if let Some(id) = row
+            .get("match_id")
+            .and_then(Value::as_i64)
+            .filter(|id| *id > 0 && seen.insert(*id))
+        {
             ids.push(id);
         }
     }

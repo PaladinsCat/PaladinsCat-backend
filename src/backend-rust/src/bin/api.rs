@@ -224,11 +224,12 @@ fn env_enabled(name: &str, fallback: bool) -> bool {
 async fn shutdown_signal() -> &'static str {
     #[cfg(unix)]
     {
-        let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .unwrap_or_else(|error| {
-                eprintln!("Failed to install SIGTERM handler: {error}");
-                std::process::exit(78);
-            });
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .unwrap_or_else(|error| {
+                    eprintln!("Failed to install SIGTERM handler: {error}");
+                    std::process::exit(78);
+                });
         tokio::select! {
             _ = tokio::signal::ctrl_c() => "SIGINT",
             _ = terminate.recv() => "SIGTERM",

@@ -157,8 +157,14 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             foundation.config.clone(),
         ))
         .merge(routes::admin::router(foundation.clone()))
-        .merge(routes::builds::router(database.clone(), foundation.redis.clone()))
-        .merge(routes::community::router(database.clone(), foundation.redis.clone()))
+        .merge(routes::builds::router(
+            database.clone(),
+            foundation.redis.clone(),
+        ))
+        .merge(routes::community::router(
+            database.clone(),
+            foundation.redis.clone(),
+        ))
         .merge(routes::tierlists::router(database.clone()))
         .merge(routes::site_analytics::router(database.clone()))
         .merge(routes::system::router(
@@ -180,7 +186,10 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             foundation.config.clone(),
         ))
         .merge(routes::reference::router(database.clone(), redis))
-        .merge(routes::raw_api_responses::router(database.clone(), &foundation))
+        .merge(routes::raw_api_responses::router(
+            database.clone(),
+            &foundation,
+        ))
         .merge(routes::public_operations::router(database))
         .fallback(not_found);
     Router::new()
@@ -347,10 +356,16 @@ mod tests {
         assert_eq!(status.routes_implemented, count_implemented_routes());
         assert_eq!(status.routes_inventoried, INVENTORIED_ROUTES);
         assert_eq!(status.worker_modules_migrated, 0);
-        assert_eq!(status.worker_modules_implemented, count_implemented_workers());
+        assert_eq!(
+            status.worker_modules_implemented,
+            count_implemented_workers()
+        );
         assert_eq!(status.scheduler_owners_implemented, INVENTORIED_SCHEDULERS);
         assert_eq!(status.scheduler_owners_migrated, 0);
-        assert_eq!(status.operator_commands_implemented, INVENTORIED_OPERATOR_COMMANDS);
+        assert_eq!(
+            status.operator_commands_implemented,
+            INVENTORIED_OPERATOR_COMMANDS
+        );
         assert_eq!(status.operator_commands_migrated, 0);
     }
 

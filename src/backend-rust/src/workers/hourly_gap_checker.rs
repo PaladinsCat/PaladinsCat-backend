@@ -31,8 +31,11 @@ pub async fn scan_hourly_gaps(
 ) -> Result<GapScanResult, HourlyGapCheckerError> {
     // Align with policy::MATCH_COUNT_QUEUE_DEFINITIONS (all 12 queues) so this
     // path would not silently drop presence/ranked queues if it were wired up.
-    let queue_ids: Vec<i32> = vec![424, 425, 452, 453, 469, 486, 10297, 10332, 10348, 10362, 10367, 10369];
-    let params: Box<[&(dyn tokio_postgres::types::ToSql + Sync)]> = Box::new([&lookback_hours, &queue_ids]);
+    let queue_ids: Vec<i32> = vec![
+        424, 425, 452, 453, 469, 486, 10297, 10332, 10348, 10362, 10367, 10369,
+    ];
+    let params: Box<[&(dyn tokio_postgres::types::ToSql + Sync)]> =
+        Box::new([&lookback_hours, &queue_ids]);
     let rows = database
         .query_json(
             "SELECT g.date::text, g.hour, q.queue_id \
@@ -53,12 +56,26 @@ pub async fn scan_hourly_gaps(
     let mut gaps = Vec::new();
     let mut seen = HashSet::new();
     for row in rows {
-        let date = row.get("date").and_then(Value::as_str).map(str::to_owned).unwrap_or_default();
-        let hour = row.get("hour").and_then(|v| v.as_i64().and_then(|v| i32::try_from(v).ok())).unwrap_or(-1);
-        let queue_id = row.get("queue_id").and_then(|v| v.as_i64().and_then(|v| i32::try_from(v).ok())).unwrap_or(0);
+        let date = row
+            .get("date")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .unwrap_or_default();
+        let hour = row
+            .get("hour")
+            .and_then(|v| v.as_i64().and_then(|v| i32::try_from(v).ok()))
+            .unwrap_or(-1);
+        let queue_id = row
+            .get("queue_id")
+            .and_then(|v| v.as_i64().and_then(|v| i32::try_from(v).ok()))
+            .unwrap_or(0);
         let key = (date.clone(), hour, queue_id);
         if seen.insert(key) {
-            gaps.push(GapInfo { date, hour, queue_id });
+            gaps.push(GapInfo {
+                date,
+                hour,
+                queue_id,
+            });
         }
     }
     Ok(GapScanResult {

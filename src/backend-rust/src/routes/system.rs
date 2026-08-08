@@ -558,11 +558,7 @@ fn effective_limit(_dev_id: &str, reported: i64) -> i64 {
     // No arbitrary per-key limits: trust the authoritative reported limit
     // verbatim. Only fall back to a single uniform default when the API has
     // not yet reported a limit.
-    if reported > 0 {
-        reported
-    } else {
-        7_500
-    }
+    if reported > 0 { reported } else { 7_500 }
 }
 
 async fn api_key_status(

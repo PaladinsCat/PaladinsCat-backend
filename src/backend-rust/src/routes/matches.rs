@@ -1177,7 +1177,15 @@ async fn pull(
     let hour = from[11..13]
         .parse::<i32>()
         .map_err(|_| ApiError::validation("Invalid queueId or from timestamp"))?;
-    discover_window(&state, &request_id, queue_id.unwrap_or(0), &date, hour, false).await
+    discover_window(
+        &state,
+        &request_id,
+        queue_id.unwrap_or(0),
+        &date,
+        hour,
+        false,
+    )
+    .await
 }
 
 async fn discover(

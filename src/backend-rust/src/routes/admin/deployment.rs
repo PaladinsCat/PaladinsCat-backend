@@ -137,14 +137,20 @@ pub(super) async fn record_version(
     let version = version.unwrap_or_else(|| "v0.0.0".to_owned());
     let git_short = required("gitCommitShort").unwrap_or_default();
     let git_branch = required("gitBranch").unwrap_or_default();
-    let git_dirty = body.get("gitDirty").and_then(Value::as_bool).unwrap_or(true);
+    let git_dirty = body
+        .get("gitDirty")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     let build_timestamp = required("buildTimestamp");
     let deployment_id = required("deploymentId").unwrap_or_default();
     let compose_mode = required("composeMode").unwrap_or_else(|| "production".to_owned());
     let remote_project_dir = required("remoteProjectDir").unwrap_or_default();
     let release_type = required("releaseType").unwrap_or_else(|| "patch".to_owned());
     let change_count = body.get("changeCount").and_then(Value::as_u64).unwrap_or(0);
-    let changelog = body.get("changelog").and_then(Value::as_str).map(str::to_owned);
+    let changelog = body
+        .get("changelog")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
 
     let mut components: Vec<String> = body
         .get("services")
@@ -171,13 +177,14 @@ pub(super) async fn record_version(
 
     let db_schema_version = state
         .database
-        .one_json(
-            "SELECT MAX(version) AS version FROM schema_migrations",
-            &[],
-        )
+        .one_json("SELECT MAX(version) AS version FROM schema_migrations", &[])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
-        .and_then(|row| row.get("version").and_then(Value::as_str).map(str::to_owned))
+        .and_then(|row| {
+            row.get("version")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
         .unwrap_or_else(|| "038_baseline".to_owned());
 
     let mut client = state
@@ -242,19 +249,23 @@ pub(super) async fn record_version(
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
 
-    Ok((StatusCode::CREATED, Json(json!({
-        "recorded": true,
-        "component": "stack",
-        "environment": environment,
-        "version": version,
-        "gitCommit": git_commit,
-        "gitCommitShort": git_short,
-        "gitDirty": git_dirty,
-        "releaseType": release_type,
-        "changeCount": change_count,
-        "components": components,
-        "stackVersionId": stack_id,
-    }))).into_response())
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "recorded": true,
+            "component": "stack",
+            "environment": environment,
+            "version": version,
+            "gitCommit": git_commit,
+            "gitCommitShort": git_short,
+            "gitDirty": git_dirty,
+            "releaseType": release_type,
+            "changeCount": change_count,
+            "components": components,
+            "stackVersionId": stack_id,
+        })),
+    )
+        .into_response())
 }
 
 pub(super) async fn drain(
@@ -348,7 +359,9 @@ pub(super) async fn warm(
         Err(_) => {
             return Ok((
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error":{"code":"OPERATION_FAILED","message":"Backend warm-up failed"}})),
+                Json(
+                    json!({"error":{"code":"OPERATION_FAILED","message":"Backend warm-up failed"}}),
+                ),
             )
                 .into_response());
         }

@@ -75,13 +75,21 @@ pub async fn get_lock_status(
 ) -> Result<LockStatus, WorkerLockError> {
     ensure_lock_table(database).await?;
     let row = database
-        .one_json("SELECT owner, expires_at FROM worker_locks WHERE lock_key=$1", &[&lock_key])
+        .one_json(
+            "SELECT owner, expires_at FROM worker_locks WHERE lock_key=$1",
+            &[&lock_key],
+        )
         .await?;
     Ok(LockStatus {
         locked: row.is_some(),
-        lock_owner: row.as_ref().and_then(|r| r.get("owner").and_then(Value::as_str).map(str::to_owned)),
-        expires_at: row
-            .as_ref().and_then(|r| r.get("expires_at").and_then(Value::as_str).map(str::to_owned)),
+        lock_owner: row
+            .as_ref()
+            .and_then(|r| r.get("owner").and_then(Value::as_str).map(str::to_owned)),
+        expires_at: row.as_ref().and_then(|r| {
+            r.get("expires_at")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        }),
     })
 }
 

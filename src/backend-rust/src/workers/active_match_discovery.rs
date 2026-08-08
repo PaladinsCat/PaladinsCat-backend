@@ -55,7 +55,10 @@ pub async fn discover_active_matches(
                 .and_then(Value::as_str)
                 .map(str::to_owned)
                 .unwrap_or_default(),
-            queue_id: row.get("queue_id").and_then(|v| v.as_i64().and_then(|v| i32::try_from(v).ok())).unwrap_or(queue_id),
+            queue_id: row
+                .get("queue_id")
+                .and_then(|v| v.as_i64().and_then(|v| i32::try_from(v).ok()))
+                .unwrap_or(queue_id),
         });
     }
     let total = matches.len();

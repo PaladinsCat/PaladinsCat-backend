@@ -134,13 +134,15 @@ impl IntoResponse for ApiError {
             "message": self.message,
         });
         if let Some(details) = self.details
-            && let Some(obj) = error.as_object_mut() {
-                obj.insert("details".to_owned(), *details);
-            }
+            && let Some(obj) = error.as_object_mut()
+        {
+            obj.insert("details".to_owned(), *details);
+        }
         if let Some(request_id) = self.request_id
-            && let Some(obj) = error.as_object_mut() {
-                obj.insert("requestId".to_owned(), Value::String(request_id));
-            }
+            && let Some(obj) = error.as_object_mut()
+        {
+            obj.insert("requestId".to_owned(), Value::String(request_id));
+        }
         let mut response = (self.status, Json(json!({ "error": error }))).into_response();
         if let Some(retry_after) = self.retry_after
             && let Ok(value) = HeaderValue::from_str(&retry_after.to_string())

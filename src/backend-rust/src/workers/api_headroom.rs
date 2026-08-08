@@ -40,9 +40,7 @@ pub async fn get_api_headroom(
     })
 }
 
-pub async fn check_api_budget(
-    database: &Database,
-) -> Result<bool, ApiHeadroomError> {
+pub async fn check_api_budget(database: &Database) -> Result<bool, ApiHeadroomError> {
     let reserve = std::env::var("API_KEY_RESERVE_CALLS")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())

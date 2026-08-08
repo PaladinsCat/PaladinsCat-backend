@@ -241,7 +241,10 @@ async fn create(
     transaction
         .execute(
             "INSERT INTO tier_lists(post_id,user_id) VALUES($1,$2)",
-            &[&i32::try_from(post_id).unwrap_or_default(), &session.user_id],
+            &[
+                &i32::try_from(post_id).unwrap_or_default(),
+                &session.user_id,
+            ],
         )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
@@ -284,7 +287,10 @@ async fn update(
     };
     let existing = state
         .database
-        .one_json("SELECT user_id FROM tier_lists WHERE post_id=$1::BIGINT", &[&id])
+        .one_json(
+            "SELECT user_id FROM tier_lists WHERE post_id=$1::BIGINT",
+            &[&id],
+        )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     let Some(existing) = existing else {
@@ -325,7 +331,10 @@ async fn update(
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction
-        .execute("DELETE FROM tier_list_entries WHERE post_id=$1::BIGINT", &[&id])
+        .execute(
+            "DELETE FROM tier_list_entries WHERE post_id=$1::BIGINT",
+            &[&id],
+        )
         .await
         .map_err(|error| ApiError::database(error.into(), &request_id))?;
     transaction

@@ -85,8 +85,13 @@ pub async fn get_pending_debt_ids(
             &[&queue_id, &limit],
         )
         .await?;
-    Ok(rows.into_iter()
-        .filter_map(|row| row.get("match_id").and_then(Value::as_i64).filter(|id| *id > 0))
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            row.get("match_id")
+                .and_then(Value::as_i64)
+                .filter(|id| *id > 0)
+        })
         .collect())
 }
 
@@ -110,6 +115,11 @@ pub async fn mark_debt_complete(
 
 fn value_usize(value: Option<&Value>) -> usize {
     value
-        .and_then(|value| value.as_u64().map(|v| v as usize).or_else(|| value.as_str()?.parse().ok()))
+        .and_then(|value| {
+            value
+                .as_u64()
+                .map(|v| v as usize)
+                .or_else(|| value.as_str()?.parse().ok())
+        })
         .unwrap_or_default()
 }

@@ -144,4 +144,3 @@ pub(super) async fn update(
     state.redis.del("route:meta:changelog").await;
     Ok(Json(map_entry(row)).into_response())
 }
-

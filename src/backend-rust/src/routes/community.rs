@@ -286,7 +286,12 @@ async fn create_post(
         .database
         .one_json(
             "INSERT INTO posts(user_id,title,content,build_id) VALUES($1,$2,$3,$4) RETURNING *",
-            &[&session.user_id, &title, &content, &build_id.map(|v| i32::try_from(v).unwrap_or_default())],
+            &[
+                &session.user_id,
+                &title,
+                &content,
+                &build_id.map(|v| i32::try_from(v).unwrap_or_default()),
+            ],
         )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
@@ -352,7 +357,10 @@ async fn edit_permission(
     let label = if table == "posts" { "Post" } else { "Comment" };
     let row = state
         .database
-        .one_json(&format!("SELECT user_id FROM {table} WHERE id=$1::BIGINT"), &[&id])
+        .one_json(
+            &format!("SELECT user_id FROM {table} WHERE id=$1::BIGINT"),
+            &[&id],
+        )
         .await
         .map_err(|error| ApiError::database(error, request_id))?;
     let Some(row) = row else {
@@ -556,7 +564,10 @@ async fn delete_comment(
     }
     state
         .database
-        .query_json("DELETE FROM comments WHERE id=$1::BIGINT RETURNING id", &[&id])
+        .query_json(
+            "DELETE FROM comments WHERE id=$1::BIGINT RETURNING id",
+            &[&id],
+        )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
     Ok(json_response(

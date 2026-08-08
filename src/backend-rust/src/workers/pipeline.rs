@@ -747,15 +747,11 @@ impl CanonicalIngestPipeline {
                 .into_iter()
                 .filter_map(|row| {
                     Some(NonrankedAcquisitionClaim {
-                        match_id: row.get("match_id")?.as_i64().filter(|id| *id > 0)?,
-                        queue_id: row
-                            .get("queue_id")?
-                            .as_i64()
+                        match_id: positive_i64(row.get("match_id")?)?,
+                        queue_id: positive_i64(row.get("queue_id")?)
                             .and_then(|id| i32::try_from(id).ok())?,
                         source_date: row.get("source_date")?.as_str()?.to_owned(),
-                        source_hour: row
-                            .get("source_hour")?
-                            .as_i64()
+                        source_hour: positive_i64(row.get("source_hour")?)
                             .and_then(|hour| i32::try_from(hour).ok())?,
                         region: row.get("region").and_then(Value::as_str).map(str::to_owned),
                         discovered_entry_datetime: row
@@ -849,24 +845,26 @@ impl CanonicalIngestPipeline {
             .and_then(|raw| raw.parse::<i32>().ok())
             .unwrap_or(6)
             .max(1);
-        self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
+        self.database
+            .query_json(
+                "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
              lease_until=NULL,terminal_reason=NULL,error_message=$2,updated_at=now()\
              WHERE match_id=ANY($1::bigint[]) AND status='fetching'\
                AND (detail_attempts IS NULL OR detail_attempts < $3::int)",
-            &[&ids, &error, &attempt_cap],
-        )
-        .await?;
+                &[&ids, &error, &attempt_cap],
+            )
+            .await?;
         // Failed too many times: park as dropped to avoid infinite churn.
-        self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
+        self.database
+            .query_json(
+                "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
              lease_until=NULL,terminal_reason='worker_failure_attempt_fuse_exceeded',\
              error_message=$2,completed_at=COALESCE(completed_at,now()),updated_at=now()\
              WHERE match_id=ANY($1::bigint[]) AND status='fetching'\
                AND detail_attempts >= $3::int",
-            &[&ids, &error, &attempt_cap],
-        )
-        .await?;
+                &[&ids, &error, &attempt_cap],
+            )
+            .await?;
         Ok(())
     }
 
@@ -882,28 +880,30 @@ impl CanonicalIngestPipeline {
             .and_then(|raw| raw.parse::<i32>().ok())
             .unwrap_or(6)
             .max(1);
-        self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
+        self.database
+            .query_json(
+                "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
              lease_until=NULL,terminal_reason=NULL,error_message=NULL,\
              updated_at=now()\
              WHERE status IN('fetching','service_deferred')\
                AND (lease_until IS NULL OR lease_until<=now())\
                AND (detail_attempts IS NULL OR detail_attempts < $1::int)",
-            &[&attempt_cap],
-        )
-        .await?;
+                &[&attempt_cap],
+            )
+            .await?;
         // Anything still stuck in-flight past the fuse is permanently parked.
-        self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
+        self.database
+            .query_json(
+                "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
              lease_until=NULL,terminal_reason='worker_interrupted_attempt_fuse_exceeded',\
              error_message='Repeatedly interrupted before persistence; parked to avoid churn',\
              completed_at=COALESCE(completed_at,now()),updated_at=now()\
              WHERE status IN('fetching','service_deferred')\
                AND (lease_until IS NULL OR lease_until<=now())\
                AND detail_attempts >= $1::int",
-            &[&attempt_cap],
-        )
-        .await?;
+                &[&attempt_cap],
+            )
+            .await?;
         Ok(())
     }
 

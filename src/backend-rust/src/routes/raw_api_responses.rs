@@ -10,7 +10,7 @@ use axum::{
 };
 use paladinscat_core::database::{Database, QueryParam};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::foundation::FoundationState;
 use crate::security::developer_bearer_token;
@@ -77,8 +77,11 @@ async fn raw_call_endpoint(
 
     // Method name validation
     let method = &req.method;
-    if method.is_empty() || method.len() > 64
-        || !method.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')
+    if method.is_empty()
+        || method.len() > 64
+        || !method
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.')
     {
         return Err(ApiError::coded(
             StatusCode::BAD_REQUEST,

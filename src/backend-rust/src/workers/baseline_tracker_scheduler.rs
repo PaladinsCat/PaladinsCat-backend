@@ -1,4 +1,3 @@
-
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::Serialize;
 

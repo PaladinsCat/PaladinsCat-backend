@@ -49,7 +49,10 @@ pub fn get_activity_targets() -> Vec<CacheWarmTarget> {
 pub fn get_all_warm_targets() -> Vec<CacheWarmTarget> {
     let mut urls = BTreeSet::new();
     let mut targets = Vec::new();
-    for url in DEPLOYMENT_CRITICAL_API_WARM_URLS.iter().map(|v| (*v).to_owned()) {
+    for url in DEPLOYMENT_CRITICAL_API_WARM_URLS
+        .iter()
+        .map(|v| (*v).to_owned())
+    {
         urls.insert(url.clone());
         targets.push(CacheWarmTarget {
             url,
@@ -65,7 +68,9 @@ pub fn get_all_warm_targets() -> Vec<CacheWarmTarget> {
             _ => "",
         };
         for suffix in [
-            &format!("/players/leaderboard/performance?metric={metric}&limit=100{role}&queueId=486&scope=ranked"),
+            &format!(
+                "/players/leaderboard/performance?metric={metric}&limit=100{role}&queueId=486&scope=ranked"
+            ),
             &format!("/stats/performance-metrics?metric={metric}{role}&queueId=486&scope=ranked"),
         ] {
             if urls.insert(suffix.to_owned()) {

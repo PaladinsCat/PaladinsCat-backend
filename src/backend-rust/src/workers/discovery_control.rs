@@ -355,9 +355,10 @@ fn reason_implies_batch_only_no_authority(reason: &str) -> bool {
 }
 
 fn reason_implies_no_authority_payload(reason: &str) -> bool {
-    reason.to_ascii_lowercase().contains("no authoritative payload")
+    reason
+        .to_ascii_lowercase()
+        .contains("no authoritative payload")
 }
-
 
 pub async fn mark_match_debt_unrecoverable(
     database: &Database,
@@ -566,7 +567,9 @@ mod tests {
         assert!(!reason_implies_batch_only_no_authority(
             "no authoritative payload: Server_Regions temp-table failure"
         ));
-        assert!(!reason_implies_batch_only_no_authority("dropped/corrupt: bad payload"));
+        assert!(!reason_implies_batch_only_no_authority(
+            "dropped/corrupt: bad payload"
+        ));
         assert!(!reason_implies_batch_only_no_authority(
             "non-authoritative aggregate"
         ));
@@ -577,7 +580,9 @@ mod tests {
         assert!(!reason_implies_batch_only_no_authority(
             "discovered by hourly ingest"
         ));
-        assert!(!reason_implies_batch_only_no_authority("hourly discovery plus unresolved debt retry"));
+        assert!(!reason_implies_batch_only_no_authority(
+            "hourly discovery plus unresolved debt retry"
+        ));
     }
 
     #[test]
@@ -591,7 +596,8 @@ mod tests {
         assert!(!reason_implies_no_authority_payload(
             "batch-only profile-only no player anchors"
         ));
-        assert!(!reason_implies_no_authority_payload("canonical singleton returned no outcome"));
+        assert!(!reason_implies_no_authority_payload(
+            "canonical singleton returned no outcome"
+        ));
     }
 }
-

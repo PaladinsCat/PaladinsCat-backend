@@ -26,7 +26,12 @@ pub async fn tick_derived_projections(
         )
         .await?;
     let last_run_secs = last_run
-        .and_then(|value| value.get("last_run_at").and_then(Value::as_str).map(|s| s.parse::<u64>().unwrap_or(0)))
+        .and_then(|value| {
+            value
+                .get("last_run_at")
+                .and_then(Value::as_str)
+                .map(|s| s.parse::<u64>().unwrap_or(0))
+        })
         .unwrap_or(0);
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

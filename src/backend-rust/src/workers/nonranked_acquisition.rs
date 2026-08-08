@@ -595,16 +595,17 @@ async fn write_match(
         result.state.database()
     };
     let count = i16::try_from(player_count).unwrap_or(i16::MAX);
+    let winning_task_force = winning.map(|v| v as i16);
     if definition.scope == MatchStatScope::Casual {
         transaction.execute("INSERT INTO casual_matches(match_id,queue_id,entry_datetime,region,map,duration_seconds,team1_score,team2_score,winning_task_force,quality,stats_eligible,player_count,source,raw_match)\
           VALUES($1,$2,$3::text::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL) ON CONFLICT(match_id) DO UPDATE SET entry_datetime=EXCLUDED.entry_datetime,region=EXCLUDED.region,map=EXCLUDED.map,duration_seconds=EXCLUDED.duration_seconds,team1_score=EXCLUDED.team1_score,team2_score=EXCLUDED.team2_score,winning_task_force=EXCLUDED.winning_task_force,quality=EXCLUDED.quality,stats_eligible=EXCLUDED.stats_eligible,player_count=EXCLUDED.player_count,source=EXCLUDED.source,raw_match=NULL,updated_at=now()",
-          &[&result.match_id,&claim.queue_id,&entry,&region,&map,&duration,&team1,&team2,&winning,&quality,&stats_eligible,&count,&source]).await?;
+          &[&result.match_id,&claim.queue_id,&entry,&region,&map,&duration,&team1,&team2,&winning_task_force,&quality,&stats_eligible,&count,&source]).await?;
     } else {
         let scope = scope_name(definition.scope);
         let model = model_name(definition.participant_model);
         transaction.execute("INSERT INTO special_matches(match_id,queue_id,stats_scope,participant_model,entry_datetime,region,map,duration_seconds,team1_score,team2_score,winning_task_force,quality,stats_eligible,player_count,source,raw_match)\
           VALUES($1,$2,$3,$4,$5::text::timestamptz,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NULL) ON CONFLICT(match_id) DO UPDATE SET queue_id=EXCLUDED.queue_id,stats_scope=EXCLUDED.stats_scope,participant_model=EXCLUDED.participant_model,entry_datetime=EXCLUDED.entry_datetime,region=EXCLUDED.region,map=EXCLUDED.map,duration_seconds=EXCLUDED.duration_seconds,team1_score=EXCLUDED.team1_score,team2_score=EXCLUDED.team2_score,winning_task_force=EXCLUDED.winning_task_force,quality=EXCLUDED.quality,stats_eligible=EXCLUDED.stats_eligible,player_count=EXCLUDED.player_count,source=EXCLUDED.source,raw_match=NULL,updated_at=now()",
-          &[&result.match_id,&claim.queue_id,&scope,&model,&entry,&region,&map,&duration,&team1,&team2,&winning,&quality,&stats_eligible,&count,&source]).await?;
+          &[&result.match_id,&claim.queue_id,&scope,&model,&entry,&region,&map,&duration,&team1,&team2,&winning_task_force,&quality,&stats_eligible,&count,&source]).await?;
     }
     Ok(())
 }
@@ -645,7 +646,7 @@ async fn write_player_facts(
         let eligible = complete && fact.kind == "human" && fact.champion_id > 0;
         let raw_player = compact_raw_player(raw);
         transaction.execute(&format!("INSERT INTO {table}(match_id,roster_slot,private_slot,player_id,player_name,champion_id,champion_name,task_force,win_status,kills,deaths,assists,damage,damage_taken,healing,mitigation,credits,objective_time,account_level,mastery_level,party_id,portal_id,portal_user_id,platform,participant_kind,source,stats_eligible,raw_player) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::jsonb)"),
-          &[&match_id,&roster_slot,&private,&fact.player_id,&fact.player_name,&champion,&fact.champion_name,&fact.task_force,&fact.win_status,&fact.kills,&fact.deaths,&fact.assists,&fact.damage,&fact.damage_taken,&fact.healing,&fact.mitigation,&fact.credits,&fact.objective_time,&fact.account_level,&fact.mastery_level,&fact.party_id,&fact.portal_id,&fact.portal_user_id,&fact.platform,&fact.kind,&fact.source,&eligible,&raw_player]).await?;
+          &[&match_id,&roster_slot,&private,&fact.player_id,&fact.player_name,&champion,&fact.champion_name,&(fact.task_force as i16),&fact.win_status,&fact.kills,&fact.deaths,&fact.assists,&fact.damage,&fact.damage_taken,&fact.healing,&fact.mitigation,&fact.credits,&fact.objective_time,&fact.account_level,&fact.mastery_level,&(fact.party_id as i32),&fact.portal_id,&fact.portal_user_id,&fact.platform,&fact.kind,&fact.source,&eligible,&raw_player]).await?;
     }
     Ok(())
 }
@@ -693,7 +694,7 @@ async fn replace_projection(
         return Ok(());
     }
     let scope = scope_name(definition.scope);
-    transaction.execute("INSERT INTO nonranked_map_stats_daily(stats_date,stats_scope,queue_id,region,map,matches,duration_sum) VALUES($1::text::timestamptz::date,$2,$3,$4,$5,1,$6) ON CONFLICT(stats_date,stats_scope,queue_id,region,map) DO UPDATE SET matches=nonranked_map_stats_daily.matches+1,duration_sum=nonranked_map_stats_daily.duration_sum+EXCLUDED.duration_sum,updated_at=now()", &[&entry,&scope,&definition.queue_id,&region,&map,&duration]).await?;
+    transaction.execute("INSERT INTO nonranked_map_stats_daily(stats_date,stats_scope,queue_id,region,map,matches,duration_sum) VALUES($1::text::timestamptz::date,$2,$3,$4,$5,1,$6) ON CONFLICT(stats_date,stats_scope,queue_id,region,map) DO UPDATE SET matches=nonranked_map_stats_daily.matches+1,duration_sum=nonranked_map_stats_daily.duration_sum+EXCLUDED.duration_sum,updated_at=now()", &[&entry,&scope,&definition.queue_id,&region,&map,&(duration as i64)]).await?;
     for raw in players {
         let fact = player_fact(raw, definition, true);
         if fact.kind != "human" || fact.champion_id <= 0 {
@@ -707,7 +708,7 @@ async fn replace_projection(
             .win_status
             .as_deref()
             .is_some_and(|v| v.eq_ignore_ascii_case("loser") || v.eq_ignore_ascii_case("loss"));
-        transaction.execute("INSERT INTO nonranked_champion_stats_daily(stats_date,stats_scope,queue_id,region,map,champion_id,plays,wins,losses,kills_sum,deaths_sum,assists_sum,damage_sum,healing_sum,mitigation_sum,credits_sum,duration_sum) VALUES($1::text::timestamptz::date,$2,$3,$4,$5,$6,1,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(stats_date,stats_scope,queue_id,region,map,champion_id) DO UPDATE SET plays=nonranked_champion_stats_daily.plays+1,wins=nonranked_champion_stats_daily.wins+EXCLUDED.wins,losses=nonranked_champion_stats_daily.losses+EXCLUDED.losses,kills_sum=nonranked_champion_stats_daily.kills_sum+EXCLUDED.kills_sum,deaths_sum=nonranked_champion_stats_daily.deaths_sum+EXCLUDED.deaths_sum,assists_sum=nonranked_champion_stats_daily.assists_sum+EXCLUDED.assists_sum,damage_sum=nonranked_champion_stats_daily.damage_sum+EXCLUDED.damage_sum,healing_sum=nonranked_champion_stats_daily.healing_sum+EXCLUDED.healing_sum,mitigation_sum=nonranked_champion_stats_daily.mitigation_sum+EXCLUDED.mitigation_sum,credits_sum=nonranked_champion_stats_daily.credits_sum+EXCLUDED.credits_sum,duration_sum=nonranked_champion_stats_daily.duration_sum+EXCLUDED.duration_sum,updated_at=now()", &[&entry,&scope,&definition.queue_id,&region,&map,&fact.champion_id,&i32::from(win),&i32::from(loss),&fact.kills,&fact.deaths,&fact.assists,&fact.damage,&fact.healing,&fact.mitigation,&fact.credits,&duration]).await?;
+        transaction.execute("INSERT INTO nonranked_champion_stats_daily(stats_date,stats_scope,queue_id,region,map,champion_id,plays,wins,losses,kills_sum,deaths_sum,assists_sum,damage_sum,healing_sum,mitigation_sum,credits_sum,duration_sum) VALUES($1::text::timestamptz::date,$2,$3,$4,$5,$6,1,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(stats_date,stats_scope,queue_id,region,map,champion_id) DO UPDATE SET plays=nonranked_champion_stats_daily.plays+1,wins=nonranked_champion_stats_daily.wins+EXCLUDED.wins,losses=nonranked_champion_stats_daily.losses+EXCLUDED.losses,kills_sum=nonranked_champion_stats_daily.kills_sum+EXCLUDED.kills_sum,deaths_sum=nonranked_champion_stats_daily.deaths_sum+EXCLUDED.deaths_sum,assists_sum=nonranked_champion_stats_daily.assists_sum+EXCLUDED.assists_sum,damage_sum=nonranked_champion_stats_daily.damage_sum+EXCLUDED.damage_sum,healing_sum=nonranked_champion_stats_daily.healing_sum+EXCLUDED.healing_sum,mitigation_sum=nonranked_champion_stats_daily.mitigation_sum+EXCLUDED.mitigation_sum,credits_sum=nonranked_champion_stats_daily.credits_sum+EXCLUDED.credits_sum,duration_sum=nonranked_champion_stats_daily.duration_sum+EXCLUDED.duration_sum,updated_at=now()", &[&entry,&scope,&definition.queue_id,&region,&map,&fact.champion_id,&i64::from(i32::from(win)),&i64::from(i32::from(loss)),&(fact.kills as i64),&(fact.deaths as i64),&(fact.assists as i64),&(fact.damage as i64),&(fact.healing as i64),&(fact.mitigation as i64),&(fact.credits as i64),&(duration as i64)]).await?;
     }
     transaction.execute("UPDATE nonranked_match_acquisition SET stats_projected_at=now(),updated_at=now() WHERE match_id=$1", &[&match_id]).await?;
     Ok(())

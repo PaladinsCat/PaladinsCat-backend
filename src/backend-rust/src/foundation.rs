@@ -474,9 +474,7 @@ pub async fn application_foundation(
             }
             let dev_limit = DeveloperLimitHeaders(developer_limit);
             developer_headers = Some(dev_limit);
-            request
-                .extensions_mut()
-                .insert(dev_limit);
+            request.extensions_mut().insert(dev_limit);
             if !acquire_developer_slot(
                 &state.developer_active_requests,
                 state.security.developer_api_concurrency_limit,

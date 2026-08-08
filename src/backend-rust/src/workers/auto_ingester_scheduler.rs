@@ -1,4 +1,3 @@
-
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::Serialize;
 use serde_json::Value;
@@ -28,11 +27,14 @@ pub async fn tick_auto_ingester(
         )
         .await?;
     let last_run_str = last_run
-        .and_then(|value| value.get("last_run_at").and_then(Value::as_str).map(str::to_owned))
+        .and_then(|value| {
+            value
+                .get("last_run_at")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
         .unwrap_or_default();
-    let last_run_secs = last_run_str
-        .parse::<u64>()
-        .unwrap_or(0);
+    let last_run_secs = last_run_str.parse::<u64>().unwrap_or(0);
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -76,7 +78,12 @@ pub async fn get_auto_ingester_jobs(
             &[],
         )
         .await?;
-    Ok(rows.into_iter()
-        .filter_map(|row| row.get("job_key").and_then(Value::as_str).map(str::to_owned))
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            row.get("job_key")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
         .collect())
 }
