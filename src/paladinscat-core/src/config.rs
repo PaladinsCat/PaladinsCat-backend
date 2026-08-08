@@ -250,11 +250,7 @@ pub fn valid_oidc_jwks_url(value: &str) -> bool {
     {
         return false;
     }
-    match url.scheme() {
-        "https" => url.host_str().is_some() && matches!(url.port(), None | Some(443)),
-        "http" => url.host_str() == Some("keycloak") && url.port() == Some(8080),
-        _ => false,
-    }
+    url.scheme() == "http" && url.host_str() == Some("keycloak") && url.port() == Some(8080)
 }
 
 fn nonempty(value: Option<String>) -> Option<String> {
@@ -417,6 +413,7 @@ mod tests {
             "http://keycloak:8080/realms/paladinscat/protocol/openid-connect/certs/",
             "http://other:8080/realms/paladinscat/protocol/openid-connect/certs",
             "https://auth.paladinscat.com/other",
+            "https://evil.example/realms/paladinscat/protocol/openid-connect/certs",
             "http://keycloak:8080/realms/paladinscat/protocol/openid-connect/certs?x=1",
         ] {
             assert_eq!(
