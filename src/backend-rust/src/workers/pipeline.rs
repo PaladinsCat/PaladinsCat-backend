@@ -774,8 +774,7 @@ impl CanonicalIngestPipeline {
                         queue_id: positive_i64(row.get("queue_id")?)
                             .and_then(|id| i32::try_from(id).ok())?,
                         source_date: row.get("source_date")?.as_str()?.to_owned(),
-                        source_hour: positive_i64(row.get("source_hour")?)
-                            .and_then(|hour| i32::try_from(hour).ok())?,
+                        source_hour: ingest_hour(row.get("source_hour")?)?,
                         region: row.get("region").and_then(Value::as_str).map(str::to_owned),
                         discovered_entry_datetime: row
                             .get("discovered_entry_datetime")
@@ -1300,6 +1299,14 @@ fn positive_i64(value: &Value) -> Option<i64> {
         .filter(|value| *value > 0)
 }
 
+fn ingest_hour(value: &Value) -> Option<i32> {
+    value
+        .as_i64()
+        .or_else(|| value.as_str()?.parse().ok())
+        .and_then(|hour| i32::try_from(hour).ok())
+        .filter(|hour| (0..=23).contains(hour))
+}
+
 fn sanitize_json_strings(value: Value) -> Value {
     match value {
         Value::String(value) => Value::String(value.replace('\0', "").replace("\\u0000", "")),
@@ -1586,6 +1593,14 @@ mod tests {
                 .collect::<Vec<_>>(),
             (11..=20).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn nonranked_claim_accepts_midnight_but_rejects_invalid_hours() {
+        assert_eq!(ingest_hour(&json!(0)), Some(0));
+        assert_eq!(ingest_hour(&json!(23)), Some(23));
+        assert_eq!(ingest_hour(&json!(-1)), None);
+        assert_eq!(ingest_hour(&json!(24)), None);
     }
 
     #[test]
