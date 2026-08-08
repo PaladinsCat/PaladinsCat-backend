@@ -49,6 +49,8 @@ pub struct BackendConfig {
     pub public_api_global_limit_per_minute: u64,
     pub account_auth_attempts_per_window: u64,
     pub account_auth_window_ms: u64,
+    pub oidc_issuer: Option<String>,
+    pub oidc_audience: Option<String>,
     #[serde(skip_serializing)]
     pub service_token: Option<String>,
     #[serde(skip_serializing)]
@@ -154,6 +156,8 @@ impl BackendConfig {
                 lookup("ACCOUNT_AUTH_WINDOW_MS"),
                 DEFAULT_ACCOUNT_AUTH_WINDOW_MS,
             ),
+            oidc_issuer: nonempty(lookup("PALADINSCAT_OIDC_ISSUER")),
+            oidc_audience: nonempty(lookup("PALADINSCAT_OIDC_AUDIENCE")),
             service_token,
             previous_service_token,
             admin_secret: nonempty(lookup("ADMIN_SECRET")),
