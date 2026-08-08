@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use time::{OffsetDateTime, Time, format_description::well_known::Rfc3339};
+use time::{
+    OffsetDateTime, PrimitiveDateTime, Time, format_description::well_known::Rfc3339,
+    macros::format_description,
+};
 use tokio_postgres::Transaction;
 
 use super::match_lifecycle::MatchPopulation;
@@ -602,6 +605,25 @@ async fn persist_match(
     Ok(())
 }
 
+/// Hi-Rez emits RFC3339 on newer paths and a locale-shaped UTC timestamp on
+/// older/broken-detail recovery paths. Keep both at the canonical finalizer
+/// boundary so requested lookup and buffered discovery persist identically.
+fn parse_entry_datetime(entry: &str) -> Result<OffsetDateTime, MatchFactError> {
+    if let Ok(parsed) = OffsetDateTime::parse(entry, &Rfc3339) {
+        return Ok(parsed);
+    }
+    const HIREZ_FORMAT: &[time::format_description::BorrowedFormatItem<'_>] = format_description!(
+        "[month padding:none]/[day padding:none]/[year] [hour repr:12 padding:none]:[minute]:[second] [period case:upper]"
+    );
+    PrimitiveDateTime::parse(entry, HIREZ_FORMAT)
+        .map(PrimitiveDateTime::assume_utc)
+        .map_err(|_| {
+            MatchFactError::InvalidPayload(format!(
+                "upsert_hourly_count: unparseable entry_datetime {entry}"
+            ))
+        })
+}
+
 /// Upsert `hourly_match_counts` after a ranked match is persisted to `matches`.
 /// Matches TS `upsertHourlyCount()`: recomputes counts from `matches` table
 /// (excluding limited) to ensure idempotent, consistent state.
@@ -618,11 +640,7 @@ async fn upsert_hourly_count(
         return Ok(());
     }
     // Use the same hour-bound calculation as TS: start of hour to end of hour.
-    let parsed = OffsetDateTime::parse(entry, &Rfc3339).map_err(|_| {
-        MatchFactError::InvalidPayload(format!(
-            "upsert_hourly_count: unparseable entry_datetime {entry}"
-        ))
-    })?;
+    let parsed = parse_entry_datetime(entry)?;
 
     let date = parsed.date();
     let hour = parsed.hour();
@@ -1715,6 +1733,16 @@ mod tests {
         }]);
         let nested = CanonicalMatchPayload::from_relay_value(resolution).expect("resolution match");
         assert_eq!(nested.players.len(), 10);
+    }
+
+    #[test]
+    fn parses_hirez_recovery_timestamp_for_hourly_finalization() {
+        let parsed = parse_entry_datetime("8/8/2026 8:38:09 AM").expect("Hi-Rez timestamp");
+        assert_eq!(parsed.year(), 2026);
+        assert_eq!(parsed.month() as u8, 8);
+        assert_eq!(parsed.day(), 8);
+        assert_eq!(parsed.hour(), 8);
+        assert_eq!(parsed.minute(), 38);
     }
 
     #[test]
