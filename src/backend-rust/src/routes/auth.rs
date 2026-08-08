@@ -94,7 +94,7 @@ pub fn router(
                 .oidc_issuer
                 .clone()
                 .zip(config.oidc_audience.clone())
-                .and_then(|(issuer, audience)| OidcVerifier::new(issuer, audience).ok()),
+                .and_then(|(issuer, audience)| OidcVerifier::new(issuer, audience, config.oidc_jwks_url.clone()).ok()),
             oidc_bff_service_token: config.oidc_bff_service_token.clone(),
         })
 }

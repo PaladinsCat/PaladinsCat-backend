@@ -2,6 +2,7 @@ use std::{env, fs};
 
 use serde::Serialize;
 use thiserror::Error;
+use url::Url;
 
 const DEFAULT_DATABASE_POOL_MAX: usize = 20;
 const MAX_DATABASE_POOL_MAX: usize = 50;
@@ -52,6 +53,8 @@ pub struct BackendConfig {
     pub oidc_issuer: Option<String>,
     pub oidc_audience: Option<String>,
     #[serde(skip_serializing)]
+    pub oidc_jwks_url: Option<String>,
+    #[serde(skip_serializing)]
     pub oidc_bff_service_token: Option<String>,
     #[serde(skip_serializing)]
     pub service_token: Option<String>,
@@ -87,6 +90,10 @@ pub enum ConfigError {
     IncompleteOidcConfiguration,
     #[error("PALADINSCAT_OIDC_ISSUER must be an HTTPS URL without query or fragment")]
     InvalidOidcIssuer,
+    #[error(
+        "PALADINSCAT_OIDC_JWKS_URL must be an exact Keycloak certs URL; HTTP is allowed only for keycloak:8080"
+    )]
+    InvalidOidcJwksUrl,
     #[error("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN must contain at least 32 bytes")]
     OidcBffTokenTooShort,
 }
@@ -126,6 +133,7 @@ impl BackendConfig {
         }
         let oidc_issuer = nonempty(lookup("PALADINSCAT_OIDC_ISSUER"));
         let oidc_audience = nonempty(lookup("PALADINSCAT_OIDC_AUDIENCE"));
+        let oidc_jwks_url = nonempty(lookup("PALADINSCAT_OIDC_JWKS_URL"));
         let oidc_bff_service_token = nonempty(lookup("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN"))
             .or_else(|| {
                 nonempty(lookup("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN_FILE"))
@@ -139,6 +147,12 @@ impl BackendConfig {
             !value.starts_with("https://") || value.contains('?') || value.contains('#')
         }) {
             return Err(ConfigError::InvalidOidcIssuer);
+        }
+        if oidc_jwks_url
+            .as_deref()
+            .is_some_and(|value| !valid_oidc_jwks_url(value))
+        {
+            return Err(ConfigError::InvalidOidcJwksUrl);
         }
         if oidc_bff_service_token
             .as_deref()
@@ -188,6 +202,7 @@ impl BackendConfig {
             ),
             oidc_issuer,
             oidc_audience,
+            oidc_jwks_url,
             oidc_bff_service_token,
             service_token,
             previous_service_token,
@@ -220,6 +235,25 @@ impl BackendConfig {
                 DEFAULT_API_PORT,
             ),
         })
+    }
+}
+
+pub fn valid_oidc_jwks_url(value: &str) -> bool {
+    let Ok(url) = Url::parse(value) else {
+        return false;
+    };
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.path() != "/realms/paladinscat/protocol/openid-connect/certs"
+    {
+        return false;
+    }
+    match url.scheme() {
+        "https" => url.host_str().is_some() && matches!(url.port(), None | Some(443)),
+        "http" => url.host_str() == Some("keycloak") && url.port() == Some(8080),
+        _ => false,
     }
 }
 
@@ -367,6 +401,32 @@ mod tests {
         assert_eq!(preferred.database_slow_query_ms, 700);
         assert!(preferred.database_default_transaction_read_only);
         assert_eq!(preferred.environment, "staging");
+    }
+
+    #[test]
+    fn accepts_only_the_server_only_keycloak_jwks_override() {
+        let valid = "http://keycloak:8080/realms/paladinscat/protocol/openid-connect/certs";
+        assert!(valid_oidc_jwks_url(valid));
+        let config = load_config(&[
+            ("DATABASE_URL", "postgres://fixture"),
+            ("PALADINSCAT_OIDC_JWKS_URL", valid),
+        ])
+        .expect("internal JWKS URL");
+        assert_eq!(config.oidc_jwks_url.as_deref(), Some(valid));
+        for invalid in [
+            "http://keycloak:8080/realms/paladinscat/protocol/openid-connect/certs/",
+            "http://other:8080/realms/paladinscat/protocol/openid-connect/certs",
+            "https://auth.paladinscat.com/other",
+            "http://keycloak:8080/realms/paladinscat/protocol/openid-connect/certs?x=1",
+        ] {
+            assert_eq!(
+                load_config(&[
+                    ("DATABASE_URL", "postgres://fixture"),
+                    ("PALADINSCAT_OIDC_JWKS_URL", invalid),
+                ]),
+                Err(ConfigError::InvalidOidcJwksUrl)
+            );
+        }
     }
 
     #[test]

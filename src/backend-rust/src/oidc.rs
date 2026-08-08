@@ -1,6 +1,7 @@
 //! Fail-closed OIDC access-token checks.  Discovery/JWKS URLs are never token-controlled.
 use futures::StreamExt;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
+use paladinscat_core::config::valid_oidc_jwks_url;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
@@ -65,7 +66,11 @@ struct Jwk {
 }
 
 impl OidcVerifier {
-    pub fn new(issuer: String, audience: String) -> Result<Self, TokenError> {
+    pub fn new(
+        issuer: String,
+        audience: String,
+        configured_jwks_url: Option<String>,
+    ) -> Result<Self, TokenError> {
         let base = Url::parse(&issuer).map_err(|_| TokenError::Invalid)?;
         if base.scheme() != "https"
             || !base.username().is_empty()
@@ -77,14 +82,21 @@ impl OidcVerifier {
         {
             return Err(TokenError::Invalid);
         }
-        let jwks_url = Url::parse(&format!(
+        let derived_jwks_url = Url::parse(&format!(
             "{}/protocol/openid-connect/certs",
             issuer.trim_end_matches('/')
         ))
         .map_err(|_| TokenError::Invalid)?;
-        if jwks_url.scheme() != "https" || jwks_url.host_str() != base.host_str() {
+        if derived_jwks_url.scheme() != "https" || derived_jwks_url.host_str() != base.host_str() {
             return Err(TokenError::Invalid);
         }
+        let jwks_url = match configured_jwks_url {
+            Some(value) if valid_oidc_jwks_url(&value) => {
+                Url::parse(&value).map_err(|_| TokenError::Invalid)?
+            }
+            Some(_) => return Err(TokenError::Invalid),
+            None => derived_jwks_url,
+        };
         Ok(Self {
             issuer,
             audience,
@@ -253,14 +265,34 @@ mod tests {
         assert!(
             OidcVerifier::new(
                 "https://user:pass@auth.paladinscat.com/realms/paladinscat".into(),
-                "api".into()
+                "api".into(),
+                None
             )
             .is_err()
         );
         assert!(
             OidcVerifier::new(
                 "https://auth.paladinscat.com:444/realms/paladinscat".into(),
-                "api".into()
+                "api".into(),
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            OidcVerifier::new(
+                "https://auth.paladinscat.com/realms/paladinscat".into(),
+                "api".into(),
+                Some(
+                    "http://keycloak:8080/realms/paladinscat/protocol/openid-connect/certs".into()
+                ),
+            )
+            .is_ok()
+        );
+        assert!(
+            OidcVerifier::new(
+                "https://auth.paladinscat.com/realms/paladinscat".into(),
+                "api".into(),
+                Some("http://keycloak:8080/realms/other/protocol/openid-connect/certs".into()),
             )
             .is_err()
         );
