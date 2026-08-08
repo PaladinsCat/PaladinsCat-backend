@@ -15,8 +15,8 @@ use super::{
     discovery_control::{
         claim_hourly_ingest_hour, due_match_debt_ids, mark_hourly_ingest_complete,
         mark_hourly_ingest_empty, mark_hourly_ingest_failed, mark_hourly_ingest_staged,
-        mark_match_debt_retryable, mark_match_debt_staged_or_complete, record_discovered_matches,
-        record_hourly_ingest_quota_wait,
+        mark_match_debt_retryable, mark_match_debt_staged_or_complete,
+        mark_presence_ingest_complete, record_discovered_matches, record_hourly_ingest_quota_wait,
     },
     discovery_store::{
         MatchIdObservation, filter_already_handled_match_ids, record_match_count_discovery_result,
@@ -226,14 +226,18 @@ impl CanonicalIngestPipeline {
         result.empty = observations.is_empty();
         // TS presence discovery treats a successful empty response as final;
         // only an absent or failed cron window is eligible for backfill.
-        mark_hourly_ingest_complete(
-            &self.database,
-            date,
-            hour,
-            queue_id,
-            i32::try_from(result.discovered).unwrap_or(i32::MAX),
-        )
-        .await?;
+        if result.empty {
+            mark_hourly_ingest_empty(&self.database, date, hour, queue_id).await?;
+        } else {
+            mark_presence_ingest_complete(
+                &self.database,
+                date,
+                hour,
+                queue_id,
+                i32::try_from(result.discovered).unwrap_or(i32::MAX),
+            )
+            .await?;
+        }
         result.completed = result.discovered;
         Ok(result)
     }

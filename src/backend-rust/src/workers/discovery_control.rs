@@ -161,6 +161,23 @@ pub async fn mark_hourly_ingest_complete(
     Ok(())
 }
 
+pub async fn mark_presence_ingest_complete(
+    database: &Database,
+    date: &str,
+    hour: i32,
+    queue_id: i32,
+    total_matches: i32,
+) -> Result<(), DatabaseError> {
+    database.query_json(
+        "UPDATE hourly_ingest_state SET status='complete',raw_match_count=GREATEST(raw_match_count,$4),\
+         staged_match_count=GREATEST(staged_match_count,$4),fetched=TRUE,fetch_succeeded=TRUE,error_message=NULL,\
+         lease_until=NULL,next_retry_at=NULL,completed_at=now(),updated_at=now() \
+         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
+        &[&date, &hour, &queue_id, &total_matches],
+    ).await?;
+    Ok(())
+}
+
 pub async fn mark_hourly_ingest_failed(
     database: &Database,
     date: &str,
