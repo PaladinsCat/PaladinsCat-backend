@@ -242,13 +242,27 @@ async fn oidc_transaction_consume(
 }
 
 fn oidc_bff_authorized(state: &AuthState, headers: &HeaderMap) -> bool {
-    state
-        .oidc_bff_service_token
-        .as_deref()
-        .zip(bearer(headers))
-        .is_some_and(|(expected, candidate)| {
-            crate::security::constant_time_equal_public(candidate, expected)
-        })
+    oidc_bff_token_matches(state.oidc_bff_service_token.as_deref(), bearer(headers))
+}
+
+fn oidc_bff_token_matches(expected: Option<&str>, candidate: Option<&str>) -> bool {
+    expected.zip(candidate).is_some_and(|(expected, candidate)| crate::security::constant_time_equal_public(candidate, expected))
+}
+
+#[cfg(test)]
+mod oidc_tests {
+    use super::*;
+    #[test]
+    fn bff_token_is_fail_closed_and_transaction_input_is_bounded() {
+        let token = "x".repeat(32);
+        assert!(!oidc_bff_token_matches(None, Some(&token)));
+        assert!(!oidc_bff_token_matches(Some(&token), None));
+        assert!(!oidc_bff_token_matches(Some(&token), Some("wrong")));
+        assert!(oidc_bff_token_matches(Some(&token), Some(&token)));
+        assert!(oidc_state(&json!({"state":"x".repeat(32)})).is_some());
+        assert!(oidc_state(&json!({"state":"x".repeat(31)})).is_none());
+        assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
+    }
 }
 
 fn bearer(headers: &HeaderMap) -> Option<&str> {
