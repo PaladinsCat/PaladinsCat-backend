@@ -725,7 +725,7 @@ async fn authorize_prehandler(
     if method == Method::POST
         && matches!(
             effective_path,
-            "/auth/login" | "/auth/register" | "/auth/oidc/transactions"
+            "/auth/oidc/transactions"
         )
     {
         let address =
@@ -1210,7 +1210,7 @@ mod tests {
                 get(|| async { Json(json!({"private": true})) }),
             )
             .route(
-                "/auth/login",
+                "/auth/oidc/transactions",
                 post(|| async { Json(json!({"authenticated": false})) }),
             );
         Router::new()
@@ -1539,7 +1539,7 @@ mod tests {
             .oneshot(
                 HttpRequest::builder()
                     .method(Method::POST)
-                    .uri("/auth/login")
+                    .uri("/auth/oidc/transactions")
                     .body(Body::empty())
                     .expect("request"),
             )
@@ -1577,7 +1577,7 @@ mod tests {
                 .oneshot(
                     HttpRequest::builder()
                         .method(Method::POST)
-                        .uri("/auth/login")
+                        .uri("/auth/oidc/transactions")
                         .body(Body::empty())
                         .expect("request"),
                 )

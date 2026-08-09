@@ -12,7 +12,6 @@ use paladinscat_core::{config::BackendConfig, database::Database};
 use regex::Regex;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
@@ -48,8 +47,6 @@ pub fn router(
     config: std::sync::Arc<BackendConfig>,
 ) -> Router {
     Router::new()
-        .route("/auth/register", post(register))
-        .route("/auth/login", post(login))
         .route("/auth/oidc/exchange", post(oidc_exchange))
         .route("/auth/oidc/transactions", post(oidc_transaction_create))
         .route(
@@ -85,7 +82,6 @@ pub fn router(
             "/auth/account/player-link/verification/check",
             post(check_link_verification),
         )
-        .route("/auth/account/password", post(change_password))
         .with_state(AuthState {
             database,
             redis,
@@ -134,15 +130,13 @@ async fn oidc_exchange(
             ));
         }
     };
-    let Some(user) = promote_oidc_identity(&state.database, &identity, &request_id).await? else {
-        return Ok(simple_error(
-            StatusCode::FORBIDDEN,
-            "OIDC identity is not linked",
-        ));
+    let user_id = match promote_oidc_identity(&state.database, &identity, &request_id).await? {
+        OidcAdmission::User(user_id) => user_id,
+        OidcAdmission::Unlinked => return Ok(simple_error(StatusCode::FORBIDDEN, "OIDC identity is not linked")),
+        OidcAdmission::ClaimsRequired => return Ok(simple_error(StatusCode::FORBIDDEN, "A verified email, valid username, and account recovery are required before creating an account.")),
+        OidcAdmission::Collision => return Ok(simple_error(StatusCode::CONFLICT, "This OIDC account matches an existing PaladinsCat account. Use account migration or recovery; it was not linked automatically.")),
     };
-    let user_id = as_i64(user.get("id"))
-        .and_then(|v| i32::try_from(v).ok())
-        .ok_or_else(|| ApiError::internal(&request_id))?;
+    let user = auth_user_row(&state.database, user_id, &request_id).await?;
     let (session, expires) = create_session(&state, user_id, &request_id).await?;
     Ok(json_response(
         StatusCode::OK,
@@ -150,17 +144,80 @@ async fn oidc_exchange(
     ))
 }
 
+enum OidcAdmission {
+    User(i32),
+    Unlinked,
+    ClaimsRequired,
+    Collision,
+}
+
+async fn auth_user_row(database: &Database, user_id: i32, request_id: &RequestId) -> Result<Value, ApiError> {
+    database.one_json(
+        "SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id WHERE u.id=$1",
+        &[&user_id],
+    ).await.map_err(|error| ApiError::database(error, request_id))?.ok_or_else(|| ApiError::internal(request_id))
+}
+
+fn oidc_registration_claims(identity: &crate::oidc::AccessIdentity) -> Option<(String, String)> {
+    let username = identity.preferred_username.as_deref()?;
+    let email = identity.email.as_deref()?;
+    let username_re = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok()?;
+    let email_re = Regex::new(r"^[^\s@]{1,64}@[^\s@]{1,189}\.[^\s@]{1,63}$").ok()?;
+    (identity.email_verified && username_re.is_match(username) && email.len() <= 254 && email_re.is_match(email))
+        .then(|| (username.to_owned(), email.to_ascii_lowercase()))
+}
+
 async fn promote_oidc_identity(
     database: &Database,
     identity: &crate::oidc::AccessIdentity,
     request_id: &RequestId,
-) -> Result<Option<Value>, ApiError> {
-    database.one_json(
-        "WITH admitted AS (UPDATE user_identities i SET migration_state='linked',last_login_at=now() FROM users active WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state IN ('linked','reset_required') AND active.id=i.user_id AND active.is_active=true RETURNING i.user_id) SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM admitted i JOIN users u ON u.id=i.user_id LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id LIMIT 1",
+) -> Result<OidcAdmission, ApiError> {
+    let mut client = database.connection().await.map_err(|error| ApiError::database(error, request_id))?;
+    let transaction = client.transaction().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    // Serialize replay of the same immutable issuer+subject before deciding to provision.
+    transaction.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, hashtextextended($2, 0)))", &[&identity.issuer, &identity.subject]).await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    if let Some(row) = transaction.query_opt(
+        "UPDATE user_identities i SET migration_state='linked',last_login_at=now() FROM users active WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state IN ('linked','reset_required') AND active.id=i.user_id AND active.is_active=true RETURNING i.user_id",
         &[&identity.issuer, &identity.subject],
-    )
-    .await
-    .map_err(|error| ApiError::database(error, request_id))
+    ).await.map_err(|error| ApiError::database(error.into(), request_id))? {
+        let user_id: i32 = row.get(0);
+        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        return Ok(OidcAdmission::User(user_id));
+    }
+    if transaction.query_opt("SELECT 1 FROM user_identities WHERE issuer=$1 AND subject=$2", &[&identity.issuer, &identity.subject]).await.map_err(|error| ApiError::database(error.into(), request_id))?.is_some() {
+        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        return Ok(OidcAdmission::Unlinked);
+    }
+    let Some((username, email)) = oidc_registration_claims(identity) else {
+        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        return Ok(OidcAdmission::ClaimsRequired);
+    };
+    // These locks make concurrent OIDC registrations deterministic; database unique indexes also cover legacy writers.
+    let mut claim_locks = vec![format!("email:{email}"), format!("username:{username}")];
+    claim_locks.sort();
+    for claim in &claim_locks {
+        transaction.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", &[claim]).await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    }
+    // Legacy registration writers do not take the advisory locks; this prevents a mutable-claim
+    // collision from appearing between the check and insert.
+    transaction.batch_execute("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE").await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    if transaction.query_opt("SELECT 1 FROM users WHERE lower(username)=lower($1) OR lower(email)=lower($2)", &[&username, &email]).await.map_err(|error| ApiError::database(error.into(), request_id))?.is_some() {
+        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        return Ok(OidcAdmission::Collision);
+    }
+    let salt = random_hex(16);
+    let password_hash = password_hash(&random_hex(32), &salt);
+    let Some(row) = transaction.query_opt(
+        "INSERT INTO users(username,email,password_hash,salt,is_active,is_admin,is_approved,updated_at) VALUES($1,$2,$3,$4,true,false,false,now()) ON CONFLICT DO NOTHING RETURNING id",
+        &[&username, &email, &password_hash, &salt],
+    ).await.map_err(|error| ApiError::database(error.into(), request_id))? else {
+        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        return Ok(OidcAdmission::Collision);
+    };
+    let user_id: i32 = row.get(0);
+    transaction.execute("INSERT INTO user_identities(user_id,issuer,subject,migration_state,last_login_at) VALUES($1,$2,$3,'linked',now())", &[&user_id, &identity.issuer, &identity.subject]).await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    Ok(OidcAdmission::User(user_id))
 }
 
 fn oidc_state(body: &Value) -> Option<&str> {
@@ -286,6 +343,35 @@ mod oidc_tests {
     }
 
     #[tokio::test]
+    async fn legacy_password_routes_are_not_mounted_by_default() {
+        let config = BackendConfig::from_lookup(|name| (name == "DATABASE_URL").then(|| "postgres://fixture".to_owned())).expect("config");
+        let app = router(
+            Database::new(&config, "oidc-route-absence").expect("database pool"),
+            paladinscat_core::cache::RedisCache::new(&config.redis_url).expect("redis client"),
+            std::sync::Arc::new(config),
+        );
+        for uri in ["/auth/register", "/auth/login", "/auth/account/password"] {
+            let response = app.clone().oneshot(Request::builder().method("POST").uri(uri).body(Body::empty()).expect("request")).await.expect("response");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+        }
+    }
+
+    #[test]
+    fn oidc_registration_requires_verified_bounded_claims() {
+        let identity = crate::oidc::AccessIdentity {
+            issuer: "https://auth.test/realms/test".to_owned(), subject: "subject".to_owned(),
+            email_verified: true, email: Some("new@example.test".to_owned()), preferred_username: Some("new-user".to_owned()),
+        };
+        assert!(oidc_registration_claims(&identity).is_some());
+        let mut unverified = identity;
+        unverified.email_verified = false;
+        assert!(oidc_registration_claims(&unverified).is_none());
+        unverified.email_verified = true;
+        unverified.preferred_username = Some("x".repeat(33));
+        assert!(oidc_registration_claims(&unverified).is_none());
+    }
+
+    #[tokio::test]
     #[ignore = "requires PALADINSCAT_TEST_REDIS_URL and PALADINSCAT_TEST_DATABASE_URL"]
     async fn live_bff_transactions_are_one_use() {
         let redis_url = std::env::var("PALADINSCAT_TEST_REDIS_URL").expect("test redis URL");
@@ -334,10 +420,13 @@ mod oidc_tests {
         let database = Database::new(&promotion_config, "oidc-promotion-e2e")
             .expect("promotion database");
         for sql in [
-            "CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,email TEXT,avatar_url TEXT,bio TEXT,time_zone TEXT,is_admin BOOLEAN,is_approved BOOLEAN,created_at TIMESTAMPTZ,last_login TIMESTAMPTZ,linked_player_id INTEGER,is_active BOOLEAN NOT NULL)",
+            "CREATE TABLE users(id SERIAL PRIMARY KEY,username TEXT NOT NULL,email TEXT NOT NULL,password_hash TEXT NOT NULL,salt TEXT NOT NULL,avatar_url TEXT,bio TEXT,time_zone TEXT,is_admin BOOLEAN NOT NULL DEFAULT false,is_approved BOOLEAN NOT NULL DEFAULT false,created_at TIMESTAMPTZ,last_login TIMESTAMPTZ,linked_player_id INTEGER,is_active BOOLEAN NOT NULL DEFAULT true,updated_at TIMESTAMPTZ)",
+            "CREATE UNIQUE INDEX test_users_username ON users(username)",
+            "CREATE UNIQUE INDEX test_users_email ON users(email)",
             "CREATE TABLE players(id INTEGER PRIMARY KEY,name TEXT)",
             "CREATE TABLE user_identities(user_id INTEGER NOT NULL,issuer TEXT NOT NULL,subject TEXT NOT NULL,migration_state TEXT NOT NULL,last_login_at TIMESTAMPTZ,PRIMARY KEY(issuer,subject))",
-            "INSERT INTO users(id,username,is_active) VALUES(1,'reset',true),(2,'disabled',true),(3,'inactive',false)",
+            "INSERT INTO users(id,username,email,password_hash,salt,is_active) VALUES(1,'reset','reset@test','x','x',true),(2,'disabled','disabled@test','x','x',true),(3,'inactive','inactive@test','x','x',false)",
+            "SELECT setval(pg_get_serial_sequence('users','id'), 3)",
             "INSERT INTO user_identities(user_id,issuer,subject,migration_state) VALUES(1,'https://auth.test/realms/test','reset','reset_required'),(2,'https://auth.test/realms/test','disabled','disabled'),(3,'https://auth.test/realms/test','inactive','reset_required')",
         ] {
             database
@@ -349,12 +438,29 @@ mod oidc_tests {
         let identity = |subject: &str| crate::oidc::AccessIdentity {
             issuer: "https://auth.test/realms/test".to_owned(),
             subject: subject.to_owned(),
+            email_verified: true,
+            email: Some("new@example.test".to_owned()),
+            preferred_username: Some("new-user".to_owned()),
         };
-        assert!(promote_oidc_identity(&database, &identity("reset"), &request_id).await.expect("reset promotion").is_some());
-        assert!(promote_oidc_identity(&database, &identity("disabled"), &request_id).await.expect("disabled admission").is_none());
-        assert!(promote_oidc_identity(&database, &identity("inactive"), &request_id).await.expect("inactive admission").is_none());
+        assert!(matches!(promote_oidc_identity(&database, &identity("reset"), &request_id).await.expect("reset promotion"), OidcAdmission::User(1)));
+        assert!(matches!(promote_oidc_identity(&database, &identity("disabled"), &request_id).await.expect("disabled admission"), OidcAdmission::Unlinked));
+        assert!(matches!(promote_oidc_identity(&database, &identity("inactive"), &request_id).await.expect("inactive admission"), OidcAdmission::Unlinked));
+        let mut collision = identity("collision");
+        collision.preferred_username = Some("reset".to_owned());
+        assert!(matches!(promote_oidc_identity(&database, &collision, &request_id).await.expect("legacy collision"), OidcAdmission::Collision));
+        let mut unverified = identity("unverified");
+        unverified.email_verified = false;
+        assert!(matches!(promote_oidc_identity(&database, &unverified, &request_id).await.expect("unverified claim"), OidcAdmission::ClaimsRequired));
+        let replay = identity("replay");
+        let (first, second) = tokio::join!(
+            promote_oidc_identity(&database, &replay, &request_id),
+            promote_oidc_identity(&database, &replay, &request_id),
+        );
+        assert!(matches!(first.expect("first replay"), OidcAdmission::User(4)));
+        assert!(matches!(second.expect("second replay"), OidcAdmission::User(4)));
+        assert_eq!(database.query_json("SELECT id FROM users WHERE username='new-user'", &[]).await.expect("single provision").len(), 1);
         let states = database.query_json("SELECT subject,migration_state,last_login_at IS NOT NULL AS logged_in FROM user_identities ORDER BY subject", &[]).await.expect("promotion states");
-        assert_eq!(states, vec![json!({"subject":"disabled","migration_state":"disabled","logged_in":false}), json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}), json!({"subject":"reset","migration_state":"linked","logged_in":true})]);
+        assert_eq!(states, vec![json!({"subject":"disabled","migration_state":"disabled","logged_in":false}), json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}), json!({"subject":"replay","migration_state":"linked","logged_in":true}), json!({"subject":"reset","migration_state":"linked","logged_in":true})]);
     }
 }
 
@@ -474,170 +580,6 @@ fn auth_user(row: &Value) -> Value {
         "linked_player_id":row.get("linked_player_id").cloned().unwrap_or(Value::Null),
         "linked_player_name":row.get("linked_player_name").cloned().unwrap_or(Value::Null)
     })
-}
-
-fn text(body: &Value, field: &str) -> String {
-    body.get(field)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_owned()
-}
-
-async fn register(
-    State(state): State<AuthState>,
-    Extension(request_id): Extension<RequestId>,
-    Json(body): Json<Value>,
-) -> Result<Response, ApiError> {
-    let username = text(&body, "username");
-    let email = text(&body, "email").to_ascii_lowercase();
-    let password = body
-        .get("password")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if username.is_empty() || email.is_empty() || password.is_empty() {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Missing required fields: username, email, password",
-        ));
-    }
-    let Some(username_re) = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok() else {
-        return Err(ApiError::internal(&request_id));
-    };
-    if !username_re.is_match(&username) {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Username must be 3-32 characters and use only letters, numbers, underscore, or dash",
-        ));
-    }
-    let Some(email_re) = Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").ok() else {
-        return Err(ApiError::internal(&request_id));
-    };
-    if !email_re.is_match(&email) {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Invalid email address",
-        ));
-    }
-    if password.chars().count() < 6 {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Password must be at least 6 characters",
-        ));
-    }
-    if let Some(existing) = state
-        .database
-        .one_json(
-            "SELECT username,email FROM users WHERE lower(username)=lower($1) OR lower(email)=lower($2) LIMIT 1",
-            &[&username, &email],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?
-    {
-        let field = if existing
-            .get("username")
-            .and_then(Value::as_str)
-            .is_some_and(|value| value.eq_ignore_ascii_case(&username))
-        {
-            "username"
-        } else {
-            "email"
-        };
-        return Ok(simple_error(
-            StatusCode::CONFLICT,
-            format!("That {field} is already registered"),
-        ));
-    }
-    let salt = random_hex(16);
-    let hash = password_hash(password, &salt);
-    let user = state
-        .database
-        .one_json(
-            "INSERT INTO users(username,email,password_hash,salt,updated_at) VALUES($1,$2,$3,$4,now()) \
-             RETURNING id,username,email,avatar_url,bio,time_zone,is_admin,is_approved,created_at,last_login,linked_player_id",
-            &[&username, &email, &hash, &salt],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?
-        .ok_or_else(|| ApiError::internal(&request_id))?;
-    let user_id = as_i64(user.get("id"))
-        .and_then(|value| i32::try_from(value).ok())
-        .ok_or_else(|| ApiError::internal(&request_id))?;
-    let (token, expires) = create_session(&state, user_id, &request_id).await?;
-    Ok(json_response(
-        StatusCode::OK,
-        json!({"message":"User registered","token":token,"expires_at":expires,"user":auth_user(&user)}),
-    ))
-}
-
-async fn login(
-    State(state): State<AuthState>,
-    Extension(request_id): Extension<RequestId>,
-    Json(body): Json<Value>,
-) -> Result<Response, ApiError> {
-    let identifier = text(&body, "username");
-    let password = body
-        .get("password")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if identifier.is_empty() || password.is_empty() {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Missing required fields: username, password",
-        ));
-    }
-    let user = state
-        .database
-        .one_json(
-            "SELECT u.id,u.username,u.email,u.password_hash,u.salt,u.avatar_url,u.bio,u.time_zone, \
-               u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name \
-             FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id \
-             WHERE lower(u.username)=lower($1) OR lower(u.email)=lower($1) LIMIT 1",
-            &[&identifier],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
-    let salt = user
-        .as_ref()
-        .and_then(|row| row.get("salt"))
-        .and_then(Value::as_str)
-        .unwrap_or("dummy_salt");
-    let stored = user
-        .as_ref()
-        .and_then(|row| row.get("password_hash"))
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-        .unwrap_or_else(|| password_hash("dummy_password", "dummy_salt"));
-    let candidate = password_hash(password, salt);
-    let candidate_digest: [u8; 32] = Sha256::digest(candidate.as_bytes()).into();
-    let stored_digest: [u8; 32] = Sha256::digest(stored.as_bytes()).into();
-    if user.is_none() || !bool::from(candidate_digest.ct_eq(&stored_digest)) {
-        return Ok(simple_error(
-            StatusCode::UNAUTHORIZED,
-            "Invalid credentials",
-        ));
-    }
-    let mut user = user.unwrap_or(Value::Null);
-    let user_id = as_i64(user.get("id"))
-        .and_then(|value| i32::try_from(value).ok())
-        .ok_or_else(|| ApiError::internal(&request_id))?;
-    let (token, expires) = create_session(&state, user_id, &request_id).await?;
-    let last_login = OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .map_err(|_| ApiError::internal(&request_id))?;
-    state
-        .database
-        .query_json(
-            "UPDATE users SET last_login=$2::TEXT::TIMESTAMPTZ,updated_at=now() WHERE id=$1 RETURNING id",
-            &[&user_id, &last_login],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
-    user["last_login"] = Value::String(last_login);
-    Ok(json_response(
-        StatusCode::OK,
-        json!({"token":token,"expires_at":expires,"user":auth_user(&user)}),
-    ))
 }
 
 async fn logout(
@@ -1324,73 +1266,5 @@ async fn cancel_link_verification(
     Ok(json_response(
         StatusCode::OK,
         json!({"message":"Verification cancelled"}),
-    ))
-}
-
-async fn change_password(
-    State(state): State<AuthState>,
-    Extension(request_id): Extension<RequestId>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<Response, ApiError> {
-    let user_id = match require_user_id(&state, &headers, &request_id, "Not authenticated").await? {
-        Ok(id) => id,
-        Err(response) => return Ok(response),
-    };
-    let current = body
-        .get("currentPassword")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let new = body
-        .get("newPassword")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if current.is_empty() || new.is_empty() {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Both current and new password required",
-        ));
-    }
-    if new.chars().count() < 6 {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Password must be at least 6 characters",
-        ));
-    }
-    let user = state
-        .database
-        .one_json(
-            "SELECT id,password_hash,salt FROM users WHERE id=$1",
-            &[&user_id],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
-    let valid = user.as_ref().is_some_and(|row| {
-        let salt = row.get("salt").and_then(Value::as_str).unwrap_or_default();
-        let expected = row
-            .get("password_hash")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        password_hash(current, salt) == expected
-    });
-    if !valid {
-        return Ok(simple_error(
-            StatusCode::FORBIDDEN,
-            "Current password is incorrect",
-        ));
-    }
-    let salt = random_hex(16);
-    let hash = password_hash(new, &salt);
-    state
-        .database
-        .query_json(
-            "UPDATE users SET password_hash=$1,salt=$2,updated_at=now() WHERE id=$3 RETURNING id",
-            &[&hash, &salt, &user_id],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
-    Ok(json_response(
-        StatusCode::OK,
-        json!({"message":"Password changed successfully"}),
     ))
 }

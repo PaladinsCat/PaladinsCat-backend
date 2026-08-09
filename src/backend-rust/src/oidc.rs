@@ -20,12 +20,22 @@ struct Claims {
     iat: usize,
     #[serde(default)]
     nbf: Option<usize>,
+    #[serde(default)]
+    email_verified: bool,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    preferred_username: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccessIdentity {
     pub issuer: String,
     pub subject: String,
+    /// These are taken only from a signature-verified access token. They never grant roles.
+    pub email_verified: bool,
+    pub email: Option<String>,
+    pub preferred_username: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -222,6 +232,9 @@ pub fn validate_access_token(
     Ok(AccessIdentity {
         issuer: decoded.claims.iss,
         subject: decoded.claims.sub,
+        email_verified: decoded.claims.email_verified,
+        email: decoded.claims.email,
+        preferred_username: decoded.claims.preferred_username,
     })
 }
 
