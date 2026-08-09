@@ -47,7 +47,8 @@ recent_discoveries AS MATERIALIZED (
 ),
 roster_evidence AS MATERIALIZED (
   SELECT mp.player_id,mp.match_id,discovery.queue_id,discovery.queue_name,
-    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(mp.player_name),'') AS observed_name,
+    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(mp.platform),'') AS observed_platform,
+    NULLIF(BTRIM(mp.player_name),'') AS observed_name,
     CASE WHEN mp.player_id>0 THEN 'human'
       WHEN UPPER(COALESCE(mp.player_name,''))='PRIVATEACCOUNT' OR COALESCE(mp.private_slot,0)>0
         THEN 'private' ELSE 'unknown' END AS participant_kind
@@ -56,18 +57,26 @@ roster_evidence AS MATERIALIZED (
     AND COALESCE(mp.source,'direct') IN ('direct','recovered')
   UNION ALL
   SELECT cmp.player_id,cmp.match_id,discovery.queue_id,discovery.queue_name,
-    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(cmp.player_name),''),
+    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(cmp.platform),''),
+    NULLIF(BTRIM(cmp.player_name),''),
     COALESCE(cmp.participant_kind,'human')
   FROM recent_discoveries discovery JOIN casual_match_players cmp ON cmp.match_id=discovery.match_id
   UNION ALL
   SELECT smp.player_id,smp.match_id,discovery.queue_id,discovery.queue_name,
-    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(smp.player_name),''),
+    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(smp.platform),''),
+    NULLIF(BTRIM(smp.player_name),''),
     COALESCE(smp.participant_kind,'human')
   FROM recent_discoveries discovery JOIN special_match_players smp ON smp.match_id=discovery.match_id
 ),
 participation AS MATERIALIZED (
-  SELECT player_id,match_id,queue_id,queue_name,stats_scope,observed_at,observed_region,observed_name
+  SELECT player_id,match_id,queue_id,queue_name,stats_scope,observed_at,observed_region,observed_platform,observed_name
   FROM roster_evidence WHERE player_id>0 AND participant_kind='human'
+),
+latest_observed_platform AS MATERIALIZED (
+  SELECT DISTINCT ON (player_id) player_id,observed_platform AS platform
+  FROM participation WHERE observed_platform IS NOT NULL
+    AND UPPER(observed_platform)<>'UNKNOWN'
+  ORDER BY player_id,observed_at DESC,match_id DESC
 ),
 latest_observed_region AS MATERIALIZED (
   SELECT DISTINCT ON (player_id) player_id,NULLIF(BTRIM(observed_region),'') AS region
@@ -172,7 +181,7 @@ async fn presence(
     let sql = format!(
         "WITH {}, public_ids AS MATERIALIZED (SELECT DISTINCT player_id FROM participation), \
          resolved AS MATERIALIZED ( \
-           SELECT identity.player_id,resolved_profile.platform, \
+           SELECT identity.player_id,COALESCE(NULLIF(BTRIM(resolved_profile.platform),''),observed_platform.platform) AS platform, \
              COALESCE(CASE WHEN LOWER(BTRIM(COALESCE(resolved_profile.region,''))) IN \
                ('','unknown','latin america north','latam north','latin america south','latam south') \
                THEN NULL ELSE resolved_profile.region END,observed_profile.region) AS region, \
@@ -187,6 +196,12 @@ async fn presence(
              ORDER BY priority,hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1 \
            ) resolved_profile ON TRUE LEFT JOIN latest_observed_region observed_profile \
              ON observed_profile.player_id=identity.player_id \
+           LEFT JOIN latest_observed_platform observed_platform ON observed_platform.player_id=identity.player_id \
+         ), player_hour_regions AS MATERIALIZED ( \
+           SELECT (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
+             EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
+             {canonical_region} AS region,COUNT(DISTINCT participation.player_id)::int AS players \
+           FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3 \
          ) SELECT jsonb_build_object( \
            'window_hours',24,'observed_at',now(), \
            'public_players',(SELECT COUNT(*) FROM public_ids), \
@@ -212,6 +227,9 @@ async fn presence(
              (SELECT COALESCE(NULLIF(BTRIM(platform),''),'Unknown') AS platform,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
            'public_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,region),'[]'::jsonb) FROM \
              (SELECT {canonical_region} AS region,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
+           'public_hourly_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) FROM \
+             (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(region,players) AS regions \
+               FROM player_hour_regions GROUP BY date,hour)x), \
            'profile_coverage',jsonb_build_object('total',(SELECT COUNT(*) FROM resolved), \
              'fresh',(SELECT COUNT(*) FROM resolved WHERE hirez_profile_refreshed_at>=now()-interval '24 hours'), \
              'platform_known',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NOT NULL), \
@@ -621,7 +639,7 @@ async fn details(
 }
 
 fn presence_cache_key(uri: &axum::http::Uri) -> String {
-    format!("{}:canonical-region-v2", stats_cache_key(uri))
+    format!("{}:hourly-player-region-v3", stats_cache_key(uri))
 }
 
 async fn cached_payload(
@@ -689,7 +707,7 @@ mod tests {
     #[test]
     fn presence_cache_is_versioned_for_canonical_regions() {
         let uri: axum::http::Uri = "/stats/presence?view=activity-v4".parse().unwrap();
-        assert!(presence_cache_key(&uri).ends_with(":canonical-region-v2"));
+        assert!(presence_cache_key(&uri).ends_with(":hourly-player-region-v3"));
     }
 
     #[test]
@@ -698,7 +716,10 @@ mod tests {
         assert!(CANONICAL_REGION_SQL.contains("WHEN 'north america' THEN 'NA'"));
         assert!(EVIDENCE_CTES.contains("d.region AS observed_region"));
         assert!(EVIDENCE_CTES.contains("latest_observed_region AS MATERIALIZED"));
+        assert!(EVIDENCE_CTES.contains("latest_observed_platform AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("observed_profile.region"));
+        assert!(include_str!("presence.rs").contains("observed_platform.platform"));
+        assert!(include_str!("presence.rs").contains("'public_hourly_by_region'"));
     }
 
     #[test]
