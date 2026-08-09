@@ -5,6 +5,7 @@ use serde::Serialize;
 pub const ACTIVITY_API_WARM_URLS: &[&str] = &[
     "/matches/overview?view=activity-v3",
     "/stats/presence?view=activity-v4",
+    "/stats/activity-banner",
 ];
 
 pub const DEPLOYMENT_CRITICAL_API_WARM_URLS: &[&str] = &[

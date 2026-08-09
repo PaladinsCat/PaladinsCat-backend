@@ -1,6 +1,7 @@
 export const ACTIVITY_API_WARM_URLS = [
   '/matches/overview?view=activity-v3',
   '/stats/presence?view=activity-v4',
+  '/stats/activity-banner',
 ] as const;
 
 export const DEPLOYMENT_CRITICAL_API_WARM_URLS = [

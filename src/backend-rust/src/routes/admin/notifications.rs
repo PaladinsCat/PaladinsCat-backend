@@ -80,6 +80,77 @@ pub(super) async fn list(
     Ok(Json(Value::Array(rows)).into_response())
 }
 
+pub(super) async fn activity_banner(
+    State(state): State<AdminState>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
+        return Ok(response);
+    }
+    let row = state
+        .database
+        .one_json(
+            "SELECT enabled,message FROM site_banners WHERE id='activity' LIMIT 1",
+            &[],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?
+        .unwrap_or_else(|| json!({"enabled": false, "message": ""}));
+    Ok(Json(row).into_response())
+}
+
+pub(super) async fn update_activity_banner(
+    State(state): State<AdminState>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
+        return Ok(response);
+    }
+    let Some(enabled) = body.get("enabled").and_then(Value::as_bool) else {
+        return Ok(super::coded_error(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION",
+            "enabled must be a boolean",
+        ));
+    };
+    let message = body
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_owned();
+    if enabled && message.is_empty() {
+        return Ok(super::coded_error(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION",
+            "message is required when the banner is enabled",
+        ));
+    }
+    if message.chars().count() > 500 {
+        return Ok(super::coded_error(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION",
+            "message must be 500 characters or fewer",
+        ));
+    }
+    let row = state
+        .database
+        .one_json(
+            "INSERT INTO site_banners(id,enabled,message,updated_at) VALUES('activity',$1,$2,now()) \
+             ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,message=EXCLUDED.message,updated_at=now() \
+             RETURNING enabled,message",
+            &[&enabled, &message],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?
+        .unwrap_or_else(|| json!({"enabled": enabled, "message": message}));
+    state.redis.del("route:stats:activity-banner").await;
+    Ok(Json(row).into_response())
+}
+
 pub(super) async fn create(
     State(state): State<AdminState>,
     Extension(request_id): Extension<RequestId>,

@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use paladinscat_core::database::Database;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::{
     error::ApiError,
@@ -16,7 +16,7 @@ use crate::{
     route_cache::{ColdMissLease, RouteCache, canonical_route_cache_url, now_millis},
 };
 
-pub const ROUTE_COUNT: usize = 2;
+pub const ROUTE_COUNT: usize = 3;
 
 const FRESH_TTL_SECONDS: u64 = 60;
 const STALE_TTL_SECONDS: u64 = 180;
@@ -31,7 +31,37 @@ pub fn router(database: Database, cache: RouteCache) -> Router {
     Router::new()
         .route("/notifications", get(notifications))
         .route("/notifications/", get(notifications))
+        .route("/stats/activity-banner", get(activity_banner))
         .with_state(NotificationState { database, cache })
+}
+
+async fn activity_banner(
+    State(state): State<NotificationState>,
+    Extension(request_id): Extension<RequestId>,
+) -> Result<Response, ApiError> {
+    let database = state.database.clone();
+    crate::route_cache::cached_database_json(
+        state.cache,
+        "route:stats:activity-banner".to_owned(),
+        60,
+        300,
+        &request_id,
+        move || {
+            let database = database.clone();
+            async move {
+                Ok(database
+                    .query_json(
+                        "SELECT enabled,message FROM site_banners WHERE id='activity' LIMIT 1",
+                        &[],
+                    )
+                    .await?
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(|| json!({"enabled": false, "message": ""})))
+            }
+        },
+    )
+    .await
 }
 
 async fn notifications(

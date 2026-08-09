@@ -6,7 +6,7 @@ mod notifications;
 mod operations;
 mod private_accounts;
 
-pub const ROUTE_COUNT: usize = 30;
+pub const ROUTE_COUNT: usize = 31;
 
 use std::time::Duration;
 
@@ -113,6 +113,10 @@ pub fn router(foundation: FoundationState) -> Router {
         .route(
             "/admin/notifications/{id}",
             put(notifications::update).delete(notifications::delete),
+        )
+        .route(
+            "/admin/activity-banner",
+            get(notifications::activity_banner).put(notifications::update_activity_banner),
         )
         .with_state(AdminState {
             database: foundation.database.clone(),

@@ -15,6 +15,7 @@ use super::policy::champion_page_warm_urls;
 const ACTIVITY_API_WARM_URLS: &[&str] = &[
     "/matches/overview?view=activity-v3",
     "/stats/presence?view=activity-v4",
+    "/stats/activity-banner",
 ];
 
 const DEPLOYMENT_CRITICAL_API_WARM_URLS: &[&str] = &[
