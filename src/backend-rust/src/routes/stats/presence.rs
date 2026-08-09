@@ -260,17 +260,13 @@ async fn hourly_presence(
              ) candidate ORDER BY priority,hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1 \
            ) profile ON TRUE LEFT JOIN latest_observed_region observed ON observed.player_id=identity.player_id \
            LEFT JOIN latest_observed_platform observed_platform ON observed_platform.player_id=identity.player_id), \
-         player_hour_regions AS MATERIALIZED (SELECT \
+         player_hours AS MATERIALIZED (SELECT \
            (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
            EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
-           {canonical_region} AS region,COUNT(DISTINCT participation.player_id)::int AS players \
-           FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3) \
-         ,player_hour_platforms AS MATERIALIZED (SELECT \
-           (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
-           EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
-           COALESCE(NULLIF(BTRIM(resolved.platform),''),'Unknown') AS platform, \
-           COUNT(DISTINCT participation.player_id)::int AS players \
-           FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3) \
+           participation.player_id FROM participation GROUP BY 1,2,3), \
+         player_hour_dimensions AS MATERIALIZED (SELECT player_hours.date,player_hours.hour, \
+           {canonical_region} AS region,COALESCE(NULLIF(BTRIM(resolved.platform),''),'Unknown') AS platform, \
+           COUNT(*)::int AS players FROM player_hours JOIN resolved USING(player_id) GROUP BY 1,2,3,4) \
          SELECT jsonb_build_object('window_hours',24,'observed_at',now(), \
            'selected_queue_id',{selected_queue},'public_players',(SELECT COUNT(*) FROM public_ids), \
            'public_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,region),'[]'::jsonb) \
@@ -280,10 +276,12 @@ async fn hourly_presence(
                FROM resolved GROUP BY 1)x), \
            'hourly_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) \
              FROM (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(region,players) AS regions \
-               FROM player_hour_regions GROUP BY date,hour)x), \
+               FROM (SELECT date,hour,region,SUM(players)::int AS players FROM player_hour_dimensions \
+                 GROUP BY 1,2,3) grouped_regions GROUP BY date,hour)x), \
            'hourly_by_platform',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) \
              FROM (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(platform,players) AS platforms \
-               FROM player_hour_platforms GROUP BY date,hour)x)) AS payload",
+               FROM (SELECT date,hour,platform,SUM(players)::int AS players FROM player_hour_dimensions \
+                 GROUP BY 1,2,3) grouped_platforms GROUP BY date,hour)x)) AS payload",
         evidence_ctes,
         selected_queue =
             selected_queue_id.map_or_else(|| "NULL".to_owned(), |value| value.to_string()),
@@ -771,7 +769,7 @@ mod tests {
         assert!(include_str!("presence.rs").contains("observed_platform.platform"));
         assert!(include_str!("presence.rs").contains("'hourly_by_region'"));
         assert!(include_str!("presence.rs").contains("'hourly_by_platform'"));
-        assert!(include_str!("presence.rs").contains("player_hour_platforms AS MATERIALIZED"));
+        assert!(include_str!("presence.rs").contains("player_hour_dimensions AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("ctes(selected_queue_id, &mut params)"));
     }
 
