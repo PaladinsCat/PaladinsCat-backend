@@ -41,7 +41,7 @@ const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
   LEFT JOIN special_matches special ON special.match_id=d.match_id \
   WHERE d.source_date::text IN ($1,$2) AND d.queue_id<>$3 \
     AND UPPER(BTRIM(COALESCE(d.region,''))) IN ('','UNKNOWN') \
-  GROUP BY d.source_date,d.source_hour,d.queue_id,region \
+  GROUP BY 1,2,3,4 \
 ) SELECT date::text AS date,hour,queue_id,CASE LOWER(BTRIM(COALESCE(region,'Unknown'))) \
     WHEN 'north america' THEN 'NA' WHEN 'na' THEN 'NA' WHEN 'europe' THEN 'EU' WHEN 'eu' THEN 'EU' \
     WHEN 'brazil' THEN 'BR' WHEN 'br' THEN 'BR' WHEN 'southeast asia' THEN 'SEA' WHEN 'sea' THEN 'SEA' \
@@ -50,7 +50,7 @@ const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
     WHEN 'south america' THEN 'SA' WHEN 'sa' THEN 'SA' WHEN 'asia' THEN 'ASIA' \
     ELSE COALESCE(NULLIF(BTRIM(COALESCE(NULLIF(casual.region,''),NULLIF(special.region,''),NULLIF(d.region,''))),''),'Unknown') END AS region, \
   SUM(total_matches)::int AS total_matches FROM rows \
-GROUP BY date,hour,queue_id,region ORDER BY date,hour,queue_id,region";
+GROUP BY 1,2,3,4 ORDER BY 1,2,3,4";
 const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
