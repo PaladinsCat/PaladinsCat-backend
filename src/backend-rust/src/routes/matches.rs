@@ -21,7 +21,7 @@ use crate::{
     error::ApiError,
     raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response},
     request::RequestId,
-    route_cache::{RouteCache, cached_database_value},
+    route_cache::{RouteCache, cached_database_value, now_millis},
     routes::live::{request_identity, resolve_player_live_match, vendor_guard},
     workers::{
         relay::WorkerRelayClient,
@@ -31,6 +31,8 @@ use crate::{
 
 const RANKED_QUEUE_ID: i32 = 486;
 const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
+const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
+const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
 
 pub const ROUTE_COUNT: usize = 21;
 
@@ -2400,12 +2402,26 @@ async fn overview(
         ));
     };
     let view = query.get("view").map(String::as_str).unwrap_or("");
+    let is_activity_view = view == "activity-v3";
+    let overview_fresh_ttl = if is_activity_view {
+        ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS
+    } else {
+        60
+    };
+    let overview_stale_ttl = if is_activity_view {
+        ACTIVITY_OVERVIEW_STALE_TTL_SECONDS
+    } else {
+        180
+    };
+    let now = now_millis();
     let cache_key = format!(
         "route:matches:/matches/overview:tier-min:{}:tier-max:{}:view:{view}",
         tier_min.map_or_else(|| "all".to_owned(), |value| value.to_string()),
         tier_max.map_or_else(|| "all".to_owned(), |value| value.to_string())
     );
-    if let Some(cached) = state.route_cache.get(&cache_key).await {
+    if let Some(cached) = state.route_cache.get(&cache_key).await
+        && (!is_activity_view || cached.fresh_until > now)
+    {
         return Ok(crate::route_cache::json_cache_response(
             cached.payload,
             "HIT",
@@ -2422,14 +2438,21 @@ async fn overview(
         hourly_query.insert("includePlayers".to_owned(), "true".to_owned());
     }
     let hourly_cache_key = matches_query_cache_key("/matches/hourly-stats", &hourly_query);
-    let hourly = if let Some(cached) = state.route_cache.get(&hourly_cache_key).await {
+    let hourly = if let Some(cached) = state.route_cache.get(&hourly_cache_key).await
+        && (!is_activity_view || cached.fresh_until > now)
+    {
         cached.payload
     } else {
         let payload =
             hourly_stats_payload(&state, &request_id, &hourly_query, tier_min, tier_max).await?;
         state
             .route_cache
-            .store(&hourly_cache_key, payload.clone(), 60, 180)
+            .store(
+                &hourly_cache_key,
+                payload.clone(),
+                overview_fresh_ttl,
+                overview_stale_ttl,
+            )
             .await;
         payload
     };
@@ -2502,7 +2525,12 @@ async fn overview(
     });
     state
         .route_cache
-        .store(&cache_key, payload.clone(), 60, 180)
+        .store(
+            &cache_key,
+            payload.clone(),
+            overview_fresh_ttl,
+            overview_stale_ttl,
+        )
         .await;
     let mut response = (StatusCode::OK, Json(payload)).into_response();
     response.headers_mut().insert(
@@ -2511,7 +2539,10 @@ async fn overview(
     );
     response.headers_mut().insert(
         HeaderName::from_static("cache-control"),
-        HeaderValue::from_static("public, max-age=60, stale-while-revalidate=180"),
+        HeaderValue::from_str(&format!(
+            "public, max-age={overview_fresh_ttl}, stale-while-revalidate={overview_stale_ttl}"
+        ))
+        .expect("static activity cache policy"),
     );
     Ok(response)
 }
