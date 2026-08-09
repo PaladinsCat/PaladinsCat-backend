@@ -779,7 +779,10 @@ impl CanonicalIngestPipeline {
             env_u64("NONRANKED_ACQUISITION_MAX_RUN_MS", 50_000).clamp(30_000, 1_200_000),
         );
         let page_size = env_usize("NONRANKED_ACQUISITION_CLAIM_LIMIT", 500).clamp(10, 1_000);
-        let concurrency = env_usize("NONRANKED_ACQUISITION_FETCH_CONCURRENCY", 8).clamp(1, 8);
+        let concurrency = nonranked_fetch_concurrency(
+            env_usize("NONRANKED_ACQUISITION_FETCH_CONCURRENCY", 8),
+            env_usize("DB_POOL_MAX", 20),
+        );
         let active_grace =
             i32::try_from(env_u64("NONRANKED_ACTIVE_MATCH_GRACE_MINUTES", 30).clamp(10, 360))
                 .unwrap_or(30);
@@ -1442,6 +1445,12 @@ fn env_usize(name: &str, fallback: usize) -> usize {
         .unwrap_or(fallback)
 }
 
+fn nonranked_fetch_concurrency(configured: usize, database_pool_max: usize) -> usize {
+    configured
+        .clamp(1, 8)
+        .min(database_pool_max.saturating_sub(2).max(1))
+}
+
 fn is_recoverable_completed_batch_error(error: &str) -> bool {
     let error = error.to_ascii_lowercase();
     [
@@ -1533,6 +1542,13 @@ fn boolean(value: &Value, keys: &[&str]) -> bool {
 mod tests {
     use super::*;
     use paladinscat_core::config::BackendConfig;
+
+    #[test]
+    fn nonranked_fetch_lanes_reserve_pool_headroom_for_coordination() {
+        assert_eq!(nonranked_fetch_concurrency(8, 8), 6);
+        assert_eq!(nonranked_fetch_concurrency(8, 12), 8);
+        assert_eq!(nonranked_fetch_concurrency(8, 2), 1);
+    }
 
     #[test]
     fn relay_operation_state_error_matches_typescript_raw_message() {
