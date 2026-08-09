@@ -22,9 +22,20 @@ use super::{StatsState, stats_cache_key};
 
 const CACHE_TTL_SECONDS: u64 = 60;
 const ACTIVITY_STALE_TTL_SECONDS: u64 = 6 * 60 * 60;
+const CANONICAL_REGION_SQL: &str = r#"CASE LOWER(BTRIM(COALESCE(region,'')))
+  WHEN 'north america' THEN 'NA' WHEN 'na' THEN 'NA'
+  WHEN 'europe' THEN 'EU' WHEN 'eu' THEN 'EU'
+  WHEN 'brazil' THEN 'BR' WHEN 'br' THEN 'BR'
+  WHEN 'south america' THEN 'SA' WHEN 'sa' THEN 'SA'
+  WHEN 'southeast asia' THEN 'SEA' WHEN 'sea' THEN 'SEA'
+  WHEN 'australia' THEN 'OCE' WHEN 'oceania' THEN 'OCE' WHEN 'oce' THEN 'OCE'
+  WHEN 'japan' THEN 'JPN' WHEN 'jpn' THEN 'JPN'
+  WHEN 'russia' THEN 'RUS' WHEN 'rus' THEN 'RUS'
+  WHEN 'asia' THEN 'ASIA'
+  ELSE COALESCE(NULLIF(BTRIM(region),''),'Unknown') END"#;
 const EVIDENCE_CTES: &str = r#"
 recent_discoveries AS MATERIALIZED (
-  SELECT d.match_id,d.queue_id,q.queue_name,q.stats_scope,q.participant_model,
+  SELECT d.match_id,d.queue_id,q.queue_name,q.stats_scope,q.participant_model,d.region AS observed_region,
     (COALESCE(d.entry_datetime AT TIME ZONE 'UTC',
       d.source_date + (d.source_hour * interval '1 hour')) AT TIME ZONE 'UTC') AS observed_at
   FROM match_count_discoveries d JOIN queue_types q ON q.queue_id=d.queue_id
@@ -36,7 +47,7 @@ recent_discoveries AS MATERIALIZED (
 ),
 roster_evidence AS MATERIALIZED (
   SELECT mp.player_id,mp.match_id,discovery.queue_id,discovery.queue_name,
-    discovery.stats_scope,discovery.observed_at,NULLIF(BTRIM(mp.player_name),'') AS observed_name,
+    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(mp.player_name),'') AS observed_name,
     CASE WHEN mp.player_id>0 THEN 'human'
       WHEN UPPER(COALESCE(mp.player_name,''))='PRIVATEACCOUNT' OR COALESCE(mp.private_slot,0)>0
         THEN 'private' ELSE 'unknown' END AS participant_kind
@@ -45,17 +56,17 @@ roster_evidence AS MATERIALIZED (
     AND COALESCE(mp.source,'direct') IN ('direct','recovered')
   UNION ALL
   SELECT cmp.player_id,cmp.match_id,discovery.queue_id,discovery.queue_name,
-    discovery.stats_scope,discovery.observed_at,NULLIF(BTRIM(cmp.player_name),''),
+    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(cmp.player_name),''),
     COALESCE(cmp.participant_kind,'human')
   FROM recent_discoveries discovery JOIN casual_match_players cmp ON cmp.match_id=discovery.match_id
   UNION ALL
   SELECT smp.player_id,smp.match_id,discovery.queue_id,discovery.queue_name,
-    discovery.stats_scope,discovery.observed_at,NULLIF(BTRIM(smp.player_name),''),
+    discovery.stats_scope,discovery.observed_at,discovery.observed_region,NULLIF(BTRIM(smp.player_name),''),
     COALESCE(smp.participant_kind,'human')
   FROM recent_discoveries discovery JOIN special_match_players smp ON smp.match_id=discovery.match_id
 ),
 participation AS MATERIALIZED (
-  SELECT player_id,match_id,queue_id,queue_name,stats_scope,observed_at,observed_name
+  SELECT player_id,match_id,queue_id,queue_name,stats_scope,observed_at,observed_region,observed_name
   FROM roster_evidence WHERE player_id>0 AND participant_kind='human'
 ),
 roster_summary AS MATERIALIZED (
@@ -155,7 +166,10 @@ async fn presence(
     let sql = format!(
         "WITH {}, public_ids AS MATERIALIZED (SELECT DISTINCT player_id FROM participation), \
          resolved AS MATERIALIZED ( \
-           SELECT identity.player_id,resolved_profile.platform,resolved_profile.region, \
+           SELECT identity.player_id,resolved_profile.platform, \
+             COALESCE(CASE WHEN LOWER(BTRIM(COALESCE(resolved_profile.region,''))) IN \
+               ('','unknown','latin america north','latam north','latin america south','latam south') \
+               THEN NULL ELSE resolved_profile.region END,observed_profile.region) AS region, \
              resolved_profile.hirez_profile_refreshed_at \
            FROM public_ids identity LEFT JOIN LATERAL ( \
              SELECT candidate.platform,candidate.region,candidate.hirez_profile_refreshed_at \
@@ -165,7 +179,13 @@ async fn presence(
                FROM players p WHERE p.active_player_id=identity.player_id \
                  AND p.active_player_id>0 AND p.id<>identity.player_id) candidate \
              ORDER BY priority,hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1 \
-           ) resolved_profile ON TRUE \
+           ) resolved_profile ON TRUE LEFT JOIN LATERAL ( \
+             SELECT NULLIF(BTRIM(candidate.observed_region),'') AS region \
+             FROM participation candidate WHERE candidate.player_id=identity.player_id \
+               AND NULLIF(BTRIM(candidate.observed_region),'') IS NOT NULL \
+               AND UPPER(BTRIM(candidate.observed_region))<>'UNKNOWN' \
+             ORDER BY candidate.observed_at DESC,candidate.match_id DESC LIMIT 1 \
+           ) observed_profile ON TRUE \
          ) SELECT jsonb_build_object( \
            'window_hours',24,'observed_at',now(), \
            'public_players',(SELECT COUNT(*) FROM public_ids), \
@@ -190,14 +210,15 @@ async fn presence(
            'public_by_platform',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,platform),'[]'::jsonb) FROM \
              (SELECT COALESCE(NULLIF(BTRIM(platform),''),'Unknown') AS platform,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
            'public_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,region),'[]'::jsonb) FROM \
-             (SELECT COALESCE(NULLIF(BTRIM(region),''),'Unknown') AS region,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
+             (SELECT {canonical_region} AS region,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
            'profile_coverage',jsonb_build_object('total',(SELECT COUNT(*) FROM resolved), \
              'fresh',(SELECT COUNT(*) FROM resolved WHERE hirez_profile_refreshed_at>=now()-interval '24 hours'), \
              'platform_known',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NOT NULL), \
              'platform_unknown',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NULL), \
              'last_enrichment_at',(SELECT MAX(last_attempt_at)::text FROM player_activity_profile_refresh)) \
          ) AS payload",
-        EVIDENCE_CTES.replace("__QUEUE_FILTER__", "TRUE")
+        EVIDENCE_CTES.replace("__QUEUE_FILTER__", "TRUE"),
+        canonical_region = CANONICAL_REGION_SQL
     );
     cached_payload(state, uri, request_id, sql, Vec::new()).await
 }
@@ -599,7 +620,7 @@ async fn details(
 }
 
 fn presence_cache_key(uri: &axum::http::Uri) -> String {
-    format!("{}:canonical-region-v1", stats_cache_key(uri))
+    format!("{}:canonical-region-v2", stats_cache_key(uri))
 }
 
 async fn cached_payload(
@@ -667,6 +688,14 @@ mod tests {
     #[test]
     fn presence_cache_is_versioned_for_canonical_regions() {
         let uri: axum::http::Uri = "/stats/presence?view=activity-v4".parse().unwrap();
-        assert!(presence_cache_key(&uri).ends_with(":canonical-region-v1"));
+        assert!(presence_cache_key(&uri).ends_with(":canonical-region-v2"));
+    }
+
+    #[test]
+    fn presence_regions_canonicalize_aliases_and_use_observed_fallback() {
+        assert!(CANONICAL_REGION_SQL.contains("WHEN 'europe' THEN 'EU'"));
+        assert!(CANONICAL_REGION_SQL.contains("WHEN 'north america' THEN 'NA'"));
+        assert!(EVIDENCE_CTES.contains("d.region AS observed_region"));
+        assert!(include_str!("presence.rs").contains("observed_profile.region"));
     }
 }
