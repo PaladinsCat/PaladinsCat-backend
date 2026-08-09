@@ -31,7 +31,7 @@ mod summary;
 pub const ROUTE_COUNT: usize = 12 + 10 + 4 + 2 + 4 + 7;
 
 const DEFAULT_FRESH_TTL_SECONDS: u64 = 300;
-const TIER_POPULATION_FRESH_TTL_SECONDS: u64 = 900;
+const TIER_AGGREGATE_FRESH_TTL_SECONDS: u64 = 900;
 const CASUAL_ITEM_SCOPES: &[&str] = &[
     "casual",
     "bot",
@@ -601,7 +601,7 @@ async fn tiers(
             state,
             uri,
             request_id,
-            DEFAULT_FRESH_TTL_SECONDS,
+            TIER_AGGREGATE_FRESH_TTL_SECONDS,
             "WITH source_row AS ( \
                SELECT * \
                FROM tier_stats \
@@ -652,7 +652,7 @@ async fn tiers(
         state,
         uri,
         request_id,
-        DEFAULT_FRESH_TTL_SECONDS,
+        TIER_AGGREGATE_FRESH_TTL_SECONDS,
         "WITH effective_player_tiers AS ( \
            SELECT \
              CASE \
@@ -707,8 +707,8 @@ async fn tiers_summary(
     cached_database_json(
         state.cache,
         stats_cache_key(&uri),
-        DEFAULT_FRESH_TTL_SECONDS,
-        DEFAULT_FRESH_TTL_SECONDS * 3,
+        TIER_AGGREGATE_FRESH_TTL_SECONDS,
+        TIER_AGGREGATE_FRESH_TTL_SECONDS * 3,
         &request_id,
         move || {
             let database = database.clone();
@@ -881,7 +881,7 @@ async fn tier_population(
         state,
         uri,
         request_id,
-        TIER_POPULATION_FRESH_TTL_SECONDS,
+        TIER_AGGREGATE_FRESH_TTL_SECONDS,
         "SELECT tier, tier_name, player_count, \
                 ROUND(100.0 * player_count / NULLIF(SUM(player_count) OVER(), 0), 2) \
                   as percentage \

@@ -117,8 +117,18 @@ async fn main() {
                 "SITE_CACHE_WARM_INTERVAL_MS",
                 600_000,
             )));
+            interval.tick().await;
             loop {
-                let _ = warmer.warm_main_site().await;
+                match warmer.warm_main_site().await {
+                    Ok((api, pages)) => tracing::info!(
+                        api_warmed = api.warmed,
+                        api_failed = api.failed,
+                        pages_warmed = pages.warmed,
+                        pages_failed = pages.failed,
+                        "site cache warm cycle complete"
+                    ),
+                    Err(error) => tracing::warn!(error = %error, "site cache warm cycle failed"),
+                }
                 interval.tick().await;
             }
         })

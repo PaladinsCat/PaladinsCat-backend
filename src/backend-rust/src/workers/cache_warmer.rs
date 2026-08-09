@@ -89,7 +89,10 @@ impl CacheWarmer {
         Ok(Self {
             database,
             client: Client::builder()
-                .timeout(Duration::from_secs(20))
+                .timeout(Duration::from_secs(env_u64(
+                    "SITE_CACHE_WARM_REQUEST_TIMEOUT_SECONDS",
+                    60,
+                )))
                 .user_agent("PaladinsCat-internal-cache-warmer/2.0")
                 .build()?,
             api_origin: std::env::var("SITE_CACHE_WARM_API_ORIGIN")
@@ -342,6 +345,13 @@ fn decode_xml(value: &str) -> String {
 }
 
 fn env_usize(name: &str, fallback: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(fallback)
+}
+
+fn env_u64(name: &str, fallback: u64) -> u64 {
     std::env::var(name)
         .ok()
         .and_then(|value| value.parse().ok())
