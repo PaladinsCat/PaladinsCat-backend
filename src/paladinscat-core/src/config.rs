@@ -50,6 +50,7 @@ pub struct BackendConfig {
     pub public_api_global_limit_per_minute: u64,
     pub account_auth_attempts_per_window: u64,
     pub account_auth_window_ms: u64,
+    pub identity_cutover_enabled: bool,
     pub oidc_issuer: Option<String>,
     pub oidc_audience: Option<String>,
     #[serde(skip_serializing)]
@@ -200,6 +201,7 @@ impl BackendConfig {
                 lookup("ACCOUNT_AUTH_WINDOW_MS"),
                 DEFAULT_ACCOUNT_AUTH_WINDOW_MS,
             ),
+            identity_cutover_enabled: parse_true(lookup("PALADINSCAT_IDENTITY_CUTOVER_ENABLED")),
             oidc_issuer,
             oidc_audience,
             oidc_jwks_url,
@@ -358,12 +360,20 @@ mod tests {
         assert_eq!(config.public_api_global_limit_per_minute, 6_000);
         assert_eq!(config.account_auth_attempts_per_window, 10);
         assert_eq!(config.account_auth_window_ms, 15 * 60_000);
+        assert!(!config.identity_cutover_enabled);
         assert_eq!(config.developer_api_rate_limit_per_minute, 120);
         assert_eq!(config.developer_api_concurrency_limit, 10);
         assert_eq!(config.deployment_redis_startup_timeout_ms, 5_000);
         assert_eq!(config.shutdown_drain_timeout_ms, 60_000);
         assert_eq!(config.api_host, "127.0.0.1");
         assert_eq!(config.api_port, 3_310);
+
+        let cutover = load_config(&[
+            ("DATABASE_URL", "postgres://fixture"),
+            ("PALADINSCAT_IDENTITY_CUTOVER_ENABLED", "true"),
+        ])
+        .expect("cutover config");
+        assert!(cutover.identity_cutover_enabled);
 
         let bounded = load_config(&[
             ("DATABASE_URL", "postgres://fixture"),

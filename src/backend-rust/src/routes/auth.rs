@@ -12,6 +12,7 @@ use paladinscat_core::{config::BackendConfig, database::Database};
 use regex::Regex;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
@@ -25,7 +26,7 @@ use crate::{
 
 use super::identity::{as_i64, json_response, parse_id, simple_error};
 
-pub const ROUTE_COUNT: usize = 15;
+pub const ROUTE_COUNT: usize = 18;
 
 const SESSION_TTL_HOURS: i64 = 72;
 const LINK_COOLDOWN_SECONDS: i32 = 30;
@@ -46,7 +47,7 @@ pub fn router(
     redis: paladinscat_core::cache::RedisCache,
     config: std::sync::Arc<BackendConfig>,
 ) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/auth/oidc/exchange", post(oidc_exchange))
         .route("/auth/oidc/transactions", post(oidc_transaction_create))
         .route(
@@ -81,20 +82,28 @@ pub fn router(
         .route(
             "/auth/account/player-link/verification/check",
             post(check_link_verification),
-        )
-        .with_state(AuthState {
-            database,
-            redis,
-            relay: WorkerRelayClient::new(&config).ok(),
-            oidc: config
-                .oidc_issuer
-                .clone()
-                .zip(config.oidc_audience.clone())
-                .and_then(|(issuer, audience)| {
-                    OidcVerifier::new(issuer, audience, config.oidc_jwks_url.clone()).ok()
-                }),
-            oidc_bff_service_token: config.oidc_bff_service_token.clone(),
-        })
+        );
+    let router = if config.identity_cutover_enabled {
+        router
+    } else {
+        router
+            .route("/auth/register", post(register))
+            .route("/auth/login", post(login))
+            .route("/auth/account/password", post(change_password))
+    };
+    router.with_state(AuthState {
+        database,
+        redis,
+        relay: WorkerRelayClient::new(&config).ok(),
+        oidc: config
+            .oidc_issuer
+            .clone()
+            .zip(config.oidc_audience.clone())
+            .and_then(|(issuer, audience)| {
+                OidcVerifier::new(issuer, audience, config.oidc_jwks_url.clone()).ok()
+            }),
+        oidc_bff_service_token: config.oidc_bff_service_token.clone(),
+    })
 }
 
 /// BFF sends an access token only.  ID tokens, e-mail and groups are not accepted here.
@@ -420,19 +429,34 @@ mod oidc_tests {
     }
 
     #[tokio::test]
-    async fn legacy_password_routes_are_not_mounted_by_default() {
-        let config = BackendConfig::from_lookup(|name| {
-            (name == "DATABASE_URL").then(|| "postgres://fixture".to_owned())
-        })
-        .expect("config");
-        let app = router(
-            Database::new(&config, "oidc-route-absence").expect("database pool"),
-            paladinscat_core::cache::RedisCache::new(&config.redis_url).expect("redis client"),
-            std::sync::Arc::new(config),
-        );
+    async fn legacy_password_routes_follow_identity_cutover() {
+        let app = |cutover: bool| {
+            let config = BackendConfig::from_lookup(|name| match name {
+                "DATABASE_URL" => Some("postgres://fixture".to_owned()),
+                "PALADINSCAT_IDENTITY_CUTOVER_ENABLED" if cutover => Some("true".to_owned()),
+                _ => None,
+            })
+            .expect("config");
+            router(
+                Database::new(&config, "legacy-route-presence").expect("database pool"),
+                paladinscat_core::cache::RedisCache::new(&config.redis_url).expect("redis client"),
+                std::sync::Arc::new(config),
+            )
+        };
         for uri in ["/auth/register", "/auth/login", "/auth/account/password"] {
-            let response = app
+            let response = app(false)
                 .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_ne!(response.status(), StatusCode::NOT_FOUND, "default {uri}");
+            let response = app(true)
                 .oneshot(
                     Request::builder()
                         .method("POST")
@@ -829,6 +853,170 @@ fn auth_user(row: &Value) -> Value {
         "linked_player_id":row.get("linked_player_id").cloned().unwrap_or(Value::Null),
         "linked_player_name":row.get("linked_player_name").cloned().unwrap_or(Value::Null)
     })
+}
+
+fn text(body: &Value, field: &str) -> String {
+    body.get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_owned()
+}
+
+async fn register(
+    State(state): State<AuthState>,
+    Extension(request_id): Extension<RequestId>,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    let username = text(&body, "username");
+    let email = text(&body, "email").to_ascii_lowercase();
+    let password = body
+        .get("password")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if username.is_empty() || email.is_empty() || password.is_empty() {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Missing required fields: username, email, password",
+        ));
+    }
+    let Some(username_re) = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok() else {
+        return Err(ApiError::internal(&request_id));
+    };
+    if !username_re.is_match(&username) {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Username must be 3-32 characters and use only letters, numbers, underscore, or dash",
+        ));
+    }
+    let Some(email_re) = Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").ok() else {
+        return Err(ApiError::internal(&request_id));
+    };
+    if !email_re.is_match(&email) {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Invalid email address",
+        ));
+    }
+    if password.chars().count() < 6 {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Password must be at least 6 characters",
+        ));
+    }
+    if let Some(existing) = state
+        .database
+        .one_json(
+            "SELECT username,email FROM users WHERE lower(username)=lower($1) OR lower(email)=lower($2) LIMIT 1",
+            &[&username, &email],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?
+    {
+        let field = if existing
+            .get("username")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.eq_ignore_ascii_case(&username))
+        {
+            "username"
+        } else {
+            "email"
+        };
+        return Ok(simple_error(
+            StatusCode::CONFLICT,
+            format!("That {field} is already registered"),
+        ));
+    }
+    let salt = random_hex(16);
+    let hash = password_hash(password, &salt);
+    let user = state
+        .database
+        .one_json(
+            "INSERT INTO users(username,email,password_hash,salt,updated_at) VALUES($1,$2,$3,$4,now()) \\
+             RETURNING id,username,email,avatar_url,bio,time_zone,is_admin,is_approved,created_at,last_login,linked_player_id",
+            &[&username, &email, &hash, &salt],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?
+        .ok_or_else(|| ApiError::internal(&request_id))?;
+    let user_id = as_i64(user.get("id"))
+        .and_then(|value| i32::try_from(value).ok())
+        .ok_or_else(|| ApiError::internal(&request_id))?;
+    let (token, expires) = create_session(&state, user_id, &request_id).await?;
+    Ok(json_response(
+        StatusCode::OK,
+        json!({"message":"User registered","token":token,"expires_at":expires,"user":auth_user(&user)}),
+    ))
+}
+
+async fn login(
+    State(state): State<AuthState>,
+    Extension(request_id): Extension<RequestId>,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    let identifier = text(&body, "username");
+    let password = body
+        .get("password")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if identifier.is_empty() || password.is_empty() {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Missing required fields: username, password",
+        ));
+    }
+    let user = state
+        .database
+        .one_json(
+            "SELECT u.id,u.username,u.email,u.password_hash,u.salt,u.avatar_url,u.bio,u.time_zone, \\
+               u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name \\
+             FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id \\
+             WHERE lower(u.username)=lower($1) OR lower(u.email)=lower($1) LIMIT 1",
+            &[&identifier],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?;
+    let salt = user
+        .as_ref()
+        .and_then(|row| row.get("salt"))
+        .and_then(Value::as_str)
+        .unwrap_or("dummy_salt");
+    let stored = user
+        .as_ref()
+        .and_then(|row| row.get("password_hash"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .unwrap_or_else(|| password_hash("dummy_password", "dummy_salt"));
+    let candidate = password_hash(password, salt);
+    let candidate_digest: [u8; 32] = Sha256::digest(candidate.as_bytes()).into();
+    let stored_digest: [u8; 32] = Sha256::digest(stored.as_bytes()).into();
+    if user.is_none() || !bool::from(candidate_digest.ct_eq(&stored_digest)) {
+        return Ok(simple_error(
+            StatusCode::UNAUTHORIZED,
+            "Invalid credentials",
+        ));
+    }
+    let mut user = user.unwrap_or(Value::Null);
+    let user_id = as_i64(user.get("id"))
+        .and_then(|value| i32::try_from(value).ok())
+        .ok_or_else(|| ApiError::internal(&request_id))?;
+    let (token, expires) = create_session(&state, user_id, &request_id).await?;
+    let last_login = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .map_err(|_| ApiError::internal(&request_id))?;
+    state
+        .database
+        .query_json(
+            "UPDATE users SET last_login=$2::TEXT::TIMESTAMPTZ,updated_at=now() WHERE id=$1 RETURNING id",
+            &[&user_id, &last_login],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?;
+    user["last_login"] = Value::String(last_login);
+    Ok(json_response(
+        StatusCode::OK,
+        json!({"token":token,"expires_at":expires,"user":auth_user(&user)}),
+    ))
 }
 
 async fn logout(
@@ -1515,5 +1703,73 @@ async fn cancel_link_verification(
     Ok(json_response(
         StatusCode::OK,
         json!({"message":"Verification cancelled"}),
+    ))
+}
+
+async fn change_password(
+    State(state): State<AuthState>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiError> {
+    let user_id = match require_user_id(&state, &headers, &request_id, "Not authenticated").await? {
+        Ok(id) => id,
+        Err(response) => return Ok(response),
+    };
+    let current = body
+        .get("currentPassword")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let new = body
+        .get("newPassword")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if current.is_empty() || new.is_empty() {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Both current and new password required",
+        ));
+    }
+    if new.chars().count() < 6 {
+        return Ok(simple_error(
+            StatusCode::BAD_REQUEST,
+            "Password must be at least 6 characters",
+        ));
+    }
+    let user = state
+        .database
+        .one_json(
+            "SELECT id,password_hash,salt FROM users WHERE id=$1",
+            &[&user_id],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?;
+    let valid = user.as_ref().is_some_and(|row| {
+        let salt = row.get("salt").and_then(Value::as_str).unwrap_or_default();
+        let expected = row
+            .get("password_hash")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        password_hash(current, salt) == expected
+    });
+    if !valid {
+        return Ok(simple_error(
+            StatusCode::FORBIDDEN,
+            "Current password is incorrect",
+        ));
+    }
+    let salt = random_hex(16);
+    let hash = password_hash(new, &salt);
+    state
+        .database
+        .query_json(
+            "UPDATE users SET password_hash=$1,salt=$2,updated_at=now() WHERE id=$3 RETURNING id",
+            &[&hash, &salt, &user_id],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, &request_id))?;
+    Ok(json_response(
+        StatusCode::OK,
+        json!({"message":"Password changed successfully"}),
     ))
 }
