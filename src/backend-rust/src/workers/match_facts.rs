@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use paladinscat_core::database::{Database, DatabaseError};
+use paladinscat_core::{
+    database::{Database, DatabaseError},
+    region::canonical_region,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use time::{
@@ -844,7 +847,8 @@ async fn persist_player_facts(
     population: MatchPopulation,
     players: &Value,
 ) -> Result<(), MatchFactError> {
-    ensure_fact_references(transaction, players).await?;
+    let players = canonicalized_player_regions(players);
+    ensure_fact_references(transaction, &players).await?;
     transaction
         .execute(
             r#"
@@ -891,14 +895,14 @@ async fn persist_player_facts(
               END,
               last_seen=now()
             "#,
-            &[players, &(population == MatchPopulation::Ranked)],
+            &[&players, &(population == MatchPopulation::Ranked)],
         )
         .await?;
 
     if population != MatchPopulation::Ranked {
-        persist_nonranked_players(transaction, payload, population, players).await?;
-        persist_nonranked_equipment(transaction, payload, population, players).await?;
-        persist_account_merges(transaction, players).await?;
+        persist_nonranked_players(transaction, payload, population, &players).await?;
+        persist_nonranked_equipment(transaction, payload, population, &players).await?;
+        persist_account_merges(transaction, &players).await?;
         return Ok(());
     }
 
@@ -1031,7 +1035,7 @@ async fn persist_player_facts(
                 &payload.match_id,
                 &payload.entry_datetime,
                 &(population == MatchPopulation::Ranked),
-                players,
+                &players,
             ],
         )
         .await?;
@@ -1058,11 +1062,11 @@ async fn persist_player_facts(
                     WHEN 'direct' THEN 4 WHEN 'recovered' THEN 3 ELSE 1
                   END <= incoming.priority
             "#,
-            &[&payload.match_id, &payload.entry_datetime, players],
+            &[&payload.match_id, &payload.entry_datetime, &players],
         )
         .await?;
-    persist_equipment(transaction, payload.match_id, players).await?;
-    persist_account_merges(transaction, players).await?;
+    persist_equipment(transaction, payload.match_id, &players).await?;
+    persist_account_merges(transaction, &players).await?;
     Ok(())
 }
 
@@ -1679,17 +1683,40 @@ fn player_bool(player: &Value, name: &str) -> bool {
 }
 
 fn normalized_region(region: &str) -> String {
-    let trimmed = region.trim();
-    if trimmed.is_empty() {
-        "Unknown".to_owned()
-    } else {
-        trimmed.to_owned()
+    canonical_region(region)
+}
+
+fn canonicalized_player_regions(players: &Value) -> Value {
+    let mut normalized = players.clone();
+    if let Some(rows) = normalized.as_array_mut() {
+        for row in rows {
+            if let Some(player) = row.as_object_mut() {
+                let region = player
+                    .get("region")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                player.insert("region".to_owned(), json!(canonical_region(region)));
+            }
+        }
     }
+    normalized
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canonicalizes_player_regions_before_fact_persistence() {
+        let normalized = canonicalized_player_regions(&json!([
+            {"player_id": 1, "region": "Europe"},
+            {"player_id": 2, "region": "North America"},
+            {"player_id": 3, "region": ""}
+        ]));
+        assert_eq!(normalized[0]["region"], "EU");
+        assert_eq!(normalized[1]["region"], "NA");
+        assert_eq!(normalized[2]["region"], "Unknown");
+    }
 
     fn player(id: i64, team: i64, source: &str) -> Value {
         json!({

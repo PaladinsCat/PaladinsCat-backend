@@ -598,6 +598,10 @@ async fn details(
     .await
 }
 
+fn presence_cache_key(uri: &axum::http::Uri) -> String {
+    format!("{}:canonical-region-v1", stats_cache_key(uri))
+}
+
 async fn cached_payload(
     state: StatsState,
     uri: axum::http::Uri,
@@ -609,7 +613,7 @@ async fn cached_payload(
     let stale_ttl_seconds = presence_stale_ttl_seconds(&uri);
     cached_database_json(
         state.cache,
-        stats_cache_key(&uri),
+        presence_cache_key(&uri),
         CACHE_TTL_SECONDS,
         stale_ttl_seconds,
         &request_id,
@@ -658,5 +662,11 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(presence_stale_ttl_seconds(&uri), CACHE_TTL_SECONDS * 3);
+    }
+
+    #[test]
+    fn presence_cache_is_versioned_for_canonical_regions() {
+        let uri: axum::http::Uri = "/stats/presence?view=activity-v4".parse().unwrap();
+        assert!(presence_cache_key(&uri).ends_with(":canonical-region-v1"));
     }
 }
