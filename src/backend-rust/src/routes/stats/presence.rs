@@ -239,7 +239,11 @@ async fn hourly_presence(
     State(state): State<StatsState>,
     Extension(request_id): Extension<RequestId>,
     Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+    Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
+    let selected_queue_id = queue_id(&query)?;
+    let mut params = Vec::new();
+    let evidence_ctes = ctes(selected_queue_id, &mut params);
     let sql = format!(
         "WITH {}, public_ids AS MATERIALIZED (SELECT DISTINCT player_id FROM participation), \
          resolved AS MATERIALIZED (SELECT identity.player_id,COALESCE( \
@@ -259,13 +263,18 @@ async fn hourly_presence(
            {canonical_region} AS region,COUNT(DISTINCT participation.player_id)::int AS players \
            FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3) \
          SELECT jsonb_build_object('window_hours',24,'observed_at',now(), \
+           'selected_queue_id',{selected_queue},'public_players',(SELECT COUNT(*) FROM public_ids), \
+           'public_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,region),'[]'::jsonb) \
+             FROM (SELECT {canonical_region} AS region,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
            'hourly_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) \
              FROM (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(region,players) AS regions \
                FROM player_hour_regions GROUP BY date,hour)x)) AS payload",
-        EVIDENCE_CTES.replace("__QUEUE_FILTER__", "TRUE"),
+        evidence_ctes,
+        selected_queue =
+            selected_queue_id.map_or_else(|| "NULL".to_owned(), |value| value.to_string()),
         canonical_region = CANONICAL_REGION_SQL
     );
-    cached_payload(state, uri, request_id, sql, Vec::new()).await
+    cached_payload(state, uri, request_id, sql, params).await
 }
 
 async fn match_ids(
@@ -746,6 +755,7 @@ mod tests {
         assert!(include_str!("presence.rs").contains("observed_profile.region"));
         assert!(include_str!("presence.rs").contains("observed_platform.platform"));
         assert!(include_str!("presence.rs").contains("'hourly_by_region'"));
+        assert!(include_str!("presence.rs").contains("ctes(selected_queue_id, &mut params)"));
     }
 
     #[test]
