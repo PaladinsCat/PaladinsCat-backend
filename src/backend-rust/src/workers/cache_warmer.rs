@@ -36,6 +36,7 @@ const STATIC_MAIN_API_WARM_URLS: &[&str] = &[
     "/stats/champions?sort=winrate&limit=100",
     "/stats/regions",
     "/stats/platforms",
+    "/operations/stats",
     "/stats/loadouts",
     "/stats/items?mode=ranked&limit=200",
     "/stats/maps?queueId=486&limit=100",
@@ -43,6 +44,7 @@ const STATIC_MAIN_API_WARM_URLS: &[&str] = &[
     "/stats/broken-skins",
     "/stats/talents",
     "/stats/cards?limit=200",
+    "/champions/overview?scope=ranked",
     "/stats/tiers?source=profiles",
     "/stats/tiers?source=matches",
     "/stats/tiers/summary",
@@ -278,12 +280,15 @@ pub fn main_api_warm_urls() -> Vec<String> {
         "tierMin=21&tierMax=26",
     ] {
         for path in [
+            "/matches/overview",
             "/stats/overview",
             "/stats/page-data",
             "/stats/champions?sort=winrate&limit=100",
             "/stats/items?mode=ranked&limit=200",
             "/stats/maps?queueId=486&limit=100",
             "/stats/platforms",
+            "/stats/skins?limit=200",
+            "/stats/broken-skins",
             "/stats/baselines?queueId=486",
         ] {
             urls.insert(format!(

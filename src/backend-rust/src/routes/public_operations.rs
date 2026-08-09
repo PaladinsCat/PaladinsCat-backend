@@ -1,32 +1,55 @@
 use axum::{
-    Json, Router,
+    Router,
     extract::{Extension, State},
-    http::{HeaderValue, StatusCode, header::CACHE_CONTROL},
-    response::{IntoResponse, Response},
+    http::{HeaderValue, header::CACHE_CONTROL},
+    response::Response,
     routing::get,
 };
 use paladinscat_core::database::{Database, QueryParam, format_json_timestamp};
 use serde_json::{Map, Value, json};
 use time::OffsetDateTime;
 
-use crate::{error::ApiError, request::RequestId};
+use crate::{
+    error::ApiError,
+    request::{EffectiveUri, RequestId},
+    route_cache::{RouteCache, cached_database_json, canonical_route_cache_url},
+};
 
 pub const ROUTE_COUNT: usize = 1;
 
 const ACTIVE_USER_WINDOW_SECONDS: i32 = 5 * 60;
 const LIVE_SESSION_HEARTBEAT_SECONDS: i32 = 60;
+const OPERATIONS_CACHE_TTL_SECONDS: u64 = 60;
+const OPERATIONS_STALE_TTL_SECONDS: u64 = 900;
 const PUBLIC_CACHE_CONTROL: &str = "public, max-age=30, s-maxage=60, stale-while-revalidate=120";
 
-pub fn router(database: Database) -> Router {
+#[derive(Clone)]
+struct PublicOperationsState {
+    database: Database,
+    cache: RouteCache,
+}
+
+pub fn router(database: Database, cache: RouteCache) -> Router {
     Router::new()
         .route("/operations/stats", get(public_stats))
-        .with_state(database)
+        .with_state(PublicOperationsState { database, cache })
 }
 
 async fn public_stats(
-    State(database): State<Database>,
+    State(state): State<PublicOperationsState>,
     Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
 ) -> Result<Response, ApiError> {
+    let database = state.database.clone();
+    let mut response = cached_database_json(
+        state.cache,
+        format!("route:operations:{}", canonical_route_cache_url(&uri)),
+        OPERATIONS_CACHE_TTL_SECONDS,
+        OPERATIONS_STALE_TTL_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            async move {
     let totals_query = database.one_json(
         "SELECT \
            (SELECT COUNT(*)::INT FROM matches) AS matches, \
@@ -115,12 +138,11 @@ async fn public_stats(
         ingest_coverage_query,
         release_query,
     );
-    let totals = totals.map_err(|error| ApiError::database(error, &request_id))?;
-    let traffic = traffic.map_err(|error| ApiError::database(error, &request_id))?;
-    let active_users = active_users.map_err(|error| ApiError::database(error, &request_id))?;
-    let ingest_coverage =
-        ingest_coverage.map_err(|error| ApiError::database(error, &request_id))?;
-    let release = release.map_err(|error| ApiError::database(error, &request_id))?;
+    let totals = totals?;
+    let traffic = traffic?;
+    let active_users = active_users?;
+    let ingest_coverage = ingest_coverage?;
+    let release = release?;
 
     let mut traffic_summary = traffic
         .and_then(|value| value.as_object().cloned())
@@ -152,11 +174,17 @@ async fn public_stats(
         "catalog": totals,
         "ingest_coverage": ingest_coverage,
     });
-    let mut response = (StatusCode::OK, Json(payload)).into_response();
-    response.headers_mut().insert(
-        CACHE_CONTROL,
-        HeaderValue::from_static(PUBLIC_CACHE_CONTROL),
-    );
+    Ok(payload)
+            }
+        },
+    )
+    .await?;
+    if !response.headers().contains_key(CACHE_CONTROL) {
+        response.headers_mut().insert(
+            CACHE_CONTROL,
+            HeaderValue::from_static(PUBLIC_CACHE_CONTROL),
+        );
+    }
     Ok(response)
 }
 

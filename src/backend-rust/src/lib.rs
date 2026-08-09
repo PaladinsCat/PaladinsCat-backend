@@ -149,7 +149,7 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
         .merge(routes::players::router(
             database.clone(),
             foundation.redis.clone(),
-            route_cache,
+            route_cache.clone(),
             foundation.config.clone(),
         ))
         .merge(routes::auth::router(
@@ -191,7 +191,10 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             database.clone(),
             &foundation,
         ))
-        .merge(routes::public_operations::router(database))
+        .merge(routes::public_operations::router(
+            database,
+            route_cache.clone(),
+        ))
         .fallback(not_found);
     Router::new()
         // Keep the application dispatcher behind one outer service boundary.
