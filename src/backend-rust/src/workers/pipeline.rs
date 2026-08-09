@@ -746,16 +746,14 @@ impl CanonicalIngestPipeline {
         limit: usize,
         _lookback_hours: i32,
     ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition_scoped(limit, false)
-            .await
+        self.run_nonranked_acquisition_scoped(limit, false).await
     }
 
     pub async fn run_current_week_nonranked_acquisition(
         &self,
         limit: usize,
     ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition_scoped(limit, true)
-            .await
+        self.run_nonranked_acquisition_scoped(limit, true).await
     }
 
     async fn run_nonranked_acquisition_scoped(
@@ -772,7 +770,11 @@ impl CanonicalIngestPipeline {
             .await?
             .and_then(|row| row.get("reconciled").and_then(Value::as_i64))
             .unwrap_or_default();
-        tracing::info!(reconciled, recent_only, "reconciled persisted non-ranked facts before API claims");
+        tracing::info!(
+            reconciled,
+            recent_only,
+            "reconciled persisted non-ranked facts before API claims"
+        );
         self.terminalize_interrupted_nonranked_claims().await?;
         let started = Instant::now();
         let max_run = Duration::from_millis(

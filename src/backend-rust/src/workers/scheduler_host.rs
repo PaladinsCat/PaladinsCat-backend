@@ -745,16 +745,16 @@ async fn dispatch(
     }
 }
 
-async fn drain_view_counts(
-    database: &Database,
-    config: &BackendConfig,
-) -> Result<Value, String> {
+async fn drain_view_counts(database: &Database, config: &BackendConfig) -> Result<Value, String> {
     let redis = RedisCache::new(&config.redis_url).map_err(|error| error.to_string())?;
     let mut posts = 0_u64;
     let mut builds = 0_u64;
     if let Some(keys) = redis.scan_keys("viewcount:posts:*").await {
         for key in keys {
-            let Some(id) = key.strip_prefix("viewcount:posts:").and_then(|s| s.parse::<i64>().ok()) else {
+            let Some(id) = key
+                .strip_prefix("viewcount:posts:")
+                .and_then(|s| s.parse::<i64>().ok())
+            else {
                 continue;
             };
             let Some(count) = redis.incr_get(&key).await else {
@@ -777,7 +777,10 @@ async fn drain_view_counts(
     }
     if let Some(keys) = redis.scan_keys("viewcount:builds:*").await {
         for key in keys {
-            let Some(id) = key.strip_prefix("viewcount:builds:").and_then(|s| s.parse::<i64>().ok()) else {
+            let Some(id) = key
+                .strip_prefix("viewcount:builds:")
+                .and_then(|s| s.parse::<i64>().ok())
+            else {
                 continue;
             };
             let Some(count) = redis.incr_get(&key).await else {
@@ -1010,7 +1013,10 @@ async fn presence_gap_candidates(
     now: OffsetDateTime,
     min_date: &str,
 ) -> Result<Vec<GapCandidate>, DatabaseError> {
-    let Some((max_date, _)) = expected_elapsed_discovery_hours(now, min_date).last().cloned() else {
+    let Some((max_date, _)) = expected_elapsed_discovery_hours(now, min_date)
+        .last()
+        .cloned()
+    else {
         return Ok(Vec::new());
     };
     let queue_ids = MATCH_COUNT_QUEUE_DEFINITIONS
@@ -1179,7 +1185,10 @@ async fn bracketed_missing_presence_hours(
         .filter(|queue| queue.track_presence && !queue.ranked)
         .map(|queue| queue.queue_id)
         .collect::<Vec<_>>();
-    let Some((max_date, max_hour)) = expected_elapsed_discovery_hours(now, min_date).last().cloned() else {
+    let Some((max_date, max_hour)) = expected_elapsed_discovery_hours(now, min_date)
+        .last()
+        .cloned()
+    else {
         return Ok(Vec::new());
     };
     let max_hour = max_hour.to_string();
@@ -1204,10 +1213,7 @@ async fn bracketed_missing_presence_hours(
         .collect())
 }
 
-fn expected_elapsed_discovery_hours(
-    now: OffsetDateTime,
-    min_date: &str,
-) -> Vec<(String, i32)> {
+fn expected_elapsed_discovery_hours(now: OffsetDateTime, min_date: &str) -> Vec<(String, i32)> {
     let latest_fetch_tick_hour = if now.minute() >= 30 {
         i32::from(now.hour())
     } else {

@@ -648,20 +648,14 @@ async fn upsert_hourly_count(
     let date = parsed.date();
     let hour = parsed.hour();
     let next_hour = (hour + 1) % 24;
-    let start_of_hour = parsed.replace_time(
-        Time::from_hms(hour, 0, 0).map_err(|_| {
-            MatchFactError::InvalidPayload(format!(
-                "upsert_hourly_count: invalid hour {hour}"
-            ))
-        })?,
-    );
-    let end_of_hour = parsed.replace_time(
-        Time::from_hms(next_hour, 0, 0).map_err(|_| {
-            MatchFactError::InvalidPayload(format!(
-                "upsert_hourly_count: invalid next hour {next_hour}"
-            ))
-        })?,
-    );
+    let start_of_hour = parsed.replace_time(Time::from_hms(hour, 0, 0).map_err(|_| {
+        MatchFactError::InvalidPayload(format!("upsert_hourly_count: invalid hour {hour}"))
+    })?);
+    let end_of_hour = parsed.replace_time(Time::from_hms(next_hour, 0, 0).map_err(|_| {
+        MatchFactError::InvalidPayload(format!(
+            "upsert_hourly_count: invalid next hour {next_hour}"
+        ))
+    })?);
 
     // Recompute region and total counts from matches table, excluding limited matches.
     // This matches TS upsertHourlyCount which uses COUNT(*) FILTER (WHERE region = $4).

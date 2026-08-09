@@ -281,7 +281,9 @@ impl RealRuntime {
                     .get(1)
                     .and_then(|v| v.as_array())
                     .map(|arr| {
-                        arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
                     })
                     .unwrap_or_default();
                 self.raw_api

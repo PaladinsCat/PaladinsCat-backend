@@ -90,7 +90,9 @@ pub fn router(
                 .oidc_issuer
                 .clone()
                 .zip(config.oidc_audience.clone())
-                .and_then(|(issuer, audience)| OidcVerifier::new(issuer, audience, config.oidc_jwks_url.clone()).ok()),
+                .and_then(|(issuer, audience)| {
+                    OidcVerifier::new(issuer, audience, config.oidc_jwks_url.clone()).ok()
+                }),
             oidc_bff_service_token: config.oidc_bff_service_token.clone(),
         })
 }
@@ -132,9 +134,24 @@ async fn oidc_exchange(
     };
     let user_id = match promote_oidc_identity(&state.database, &identity, &request_id).await? {
         OidcAdmission::User(user_id) => user_id,
-        OidcAdmission::Unlinked => return Ok(simple_error(StatusCode::FORBIDDEN, "OIDC identity is not linked")),
-        OidcAdmission::ClaimsRequired => return Ok(simple_error(StatusCode::FORBIDDEN, "A verified email, valid username, and account recovery are required before creating an account.")),
-        OidcAdmission::Collision => return Ok(simple_error(StatusCode::CONFLICT, "This OIDC account matches an existing PaladinsCat account. Use account migration or recovery; it was not linked automatically.")),
+        OidcAdmission::Unlinked => {
+            return Ok(simple_error(
+                StatusCode::FORBIDDEN,
+                "OIDC identity is not linked",
+            ));
+        }
+        OidcAdmission::ClaimsRequired => {
+            return Ok(simple_error(
+                StatusCode::FORBIDDEN,
+                "A verified email, valid username, and account recovery are required before creating an account.",
+            ));
+        }
+        OidcAdmission::Collision => {
+            return Ok(simple_error(
+                StatusCode::CONFLICT,
+                "This OIDC account matches an existing PaladinsCat account. Use account migration or recovery; it was not linked automatically.",
+            ));
+        }
     };
     let user = auth_user_row(&state.database, user_id, &request_id).await?;
     let (session, expires) = create_session(&state, user_id, &request_id).await?;
@@ -151,7 +168,11 @@ enum OidcAdmission {
     Collision,
 }
 
-async fn auth_user_row(database: &Database, user_id: i32, request_id: &RequestId) -> Result<Value, ApiError> {
+async fn auth_user_row(
+    database: &Database,
+    user_id: i32,
+    request_id: &RequestId,
+) -> Result<Value, ApiError> {
     database.one_json(
         "SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id WHERE u.id=$1",
         &[&user_id],
@@ -163,8 +184,11 @@ fn oidc_registration_claims(identity: &crate::oidc::AccessIdentity) -> Option<(S
     let email = identity.email.as_deref()?;
     let username_re = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok()?;
     let email_re = Regex::new(r"^[^\s@]{1,64}@[^\s@]{1,189}\.[^\s@]{1,63}$").ok()?;
-    (identity.email_verified && username_re.is_match(username) && email.len() <= 254 && email_re.is_match(email))
-        .then(|| (username.to_owned(), email.to_ascii_lowercase()))
+    (identity.email_verified
+        && username_re.is_match(username)
+        && email.len() <= 254
+        && email_re.is_match(email))
+    .then(|| (username.to_owned(), email.to_ascii_lowercase()))
 }
 
 async fn promote_oidc_identity(
@@ -172,10 +196,22 @@ async fn promote_oidc_identity(
     identity: &crate::oidc::AccessIdentity,
     request_id: &RequestId,
 ) -> Result<OidcAdmission, ApiError> {
-    let mut client = database.connection().await.map_err(|error| ApiError::database(error, request_id))?;
-    let transaction = client.transaction().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    let mut client = database
+        .connection()
+        .await
+        .map_err(|error| ApiError::database(error, request_id))?;
+    let transaction = client
+        .transaction()
+        .await
+        .map_err(|error| ApiError::database(error.into(), request_id))?;
     // Serialize replay of the same immutable issuer+subject before deciding to provision.
-    transaction.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, hashtextextended($2, 0)))", &[&identity.issuer, &identity.subject]).await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    transaction
+        .execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, hashtextextended($2, 0)))",
+            &[&identity.issuer, &identity.subject],
+        )
+        .await
+        .map_err(|error| ApiError::database(error.into(), request_id))?;
     if let Some(row) = transaction.query_opt(
         "UPDATE user_identities i SET migration_state='linked',last_login_at=now() FROM users active WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state IN ('linked','reset_required') AND active.id=i.user_id AND active.is_active=true RETURNING i.user_id",
         &[&identity.issuer, &identity.subject],
@@ -184,25 +220,59 @@ async fn promote_oidc_identity(
         transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
         return Ok(OidcAdmission::User(user_id));
     }
-    if transaction.query_opt("SELECT 1 FROM user_identities WHERE issuer=$1 AND subject=$2", &[&identity.issuer, &identity.subject]).await.map_err(|error| ApiError::database(error.into(), request_id))?.is_some() {
-        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    if transaction
+        .query_opt(
+            "SELECT 1 FROM user_identities WHERE issuer=$1 AND subject=$2",
+            &[&identity.issuer, &identity.subject],
+        )
+        .await
+        .map_err(|error| ApiError::database(error.into(), request_id))?
+        .is_some()
+    {
+        transaction
+            .commit()
+            .await
+            .map_err(|error| ApiError::database(error.into(), request_id))?;
         return Ok(OidcAdmission::Unlinked);
     }
     let Some((username, email)) = oidc_registration_claims(identity) else {
-        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        transaction
+            .commit()
+            .await
+            .map_err(|error| ApiError::database(error.into(), request_id))?;
         return Ok(OidcAdmission::ClaimsRequired);
     };
     // These locks make concurrent OIDC registrations deterministic; database unique indexes also cover legacy writers.
     let mut claim_locks = vec![format!("email:{email}"), format!("username:{username}")];
     claim_locks.sort();
     for claim in &claim_locks {
-        transaction.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", &[claim]).await.map_err(|error| ApiError::database(error.into(), request_id))?;
+        transaction
+            .execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                &[claim],
+            )
+            .await
+            .map_err(|error| ApiError::database(error.into(), request_id))?;
     }
     // Legacy registration writers do not take the advisory locks; this prevents a mutable-claim
     // collision from appearing between the check and insert.
-    transaction.batch_execute("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE").await.map_err(|error| ApiError::database(error.into(), request_id))?;
-    if transaction.query_opt("SELECT 1 FROM users WHERE lower(username)=lower($1) OR lower(email)=lower($2)", &[&username, &email]).await.map_err(|error| ApiError::database(error.into(), request_id))?.is_some() {
-        transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    transaction
+        .batch_execute("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE")
+        .await
+        .map_err(|error| ApiError::database(error.into(), request_id))?;
+    if transaction
+        .query_opt(
+            "SELECT 1 FROM users WHERE lower(username)=lower($1) OR lower(email)=lower($2)",
+            &[&username, &email],
+        )
+        .await
+        .map_err(|error| ApiError::database(error.into(), request_id))?
+        .is_some()
+    {
+        transaction
+            .commit()
+            .await
+            .map_err(|error| ApiError::database(error.into(), request_id))?;
         return Ok(OidcAdmission::Collision);
     }
     let salt = random_hex(16);
@@ -216,7 +286,10 @@ async fn promote_oidc_identity(
     };
     let user_id: i32 = row.get(0);
     transaction.execute("INSERT INTO user_identities(user_id,issuer,subject,migration_state,last_login_at) VALUES($1,$2,$3,'linked',now())", &[&user_id, &identity.issuer, &identity.subject]).await.map_err(|error| ApiError::database(error.into(), request_id))?;
-    transaction.commit().await.map_err(|error| ApiError::database(error.into(), request_id))?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| ApiError::database(error.into(), request_id))?;
     Ok(OidcAdmission::User(user_id))
 }
 
@@ -321,7 +394,11 @@ fn oidc_bff_authorized(state: &AuthState, headers: &HeaderMap) -> bool {
 }
 
 fn oidc_bff_token_matches(expected: Option<&str>, candidate: Option<&str>) -> bool {
-    expected.zip(candidate).is_some_and(|(expected, candidate)| crate::security::constant_time_equal_public(candidate, expected))
+    expected
+        .zip(candidate)
+        .is_some_and(|(expected, candidate)| {
+            crate::security::constant_time_equal_public(candidate, expected)
+        })
 }
 
 #[cfg(test)]
@@ -344,14 +421,27 @@ mod oidc_tests {
 
     #[tokio::test]
     async fn legacy_password_routes_are_not_mounted_by_default() {
-        let config = BackendConfig::from_lookup(|name| (name == "DATABASE_URL").then(|| "postgres://fixture".to_owned())).expect("config");
+        let config = BackendConfig::from_lookup(|name| {
+            (name == "DATABASE_URL").then(|| "postgres://fixture".to_owned())
+        })
+        .expect("config");
         let app = router(
             Database::new(&config, "oidc-route-absence").expect("database pool"),
             paladinscat_core::cache::RedisCache::new(&config.redis_url).expect("redis client"),
             std::sync::Arc::new(config),
         );
         for uri in ["/auth/register", "/auth/login", "/auth/account/password"] {
-            let response = app.clone().oneshot(Request::builder().method("POST").uri(uri).body(Body::empty()).expect("request")).await.expect("response");
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
         }
     }
@@ -359,8 +449,11 @@ mod oidc_tests {
     #[test]
     fn oidc_registration_requires_verified_bounded_claims() {
         let identity = crate::oidc::AccessIdentity {
-            issuer: "https://auth.test/realms/test".to_owned(), subject: "subject".to_owned(),
-            email_verified: true, email: Some("new@example.test".to_owned()), preferred_username: Some("new-user".to_owned()),
+            issuer: "https://auth.test/realms/test".to_owned(),
+            subject: "subject".to_owned(),
+            email_verified: true,
+            email: Some("new@example.test".to_owned()),
+            preferred_username: Some("new-user".to_owned()),
         };
         assert!(oidc_registration_claims(&identity).is_some());
         let mut unverified = identity;
@@ -375,50 +468,160 @@ mod oidc_tests {
     #[ignore = "requires PALADINSCAT_TEST_REDIS_URL and PALADINSCAT_TEST_DATABASE_URL"]
     async fn live_bff_transactions_are_one_use() {
         let redis_url = std::env::var("PALADINSCAT_TEST_REDIS_URL").expect("test redis URL");
-        let database_url = std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
+        let database_url =
+            std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
         let bff_token = "b".repeat(32);
         let config = BackendConfig::from_lookup(|name| match name {
             "DATABASE_URL" => Some(database_url.clone()),
             "REDIS_URL" => Some(redis_url.clone()),
             "PALADINSCAT_OIDC_BFF_SERVICE_TOKEN" => Some(bff_token.clone()),
             _ => None,
-        }).expect("test config");
+        })
+        .expect("test config");
         let app = router(
             Database::new(&config, "oidc-route-e2e").expect("test database pool"),
             paladinscat_core::cache::RedisCache::new(&redis_url).expect("test redis client"),
             std::sync::Arc::new(config),
         );
         async fn request(app: Router, token: Option<&str>, uri: &str, body: Value) -> StatusCode {
-            let mut request = Request::builder().method("POST").uri(uri).header("content-type", "application/json").body(Body::from(body.to_string())).expect("request");
-            if let Some(token) = token { request.headers_mut().insert(AUTHORIZATION, format!("Bearer {token}").parse().expect("authorization")); }
-            request.extensions_mut().insert(RequestId("oidc-route-e2e".to_owned()));
+            let mut request = Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request");
+            if let Some(token) = token {
+                request.headers_mut().insert(
+                    AUTHORIZATION,
+                    format!("Bearer {token}").parse().expect("authorization"),
+                );
+            }
+            request
+                .extensions_mut()
+                .insert(RequestId("oidc-route-e2e".to_owned()));
             app.oneshot(request).await.expect("response").status()
         }
         let state = "s".repeat(32);
         let transaction = json!({"state":state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
-        assert_eq!(request(app.clone(), None, "/auth/oidc/transactions", transaction.clone()).await, StatusCode::UNAUTHORIZED);
-        assert_eq!(request(app.clone(), Some("wrong"), "/auth/oidc/transactions", transaction.clone()).await, StatusCode::UNAUTHORIZED);
-        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", transaction.clone()).await, StatusCode::CREATED);
-        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", transaction).await, StatusCode::CONFLICT);
-        let concurrent_state = "c".repeat(32);
-        let concurrent = json!({"state":concurrent_state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
-        let (first, second) = tokio::join!(
-            request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", concurrent.clone()),
-            request(app.clone(), Some(&bff_token), "/auth/oidc/transactions", concurrent),
+        assert_eq!(
+            request(
+                app.clone(),
+                None,
+                "/auth/oidc/transactions",
+                transaction.clone()
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
         );
-        assert!(matches!((first, second), (StatusCode::CREATED, StatusCode::CONFLICT) | (StatusCode::CONFLICT, StatusCode::CREATED)));
-        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions/consume", json!({"state":state})).await, StatusCode::OK);
-        assert_eq!(request(app.clone(), Some(&bff_token), "/auth/oidc/transactions/consume", json!({"state":state})).await, StatusCode::UNAUTHORIZED);
-        assert_eq!(request(app.clone(), None, "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::UNAUTHORIZED);
-        assert_eq!(request(app.clone(), Some("wrong"), "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::UNAUTHORIZED);
-        assert_eq!(request(app, Some(&bff_token), "/auth/oidc/exchange", json!({"access_token":"x"})).await, StatusCode::NOT_FOUND);
+        assert_eq!(
+            request(
+                app.clone(),
+                Some("wrong"),
+                "/auth/oidc/transactions",
+                transaction.clone()
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                transaction.clone()
+            )
+            .await,
+            StatusCode::CREATED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                transaction
+            )
+            .await,
+            StatusCode::CONFLICT
+        );
+        let concurrent_state = "c".repeat(32);
+        let concurrent =
+            json!({"state":concurrent_state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
+        let (first, second) = tokio::join!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                concurrent.clone()
+            ),
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                concurrent
+            ),
+        );
+        assert!(matches!(
+            (first, second),
+            (StatusCode::CREATED, StatusCode::CONFLICT)
+                | (StatusCode::CONFLICT, StatusCode::CREATED)
+        ));
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions/consume",
+                json!({"state":state})
+            )
+            .await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions/consume",
+                json!({"state":state})
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                None,
+                "/auth/oidc/exchange",
+                json!({"access_token":"x"})
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some("wrong"),
+                "/auth/oidc/exchange",
+                json!({"access_token":"x"})
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app,
+                Some(&bff_token),
+                "/auth/oidc/exchange",
+                json!({"access_token":"x"})
+            )
+            .await,
+            StatusCode::NOT_FOUND
+        );
 
         let promotion_config = BackendConfig::from_lookup(|name| {
             (name == "DATABASE_URL").then(|| database_url.clone())
         })
         .expect("database config");
-        let database = Database::new(&promotion_config, "oidc-promotion-e2e")
-            .expect("promotion database");
+        let database =
+            Database::new(&promotion_config, "oidc-promotion-e2e").expect("promotion database");
         for sql in [
             "CREATE TABLE users(id SERIAL PRIMARY KEY,username TEXT NOT NULL,email TEXT NOT NULL,password_hash TEXT NOT NULL,salt TEXT NOT NULL,avatar_url TEXT,bio TEXT,time_zone TEXT,is_admin BOOLEAN NOT NULL DEFAULT false,is_approved BOOLEAN NOT NULL DEFAULT false,created_at TIMESTAMPTZ,last_login TIMESTAMPTZ,linked_player_id INTEGER,is_active BOOLEAN NOT NULL DEFAULT true,updated_at TIMESTAMPTZ)",
             "CREATE UNIQUE INDEX test_users_username ON users(username)",
@@ -442,25 +645,71 @@ mod oidc_tests {
             email: Some("new@example.test".to_owned()),
             preferred_username: Some("new-user".to_owned()),
         };
-        assert!(matches!(promote_oidc_identity(&database, &identity("reset"), &request_id).await.expect("reset promotion"), OidcAdmission::User(1)));
-        assert!(matches!(promote_oidc_identity(&database, &identity("disabled"), &request_id).await.expect("disabled admission"), OidcAdmission::Unlinked));
-        assert!(matches!(promote_oidc_identity(&database, &identity("inactive"), &request_id).await.expect("inactive admission"), OidcAdmission::Unlinked));
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("reset"), &request_id)
+                .await
+                .expect("reset promotion"),
+            OidcAdmission::User(1)
+        ));
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("disabled"), &request_id)
+                .await
+                .expect("disabled admission"),
+            OidcAdmission::Unlinked
+        ));
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("inactive"), &request_id)
+                .await
+                .expect("inactive admission"),
+            OidcAdmission::Unlinked
+        ));
         let mut collision = identity("collision");
         collision.preferred_username = Some("reset".to_owned());
-        assert!(matches!(promote_oidc_identity(&database, &collision, &request_id).await.expect("legacy collision"), OidcAdmission::Collision));
+        assert!(matches!(
+            promote_oidc_identity(&database, &collision, &request_id)
+                .await
+                .expect("legacy collision"),
+            OidcAdmission::Collision
+        ));
         let mut unverified = identity("unverified");
         unverified.email_verified = false;
-        assert!(matches!(promote_oidc_identity(&database, &unverified, &request_id).await.expect("unverified claim"), OidcAdmission::ClaimsRequired));
+        assert!(matches!(
+            promote_oidc_identity(&database, &unverified, &request_id)
+                .await
+                .expect("unverified claim"),
+            OidcAdmission::ClaimsRequired
+        ));
         let replay = identity("replay");
         let (first, second) = tokio::join!(
             promote_oidc_identity(&database, &replay, &request_id),
             promote_oidc_identity(&database, &replay, &request_id),
         );
-        assert!(matches!(first.expect("first replay"), OidcAdmission::User(4)));
-        assert!(matches!(second.expect("second replay"), OidcAdmission::User(4)));
-        assert_eq!(database.query_json("SELECT id FROM users WHERE username='new-user'", &[]).await.expect("single provision").len(), 1);
+        assert!(matches!(
+            first.expect("first replay"),
+            OidcAdmission::User(4)
+        ));
+        assert!(matches!(
+            second.expect("second replay"),
+            OidcAdmission::User(4)
+        ));
+        assert_eq!(
+            database
+                .query_json("SELECT id FROM users WHERE username='new-user'", &[])
+                .await
+                .expect("single provision")
+                .len(),
+            1
+        );
         let states = database.query_json("SELECT subject,migration_state,last_login_at IS NOT NULL AS logged_in FROM user_identities ORDER BY subject", &[]).await.expect("promotion states");
-        assert_eq!(states, vec![json!({"subject":"disabled","migration_state":"disabled","logged_in":false}), json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}), json!({"subject":"replay","migration_state":"linked","logged_in":true}), json!({"subject":"reset","migration_state":"linked","logged_in":true})]);
+        assert_eq!(
+            states,
+            vec![
+                json!({"subject":"disabled","migration_state":"disabled","logged_in":false}),
+                json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}),
+                json!({"subject":"replay","migration_state":"linked","logged_in":true}),
+                json!({"subject":"reset","migration_state":"linked","logged_in":true})
+            ]
+        );
     }
 }
 

@@ -177,7 +177,9 @@ fn normalize_region(value: &str) -> String {
         // Latin America North/South are not in REGION_MAP/VALID_SHORT_CODES →
         // TS normalizeRegion flags them Unknown. Short-code SA is valid.
         "south america" | "sa" => "SA".to_owned(),
-        "latin america north" | "latam north" | "latin america south" | "latam south" => "Unknown".to_owned(),
+        "latin america north" | "latam north" | "latin america south" | "latam south" => {
+            "Unknown".to_owned()
+        }
         "southeast asia" | "sea" => "SEA".to_owned(),
         "australia" | "oceania" | "oce" => "OCE".to_owned(),
         "japan" | "jpn" => "JPN".to_owned(),

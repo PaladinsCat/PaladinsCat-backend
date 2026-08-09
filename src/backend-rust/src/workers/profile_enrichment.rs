@@ -712,7 +712,10 @@ mod tests {
         assert_eq!(normalized_region(Some("NA".to_owned())), "NA");
         assert_eq!(normalized_region(Some("North America".to_owned())), "NA");
         assert_eq!(normalized_region(Some("Europe".to_owned())), "EU");
-        assert_eq!(normalized_region(Some("Latin America North".to_owned())), "Unknown");
+        assert_eq!(
+            normalized_region(Some("Latin America North".to_owned())),
+            "Unknown"
+        );
         assert_eq!(normalized_region(Some("Australia".to_owned())), "OCE");
         assert_eq!(calculated_level(0, 999), 999);
         assert!(synthetic_name("DummyPlayer1234"));

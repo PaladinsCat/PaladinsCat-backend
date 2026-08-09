@@ -391,7 +391,12 @@ impl KeyPool {
             .keys
             .iter()
             .position(|key| !key.is_backup && usable(key))
-            .or_else(|| inner.keys.iter().position(|key| key.is_backup && usable(key)))
+            .or_else(|| {
+                inner
+                    .keys
+                    .iter()
+                    .position(|key| key.is_backup && usable(key))
+            })
         else {
             return Ok(None);
         };

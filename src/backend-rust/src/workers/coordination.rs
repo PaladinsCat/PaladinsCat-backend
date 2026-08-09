@@ -477,9 +477,7 @@ mod tests {
             .next()
             .expect("acquire_job only");
         assert!(acquire_job.contains("OR NOT EXISTS ("));
-        assert!(acquire_job.contains(
-            "previous_ownership.owner_id = worker_job_leases.owner_id"
-        ));
+        assert!(acquire_job.contains("previous_ownership.owner_id = worker_job_leases.owner_id"));
         assert!(acquire_job.contains("previous_ownership.lease_until > now()"));
     }
 

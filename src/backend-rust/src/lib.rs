@@ -19,8 +19,8 @@ use crate::foundation::FoundationState;
 
 pub mod error;
 pub mod foundation;
-pub mod operators;
 pub mod oidc;
+pub mod operators;
 mod raw_hirez_audit;
 pub mod request;
 pub mod route_cache;

@@ -291,10 +291,12 @@ async fn rebuild_derived_projections(
         "match_player_cards",
         "card_id",
         true,
-)
+    )
     .await?;
     // Rebuild match_compositions_ranked from source facts (parity with TS derived-projection-tracker).
-    transaction.execute("DELETE FROM match_compositions_ranked", &[]).await?;
+    transaction
+        .execute("DELETE FROM match_compositions_ranked", &[])
+        .await?;
     transaction.execute(
         "\
          WITH team_comps AS (\
@@ -324,7 +326,9 @@ async fn rebuild_derived_projections(
         &[],
     ).await?;
     // Rebuild legacy match_compositions from tier-bucketed projection.
-    transaction.execute("DELETE FROM match_compositions", &[]).await?;
+    transaction
+        .execute("DELETE FROM match_compositions", &[])
+        .await?;
     transaction.execute(
         "INSERT INTO match_compositions(comp_id,frontline,damage,flank,support,count,wins,losses,winrate,updated_at)\
          SELECT comp_id,frontline,damage,flank,support,SUM(count)::INT,SUM(wins)::INT,SUM(losses)::INT,\
