@@ -968,9 +968,9 @@ async fn login(
     let user = state
         .database
         .one_json(
-            "SELECT u.id,u.username,u.email,u.password_hash,u.salt,u.avatar_url,u.bio,u.time_zone, \\
-               u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name \\
-             FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id \\
+            "SELECT u.id,u.username,u.email,u.password_hash,u.salt,u.avatar_url,u.bio,u.time_zone,
+               u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name
+             FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id
              WHERE lower(u.username)=lower($1) OR lower(u.email)=lower($1) LIMIT 1",
             &[&identifier],
         )

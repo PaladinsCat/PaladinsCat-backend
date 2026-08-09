@@ -69,6 +69,12 @@ participation AS MATERIALIZED (
   SELECT player_id,match_id,queue_id,queue_name,stats_scope,observed_at,observed_region,observed_name
   FROM roster_evidence WHERE player_id>0 AND participant_kind='human'
 ),
+latest_observed_region AS MATERIALIZED (
+  SELECT DISTINCT ON (player_id) player_id,NULLIF(BTRIM(observed_region),'') AS region
+  FROM participation WHERE NULLIF(BTRIM(observed_region),'') IS NOT NULL
+    AND UPPER(BTRIM(observed_region))<>'UNKNOWN'
+  ORDER BY player_id,observed_at DESC,match_id DESC
+),
 roster_summary AS MATERIALIZED (
   SELECT match_id,
     COUNT(DISTINCT player_id) FILTER(WHERE player_id>0 AND participant_kind='human')::int AS known_public_players,
@@ -179,13 +185,8 @@ async fn presence(
                FROM players p WHERE p.active_player_id=identity.player_id \
                  AND p.active_player_id>0 AND p.id<>identity.player_id) candidate \
              ORDER BY priority,hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1 \
-           ) resolved_profile ON TRUE LEFT JOIN LATERAL ( \
-             SELECT NULLIF(BTRIM(candidate.observed_region),'') AS region \
-             FROM participation candidate WHERE candidate.player_id=identity.player_id \
-               AND NULLIF(BTRIM(candidate.observed_region),'') IS NOT NULL \
-               AND UPPER(BTRIM(candidate.observed_region))<>'UNKNOWN' \
-             ORDER BY candidate.observed_at DESC,candidate.match_id DESC LIMIT 1 \
-           ) observed_profile ON TRUE \
+           ) resolved_profile ON TRUE LEFT JOIN latest_observed_region observed_profile \
+             ON observed_profile.player_id=identity.player_id \
          ) SELECT jsonb_build_object( \
            'window_hours',24,'observed_at',now(), \
            'public_players',(SELECT COUNT(*) FROM public_ids), \
@@ -696,6 +697,7 @@ mod tests {
         assert!(CANONICAL_REGION_SQL.contains("WHEN 'europe' THEN 'EU'"));
         assert!(CANONICAL_REGION_SQL.contains("WHEN 'north america' THEN 'NA'"));
         assert!(EVIDENCE_CTES.contains("d.region AS observed_region"));
+        assert!(EVIDENCE_CTES.contains("latest_observed_region AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("observed_profile.region"));
     }
 }
