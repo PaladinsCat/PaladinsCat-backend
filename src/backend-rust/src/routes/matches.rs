@@ -30,19 +30,27 @@ use crate::{
 };
 
 const RANKED_QUEUE_ID: i32 = 486;
-const CASUAL_HOURLY_SQL: &str = "SELECT d.source_date::text AS date,d.source_hour AS hour,d.queue_id, \
-  CASE LOWER(BTRIM(COALESCE(NULLIF(casual.region,''),NULLIF(special.region,''),NULLIF(d.region,''),'Unknown'))) \
+const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
+  SELECT date,hour,queue_id,region,match_count::int AS total_matches \
+  FROM match_count_discovery_region_hours \
+  WHERE date::text IN ($1,$2) AND queue_id<>$3 AND UPPER(BTRIM(COALESCE(region,'')))<>'UNKNOWN' \
+  UNION ALL SELECT d.source_date,d.source_hour,d.queue_id, \
+  COALESCE(NULLIF(casual.region,''),NULLIF(special.region,''),NULLIF(d.region,''),'Unknown') AS region, \
+  COUNT(DISTINCT d.match_id)::int AS total_matches \
+  FROM match_count_discoveries d LEFT JOIN casual_matches casual ON casual.match_id=d.match_id \
+  LEFT JOIN special_matches special ON special.match_id=d.match_id \
+  WHERE d.source_date::text IN ($1,$2) AND d.queue_id<>$3 \
+    AND UPPER(BTRIM(COALESCE(d.region,''))) IN ('','UNKNOWN') \
+  GROUP BY d.source_date,d.source_hour,d.queue_id,region \
+) SELECT date::text AS date,hour,queue_id,CASE LOWER(BTRIM(COALESCE(region,'Unknown'))) \
     WHEN 'north america' THEN 'NA' WHEN 'na' THEN 'NA' WHEN 'europe' THEN 'EU' WHEN 'eu' THEN 'EU' \
     WHEN 'brazil' THEN 'BR' WHEN 'br' THEN 'BR' WHEN 'southeast asia' THEN 'SEA' WHEN 'sea' THEN 'SEA' \
     WHEN 'australia' THEN 'OCE' WHEN 'oceania' THEN 'OCE' WHEN 'oce' THEN 'OCE' \
     WHEN 'japan' THEN 'JPN' WHEN 'jpn' THEN 'JPN' WHEN 'russia' THEN 'RUS' WHEN 'rus' THEN 'RUS' \
     WHEN 'south america' THEN 'SA' WHEN 'sa' THEN 'SA' WHEN 'asia' THEN 'ASIA' \
     ELSE COALESCE(NULLIF(BTRIM(COALESCE(NULLIF(casual.region,''),NULLIF(special.region,''),NULLIF(d.region,''))),''),'Unknown') END AS region, \
-  COUNT(DISTINCT d.match_id)::int AS total_matches \
-FROM match_count_discoveries d LEFT JOIN casual_matches casual ON casual.match_id=d.match_id \
-LEFT JOIN special_matches special ON special.match_id=d.match_id \
-WHERE d.source_date::text IN ($1,$2) AND d.queue_id<>$3 \
-GROUP BY d.source_date,d.source_hour,d.queue_id,region ORDER BY date,hour,queue_id,region";
+  SUM(total_matches)::int AS total_matches FROM rows \
+GROUP BY date,hour,queue_id,region ORDER BY date,hour,queue_id,region";
 const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
@@ -2710,7 +2718,9 @@ mod tests {
                 .contains("NULLIF(casual.region,''),NULLIF(special.region,''),NULLIF(d.region,'')")
         );
         assert!(CASUAL_HOURLY_SQL.contains("WHEN 'europe' THEN 'EU'"));
-        assert!(!CASUAL_HOURLY_SQL.contains("match_count_discovery_region_hours"));
+        assert!(
+            CASUAL_HOURLY_SQL.contains("UPPER(BTRIM(COALESCE(d.region,''))) IN ('','UNKNOWN')")
+        );
     }
 
     #[test]

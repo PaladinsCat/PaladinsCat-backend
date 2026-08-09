@@ -118,6 +118,7 @@ match_uncertainty AS MATERIALIZED (
 pub(super) fn router() -> Router<StatsState> {
     Router::new()
         .route("/stats/presence", get(presence))
+        .route("/stats/presence/hourly", get(hourly_presence))
         .route("/stats/presence/match-ids", get(match_ids))
         .route("/stats/presence/players", get(players))
         .route("/stats/presence/details", get(details))
@@ -197,11 +198,6 @@ async fn presence(
            ) resolved_profile ON TRUE LEFT JOIN latest_observed_region observed_profile \
              ON observed_profile.player_id=identity.player_id \
            LEFT JOIN latest_observed_platform observed_platform ON observed_platform.player_id=identity.player_id \
-         ), player_hour_regions AS MATERIALIZED ( \
-           SELECT (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
-             EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
-             {canonical_region} AS region,COUNT(DISTINCT participation.player_id)::int AS players \
-           FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3 \
          ) SELECT jsonb_build_object( \
            'window_hours',24,'observed_at',now(), \
            'public_players',(SELECT COUNT(*) FROM public_ids), \
@@ -227,15 +223,45 @@ async fn presence(
              (SELECT COALESCE(NULLIF(BTRIM(platform),''),'Unknown') AS platform,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
            'public_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,region),'[]'::jsonb) FROM \
              (SELECT {canonical_region} AS region,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
-           'public_hourly_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) FROM \
-             (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(region,players) AS regions \
-               FROM player_hour_regions GROUP BY date,hour)x), \
            'profile_coverage',jsonb_build_object('total',(SELECT COUNT(*) FROM resolved), \
              'fresh',(SELECT COUNT(*) FROM resolved WHERE hirez_profile_refreshed_at>=now()-interval '24 hours'), \
              'platform_known',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NOT NULL), \
              'platform_unknown',(SELECT COUNT(*) FROM resolved WHERE NULLIF(BTRIM(platform),'') IS NULL), \
              'last_enrichment_at',(SELECT MAX(last_attempt_at)::text FROM player_activity_profile_refresh)) \
          ) AS payload",
+        EVIDENCE_CTES.replace("__QUEUE_FILTER__", "TRUE"),
+        canonical_region = CANONICAL_REGION_SQL
+    );
+    cached_payload(state, uri, request_id, sql, Vec::new()).await
+}
+
+async fn hourly_presence(
+    State(state): State<StatsState>,
+    Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+) -> Result<Response, ApiError> {
+    let sql = format!(
+        "WITH {}, public_ids AS MATERIALIZED (SELECT DISTINCT player_id FROM participation), \
+         resolved AS MATERIALIZED (SELECT identity.player_id,COALESCE( \
+           CASE WHEN LOWER(BTRIM(COALESCE(profile.region,''))) IN \
+             ('','unknown','latin america north','latam north','latin america south','latam south') \
+             THEN NULL ELSE profile.region END,observed.region) AS region \
+           FROM public_ids identity LEFT JOIN LATERAL ( \
+             SELECT candidate.region FROM (SELECT p.region,0 AS priority,p.hirez_profile_refreshed_at \
+               FROM players p WHERE p.id=identity.player_id UNION ALL \
+               SELECT p.region,1,p.hirez_profile_refreshed_at FROM players p \
+               WHERE p.active_player_id=identity.player_id AND p.active_player_id>0 AND p.id<>identity.player_id \
+             ) candidate ORDER BY priority,hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1 \
+           ) profile ON TRUE LEFT JOIN latest_observed_region observed ON observed.player_id=identity.player_id), \
+         player_hour_regions AS MATERIALIZED (SELECT \
+           (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
+           EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
+           {canonical_region} AS region,COUNT(DISTINCT participation.player_id)::int AS players \
+           FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3) \
+         SELECT jsonb_build_object('window_hours',24,'observed_at',now(), \
+           'hourly_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) \
+             FROM (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(region,players) AS regions \
+               FROM player_hour_regions GROUP BY date,hour)x)) AS payload",
         EVIDENCE_CTES.replace("__QUEUE_FILTER__", "TRUE"),
         canonical_region = CANONICAL_REGION_SQL
     );
@@ -719,7 +745,7 @@ mod tests {
         assert!(EVIDENCE_CTES.contains("latest_observed_platform AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("observed_profile.region"));
         assert!(include_str!("presence.rs").contains("observed_platform.platform"));
-        assert!(include_str!("presence.rs").contains("'public_hourly_by_region'"));
+        assert!(include_str!("presence.rs").contains("'hourly_by_region'"));
     }
 
     #[test]
