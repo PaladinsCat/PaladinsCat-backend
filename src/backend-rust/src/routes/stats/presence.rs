@@ -249,26 +249,41 @@ async fn hourly_presence(
          resolved AS MATERIALIZED (SELECT identity.player_id,COALESCE( \
            CASE WHEN LOWER(BTRIM(COALESCE(profile.region,''))) IN \
              ('','unknown','latin america north','latam north','latin america south','latam south') \
-             THEN NULL ELSE profile.region END,observed.region) AS region \
+             THEN NULL ELSE profile.region END,observed.region) AS region,COALESCE( \
+           CASE WHEN UPPER(BTRIM(COALESCE(profile.platform,''))) IN ('','UNKNOWN') \
+             THEN NULL ELSE profile.platform END,observed_platform.platform,'Unknown') AS platform \
            FROM public_ids identity LEFT JOIN LATERAL ( \
-             SELECT candidate.region FROM (SELECT p.region,0 AS priority,p.hirez_profile_refreshed_at \
+             SELECT candidate.region,candidate.platform FROM (SELECT p.region,p.platform,0 AS priority,p.hirez_profile_refreshed_at \
                FROM players p WHERE p.id=identity.player_id UNION ALL \
-               SELECT p.region,1,p.hirez_profile_refreshed_at FROM players p \
+               SELECT p.region,p.platform,1,p.hirez_profile_refreshed_at FROM players p \
                WHERE p.active_player_id=identity.player_id AND p.active_player_id>0 AND p.id<>identity.player_id \
              ) candidate ORDER BY priority,hirez_profile_refreshed_at DESC NULLS LAST LIMIT 1 \
-           ) profile ON TRUE LEFT JOIN latest_observed_region observed ON observed.player_id=identity.player_id), \
+           ) profile ON TRUE LEFT JOIN latest_observed_region observed ON observed.player_id=identity.player_id \
+           LEFT JOIN latest_observed_platform observed_platform ON observed_platform.player_id=identity.player_id), \
          player_hour_regions AS MATERIALIZED (SELECT \
            (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
            EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
            {canonical_region} AS region,COUNT(DISTINCT participation.player_id)::int AS players \
            FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3) \
+         ,player_hour_platforms AS MATERIALIZED (SELECT \
+           (participation.observed_at AT TIME ZONE 'UTC')::date::text AS date, \
+           EXTRACT(HOUR FROM participation.observed_at AT TIME ZONE 'UTC')::int AS hour, \
+           COALESCE(NULLIF(BTRIM(resolved.platform),''),'Unknown') AS platform, \
+           COUNT(DISTINCT participation.player_id)::int AS players \
+           FROM participation JOIN resolved USING(player_id) GROUP BY 1,2,3) \
          SELECT jsonb_build_object('window_hours',24,'observed_at',now(), \
            'selected_queue_id',{selected_queue},'public_players',(SELECT COUNT(*) FROM public_ids), \
            'public_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,region),'[]'::jsonb) \
              FROM (SELECT {canonical_region} AS region,COUNT(*)::int AS players FROM resolved GROUP BY 1)x), \
+           'public_by_platform',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY players DESC,platform),'[]'::jsonb) \
+             FROM (SELECT COALESCE(NULLIF(BTRIM(platform),''),'Unknown') AS platform,COUNT(*)::int AS players \
+               FROM resolved GROUP BY 1)x), \
            'hourly_by_region',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) \
              FROM (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(region,players) AS regions \
-               FROM player_hour_regions GROUP BY date,hour)x)) AS payload",
+               FROM player_hour_regions GROUP BY date,hour)x), \
+           'hourly_by_platform',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY date,hour),'[]'::jsonb) \
+             FROM (SELECT date,hour,SUM(players)::int AS total,jsonb_object_agg(platform,players) AS platforms \
+               FROM player_hour_platforms GROUP BY date,hour)x)) AS payload",
         evidence_ctes,
         selected_queue =
             selected_queue_id.map_or_else(|| "NULL".to_owned(), |value| value.to_string()),
@@ -755,6 +770,8 @@ mod tests {
         assert!(include_str!("presence.rs").contains("observed_profile.region"));
         assert!(include_str!("presence.rs").contains("observed_platform.platform"));
         assert!(include_str!("presence.rs").contains("'hourly_by_region'"));
+        assert!(include_str!("presence.rs").contains("'hourly_by_platform'"));
+        assert!(include_str!("presence.rs").contains("player_hour_platforms AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("ctes(selected_queue_id, &mut params)"));
     }
 
