@@ -724,13 +724,16 @@ async fn cached_payload(
 }
 
 fn presence_stale_ttl_seconds(uri: &axum::http::Uri) -> u64 {
-    if uri.path() == "/stats/presence"
-        && uri.query().is_some_and(|query| {
-            form_urlencoded::parse(query.as_bytes())
-                .find(|(key, _)| key == "view")
-                .is_some_and(|(_, value)| value == "activity-v4")
-        })
-    {
+    let expected_view = match uri.path() {
+        "/stats/presence" => "activity-v4",
+        "/stats/presence/hourly" => "activity-v3",
+        _ => return CACHE_TTL_SECONDS * 3,
+    };
+    if uri.query().is_some_and(|query| {
+        form_urlencoded::parse(query.as_bytes())
+            .find(|(key, _)| key == "view")
+            .is_some_and(|(_, value)| value == expected_view)
+    }) {
         ACTIVITY_STALE_TTL_SECONDS
     } else {
         CACHE_TTL_SECONDS * 3
@@ -749,6 +752,15 @@ mod tests {
         let uri: axum::http::Uri = "/stats/presence?view=default&view=activity-v4"
             .parse()
             .unwrap();
+        assert_eq!(presence_stale_ttl_seconds(&uri), CACHE_TTL_SECONDS * 3);
+    }
+
+    #[test]
+    fn hourly_activity_uses_stale_while_refreshing() {
+        let uri: axum::http::Uri = "/stats/presence/hourly?view=activity-v3".parse().unwrap();
+        assert_eq!(presence_stale_ttl_seconds(&uri), ACTIVITY_STALE_TTL_SECONDS);
+
+        let uri: axum::http::Uri = "/stats/presence/hourly?view=default".parse().unwrap();
         assert_eq!(presence_stale_ttl_seconds(&uri), CACHE_TTL_SECONDS * 3);
     }
 
