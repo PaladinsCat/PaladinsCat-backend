@@ -352,7 +352,17 @@ impl WorkerCoordinationRepository {
                   heartbeat_at = now(),
                   attempt = worker_job_leases.attempt + 1,
                   updated_at = now()
-                WHERE worker_job_leases.lease_until <= now()
+                WHERE (
+                    worker_job_leases.lease_until <= now()
+                    OR NOT EXISTS (
+                      SELECT 1
+                      FROM worker_scheduler_ownership previous_ownership
+                      WHERE previous_ownership.scheduler_key = worker_job_leases.scheduler_key
+                        AND previous_ownership.owner_id = worker_job_leases.owner_id
+                        AND previous_ownership.engine = 'rust'
+                        AND previous_ownership.lease_until > now()
+                    )
+                  )
                   AND EXISTS (
                     SELECT 1
                     FROM worker_scheduler_ownership ownership
@@ -454,6 +464,23 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(unique.len(), 6);
         assert_eq!(unique.len(), SCHEDULER_KEYS.len());
+    }
+
+    #[test]
+    fn dead_scheduler_owner_does_not_hold_job_lease_until_expiry() {
+        let source = include_str!("coordination.rs");
+        let acquire_job = source
+            .split("pub async fn acquire_job")
+            .nth(1)
+            .expect("acquire_job body")
+            .split("pub async fn release_job")
+            .next()
+            .expect("acquire_job only");
+        assert!(acquire_job.contains("OR NOT EXISTS ("));
+        assert!(acquire_job.contains(
+            "previous_ownership.owner_id = worker_job_leases.owner_id"
+        ));
+        assert!(acquire_job.contains("previous_ownership.lease_until > now()"));
     }
 
     #[tokio::test]
