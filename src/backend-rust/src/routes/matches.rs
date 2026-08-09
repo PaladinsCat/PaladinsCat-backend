@@ -48,7 +48,7 @@ const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
     WHEN 'australia' THEN 'OCE' WHEN 'oceania' THEN 'OCE' WHEN 'oce' THEN 'OCE' \
     WHEN 'japan' THEN 'JPN' WHEN 'jpn' THEN 'JPN' WHEN 'russia' THEN 'RUS' WHEN 'rus' THEN 'RUS' \
     WHEN 'south america' THEN 'SA' WHEN 'sa' THEN 'SA' WHEN 'asia' THEN 'ASIA' \
-    ELSE COALESCE(NULLIF(BTRIM(COALESCE(NULLIF(casual.region,''),NULLIF(special.region,''),NULLIF(d.region,''))),''),'Unknown') END AS region, \
+    ELSE COALESCE(NULLIF(BTRIM(region),''),'Unknown') END AS region, \
   SUM(total_matches)::int AS total_matches FROM rows \
 GROUP BY 1,2,3,4 ORDER BY 1,2,3,4";
 const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
