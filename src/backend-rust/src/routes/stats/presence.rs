@@ -415,7 +415,7 @@ async fn details(
         params.push(QueryParam::Int32(cursor.queue_id));
         let queue_id = params.len();
         predicates.push(format!(
-            "(d.source_date,d.source_hour,d.match_id,d.queue_id)<(${date}::date,${hour},${match_id},${queue_id})"
+            "(d.source_date,d.source_hour,d.match_id,d.queue_id)<(((${date}::text)::date),${hour},${match_id},${queue_id})"
         ));
     }
     params.push(QueryParam::Int64(i64::from(limit + 1)));
@@ -699,5 +699,10 @@ mod tests {
         assert!(EVIDENCE_CTES.contains("d.region AS observed_region"));
         assert!(EVIDENCE_CTES.contains("latest_observed_region AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("observed_profile.region"));
+    }
+
+    #[test]
+    fn detail_cursor_binds_date_through_text() {
+        assert!(include_str!("presence.rs").contains("((${date}::text)::date)"));
     }
 }
