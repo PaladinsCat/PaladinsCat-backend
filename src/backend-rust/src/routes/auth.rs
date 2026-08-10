@@ -32,7 +32,6 @@ const SESSION_TTL_HOURS: i64 = 72;
 const LINK_COOLDOWN_SECONDS: i32 = 30;
 const LINK_MAX_ATTEMPTS: i32 = 5;
 const LINK_LOCKOUT_MINUTES: i32 = 10;
-const REGISTER_INSERT_SQL: &str = "INSERT INTO users(username,email,password_hash,salt,updated_at) VALUES($1,$2,$3,$4,now()) RETURNING id,username,email,avatar_url,bio,time_zone,is_admin,is_approved,created_at,last_login,linked_player_id";
 
 #[derive(Clone)]
 struct AuthState {
@@ -88,7 +87,6 @@ pub fn router(
         router
     } else {
         router
-            .route("/auth/register", post(register))
             .route("/auth/login", post(login))
             .route("/auth/account/password", post(change_password))
     };
@@ -441,12 +439,6 @@ mod oidc_tests {
         assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
     }
 
-    #[test]
-    fn legacy_registration_insert_is_valid_sql_text() {
-        assert!(!REGISTER_INSERT_SQL.contains('\\'));
-        assert!(REGISTER_INSERT_SQL.contains(" RETURNING "));
-    }
-
     #[tokio::test]
     async fn legacy_password_routes_follow_identity_cutover() {
         let app = |cutover: bool| {
@@ -462,7 +454,7 @@ mod oidc_tests {
                 std::sync::Arc::new(config),
             )
         };
-        for uri in ["/auth/register", "/auth/login", "/auth/account/password"] {
+        for uri in ["/auth/login", "/auth/account/password"] {
             let response = app(false)
                 .clone()
                 .oneshot(
@@ -486,6 +478,23 @@ mod oidc_tests {
                 .await
                 .expect("response");
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+        }
+        for cutover in [false, true] {
+            let response = app(cutover)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/auth/register")
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(
+                response.status(),
+                StatusCode::NOT_FOUND,
+                "registration is Keycloak-only"
+            );
         }
     }
 
@@ -886,88 +895,6 @@ fn text(body: &Value, field: &str) -> String {
         .unwrap_or_default()
         .trim()
         .to_owned()
-}
-
-async fn register(
-    State(state): State<AuthState>,
-    Extension(request_id): Extension<RequestId>,
-    Json(body): Json<Value>,
-) -> Result<Response, ApiError> {
-    let username = text(&body, "username");
-    let email = text(&body, "email").to_ascii_lowercase();
-    let password = body
-        .get("password")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if username.is_empty() || email.is_empty() || password.is_empty() {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Missing required fields: username, email, password",
-        ));
-    }
-    let Some(username_re) = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok() else {
-        return Err(ApiError::internal(&request_id));
-    };
-    if !username_re.is_match(&username) {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Username must be 3-32 characters and use only letters, numbers, underscore, or dash",
-        ));
-    }
-    let Some(email_re) = Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").ok() else {
-        return Err(ApiError::internal(&request_id));
-    };
-    if !email_re.is_match(&email) {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Invalid email address",
-        ));
-    }
-    if password.chars().count() < 6 {
-        return Ok(simple_error(
-            StatusCode::BAD_REQUEST,
-            "Password must be at least 6 characters",
-        ));
-    }
-    if let Some(existing) = state
-        .database
-        .one_json(
-            "SELECT username,email FROM users WHERE lower(username)=lower($1) OR lower(email)=lower($2) LIMIT 1",
-            &[&username, &email],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?
-    {
-        let field = if existing
-            .get("username")
-            .and_then(Value::as_str)
-            .is_some_and(|value| value.eq_ignore_ascii_case(&username))
-        {
-            "username"
-        } else {
-            "email"
-        };
-        return Ok(simple_error(
-            StatusCode::CONFLICT,
-            format!("That {field} is already registered"),
-        ));
-    }
-    let salt = random_hex(16);
-    let hash = password_hash(password, &salt);
-    let user = state
-        .database
-        .one_json(REGISTER_INSERT_SQL, &[&username, &email, &hash, &salt])
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?
-        .ok_or_else(|| ApiError::internal(&request_id))?;
-    let user_id = as_i64(user.get("id"))
-        .and_then(|value| i32::try_from(value).ok())
-        .ok_or_else(|| ApiError::internal(&request_id))?;
-    let (token, expires) = create_session(&state, user_id, &request_id).await?;
-    Ok(json_response(
-        StatusCode::OK,
-        json!({"message":"User registered","token":token,"expires_at":expires,"user":auth_user(&user)}),
-    ))
 }
 
 async fn login(
