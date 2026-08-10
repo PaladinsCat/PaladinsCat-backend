@@ -201,7 +201,9 @@ pub fn validate_access_token(
     if header.alg != Algorithm::RS256 {
         return Err(TokenError::Algorithm);
     }
-    if !matches!(header.typ.as_deref(), Some("at+jwt" | "JWT")) {
+    // Keycloak 26.7 emits `typ=Bearer` for access tokens. Identity tokens use
+    // distinct types and remain rejected before signature/claim validation.
+    if !matches!(header.typ.as_deref(), Some("at+jwt" | "JWT" | "Bearer")) {
         return Err(TokenError::TokenType);
     }
     if header.kid.as_deref().filter(|v| !v.is_empty()).is_none() {
@@ -267,6 +269,14 @@ mod tests {
         assert_eq!(
             validate_access_token(&token, "https://issuer", "api", &key),
             Err(TokenError::TokenType)
+        );
+        let token = format!(
+            "{}.e30.signature",
+            URL_SAFE_NO_PAD.encode(r#"{"alg":"RS256","typ":"Bearer","kid":"x"}"#)
+        );
+        assert_eq!(
+            validate_access_token(&token, "https://issuer", "api", &key),
+            Err(TokenError::Invalid)
         );
     }
     #[test]
