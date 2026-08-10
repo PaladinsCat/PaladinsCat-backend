@@ -191,14 +191,26 @@ async fn auth_user_row(
 
 fn oidc_registration_claims(identity: &crate::oidc::AccessIdentity) -> Option<(String, String)> {
     let username = identity.preferred_username.as_deref()?;
-    let email = identity.email.as_deref()?;
     let username_re = Regex::new(r"^[A-Za-z0-9_-]{3,32}$").ok()?;
     let email_re = Regex::new(r"^[^\s@]{1,64}@[^\s@]{1,189}\.[^\s@]{1,63}$").ok()?;
-    (identity.email_verified
-        && username_re.is_match(username)
-        && email.len() <= 254
-        && email_re.is_match(email))
-    .then(|| (username.to_owned(), email.to_ascii_lowercase()))
+    if !username_re.is_match(username) {
+        return None;
+    }
+    let email = match (identity.email_verified, identity.email.as_deref()) {
+        (true, Some(email)) if email.len() <= 254 && email_re.is_match(email) => {
+            email.to_ascii_lowercase()
+        }
+        _ => {
+            // Until verified SMTP is available, never trust or reserve an unverified
+            // address. Derive an internal-only address from the immutable OIDC identity.
+            let mut digest = Sha256::new();
+            digest.update(identity.issuer.as_bytes());
+            digest.update([0]);
+            digest.update(identity.subject.as_bytes());
+            format!("oidc-{:x}@id.paladinscat.invalid", digest.finalize())
+        }
+    };
+    Some((username.to_owned(), email))
 }
 
 async fn promote_oidc_identity(
@@ -478,7 +490,7 @@ mod oidc_tests {
     }
 
     #[test]
-    fn oidc_registration_requires_verified_bounded_claims() {
+    fn oidc_registration_ignores_unverified_email_and_bounds_username() {
         let identity = crate::oidc::AccessIdentity {
             issuer: "https://auth.test/realms/test".to_owned(),
             subject: "subject".to_owned(),
@@ -487,10 +499,16 @@ mod oidc_tests {
             preferred_username: Some("new-user".to_owned()),
         };
         assert!(oidc_registration_claims(&identity).is_some());
-        let mut unverified = identity;
-        unverified.email_verified = false;
-        assert!(oidc_registration_claims(&unverified).is_none());
-        unverified.email_verified = true;
+        let mut unverified = crate::oidc::AccessIdentity {
+            email_verified: false,
+            ..identity
+        };
+        let first = oidc_registration_claims(&unverified).expect("unverified identity");
+        assert!(first.1.starts_with("oidc-"));
+        assert!(first.1.ends_with("@id.paladinscat.invalid"));
+        assert_eq!(oidc_registration_claims(&unverified), Some(first.clone()));
+        unverified.email = Some("attacker@example.test".to_owned());
+        assert_eq!(oidc_registration_claims(&unverified), Some(first));
         unverified.preferred_username = Some("x".repeat(33));
         assert!(oidc_registration_claims(&unverified).is_none());
     }
