@@ -731,11 +731,12 @@ mod oidc_tests {
         ));
         let mut unverified = identity("unverified");
         unverified.email_verified = false;
+        unverified.preferred_username = Some("unverified-user".to_owned());
         assert!(matches!(
             promote_oidc_identity(&database, &unverified, &request_id)
                 .await
                 .expect("unverified claim"),
-            OidcAdmission::ClaimsRequired
+            OidcAdmission::User(4)
         ));
         let replay = identity("replay");
         let (first, second) = tokio::join!(
@@ -744,11 +745,11 @@ mod oidc_tests {
         );
         assert!(matches!(
             first.expect("first replay"),
-            OidcAdmission::User(4)
+            OidcAdmission::User(5)
         ));
         assert!(matches!(
             second.expect("second replay"),
-            OidcAdmission::User(4)
+            OidcAdmission::User(5)
         ));
         assert_eq!(
             database
@@ -765,7 +766,8 @@ mod oidc_tests {
                 json!({"subject":"disabled","migration_state":"disabled","logged_in":false}),
                 json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}),
                 json!({"subject":"replay","migration_state":"linked","logged_in":true}),
-                json!({"subject":"reset","migration_state":"linked","logged_in":true})
+                json!({"subject":"reset","migration_state":"linked","logged_in":true}),
+                json!({"subject":"unverified","migration_state":"linked","logged_in":true})
             ]
         );
     }
