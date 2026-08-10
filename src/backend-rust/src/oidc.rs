@@ -211,6 +211,7 @@ pub fn validate_access_token(
     }
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_issuer(&[issuer]);
+    validation.set_audience(&[audience]);
     validation.validate_nbf = true;
     let decoded = decode::<Claims>(token, key, &validation).map_err(|_| TokenError::Invalid)?;
     let audience_matches = match decoded.claims.aud {
