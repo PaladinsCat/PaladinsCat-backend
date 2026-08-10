@@ -22,12 +22,7 @@ pub(crate) async fn session(
     headers: &HeaderMap,
     request_id: &RequestId,
 ) -> Result<Option<Session>, ApiError> {
-    let Some(token) = headers
-        .get(AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .filter(|value| !value.is_empty())
-    else {
+    let Some(token) = session_token(headers) else {
         return Ok(None);
     };
     let token_hash = format!("{:x}", Sha256::digest(token.as_bytes()));
@@ -55,6 +50,47 @@ pub(crate) async fn session(
             linked_player_id: as_i64(row.get("linked_player_id")),
         })
     }))
+}
+
+fn session_token(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            headers
+                .get("cookie")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| {
+                    value.split(';').find_map(|part| {
+                        part.trim()
+                            .strip_prefix("__Host-pc_session=")
+                            .filter(|value| !value.is_empty())
+                    })
+                })
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::session_token;
+    use axum::http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
+
+    #[test]
+    fn accepts_oidc_cookie_and_prefers_bearer_session() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            HeaderValue::from_static("other=x; __Host-pc_session=cookie-token"),
+        );
+        assert_eq!(session_token(&headers), Some("cookie-token"));
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_static("Bearer bearer-token"),
+        );
+        assert_eq!(session_token(&headers), Some("bearer-token"));
+    }
 }
 
 pub(crate) async fn require_session(
