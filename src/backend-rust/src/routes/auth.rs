@@ -32,6 +32,7 @@ const SESSION_TTL_HOURS: i64 = 72;
 const LINK_COOLDOWN_SECONDS: i32 = 30;
 const LINK_MAX_ATTEMPTS: i32 = 5;
 const LINK_LOCKOUT_MINUTES: i32 = 10;
+const REGISTER_INSERT_SQL: &str = "INSERT INTO users(username,email,password_hash,salt,updated_at) VALUES($1,$2,$3,$4,now()) RETURNING id,username,email,avatar_url,bio,time_zone,is_admin,is_approved,created_at,last_login,linked_player_id";
 
 #[derive(Clone)]
 struct AuthState {
@@ -426,6 +427,12 @@ mod oidc_tests {
         assert!(oidc_state(&json!({"state":"x".repeat(32)})).is_some());
         assert!(oidc_state(&json!({"state":"x".repeat(31)})).is_none());
         assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
+    }
+
+    #[test]
+    fn legacy_registration_insert_is_valid_sql_text() {
+        assert!(!REGISTER_INSERT_SQL.contains('\\'));
+        assert!(REGISTER_INSERT_SQL.contains(" RETURNING "));
     }
 
     #[tokio::test]
@@ -931,11 +938,7 @@ async fn register(
     let hash = password_hash(password, &salt);
     let user = state
         .database
-        .one_json(
-            "INSERT INTO users(username,email,password_hash,salt,updated_at) VALUES($1,$2,$3,$4,now()) \\
-             RETURNING id,username,email,avatar_url,bio,time_zone,is_admin,is_approved,created_at,last_login,linked_player_id",
-            &[&username, &email, &hash, &salt],
-        )
+        .one_json(REGISTER_INSERT_SQL, &[&username, &email, &hash, &salt])
         .await
         .map_err(|error| ApiError::database(error, &request_id))?
         .ok_or_else(|| ApiError::internal(&request_id))?;
