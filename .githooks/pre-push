@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "[repository-boundary] BLOCKED: remote policy is not configured for this extracted repository." >&2
+exit 1
