@@ -69,6 +69,7 @@ struct PlayerFact {
     kills: i32,
     deaths: i32,
     assists: i32,
+    damage_done_in_hand: Option<i32>,
     damage: i32,
     damage_taken: i32,
     healing: i32,
@@ -489,6 +490,10 @@ fn player_fact(player: &Value, definition: MatchCountQueueDefinition, direct: bo
         kills: i32_field(&["kills", "Kills_Player", "Kills"]),
         deaths: i32_field(&["deaths", "Deaths"]),
         assists: i32_field(&["assists", "Assists"]),
+        damage_done_in_hand: optional_i32(
+            Some(player),
+            &["damage_done_in_hand", "Damage_Done_In_Hand"],
+        ),
         damage: i32_field(&[
             "Damage_Player",
             "damage_done_physical",
@@ -645,8 +650,8 @@ async fn write_player_facts(
         let champion = (fact.champion_id > 0).then_some(fact.champion_id);
         let eligible = complete && fact.kind == "human" && fact.champion_id > 0;
         let raw_player = compact_raw_player(raw);
-        transaction.execute(&format!("INSERT INTO {table}(match_id,roster_slot,private_slot,player_id,player_name,champion_id,champion_name,task_force,win_status,kills,deaths,assists,damage,damage_taken,healing,mitigation,credits,objective_time,account_level,mastery_level,party_id,portal_id,portal_user_id,platform,participant_kind,source,stats_eligible,raw_player) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::jsonb)"),
-          &[&match_id,&roster_slot,&private,&fact.player_id,&fact.player_name,&champion,&fact.champion_name,&(fact.task_force as i16),&fact.win_status,&fact.kills,&fact.deaths,&fact.assists,&fact.damage,&fact.damage_taken,&fact.healing,&fact.mitigation,&fact.credits,&fact.objective_time,&fact.account_level,&fact.mastery_level,&(fact.party_id as i32),&fact.portal_id,&fact.portal_user_id,&fact.platform,&fact.kind,&fact.source,&eligible,&raw_player]).await?;
+        transaction.execute(&format!("INSERT INTO {table}(match_id,roster_slot,private_slot,player_id,player_name,champion_id,champion_name,task_force,win_status,kills,deaths,assists,damage_done_in_hand,damage,damage_taken,healing,mitigation,credits,objective_time,account_level,mastery_level,party_id,portal_id,portal_user_id,platform,participant_kind,source,stats_eligible,raw_player) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb)"),
+          &[&match_id,&roster_slot,&private,&fact.player_id,&fact.player_name,&champion,&fact.champion_name,&(fact.task_force as i16),&fact.win_status,&fact.kills,&fact.deaths,&fact.assists,&fact.damage_done_in_hand,&fact.damage,&fact.damage_taken,&fact.healing,&fact.mitigation,&fact.credits,&fact.objective_time,&fact.account_level,&fact.mastery_level,&(fact.party_id as i32),&fact.portal_id,&fact.portal_user_id,&fact.platform,&fact.kind,&fact.source,&eligible,&raw_player]).await?;
     }
     Ok(())
 }
@@ -876,5 +881,20 @@ mod tests {
             normalize_provider_datetime("8/2/2026 1:02:03 AM").as_deref(),
             Some("2026-08-02T01:02:03Z")
         );
+    }
+
+    #[test]
+    fn direct_nonranked_facts_preserve_weapon_damage_for_per_minute_metrics() {
+        let fact = player_fact(
+            &json!({
+                "player_id": 7,
+                "Damage_Done_In_Hand": 50_022,
+                "Damage_Player": 62_086
+            }),
+            get_match_queue_definition(424),
+            true,
+        );
+        assert_eq!(fact.damage_done_in_hand, Some(50_022));
+        assert_eq!(fact.damage, 62_086);
     }
 }

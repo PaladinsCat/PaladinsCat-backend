@@ -51,7 +51,7 @@ const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
     ELSE COALESCE(NULLIF(BTRIM(region),''),'Unknown') END AS region, \
   SUM(total_matches)::int AS total_matches FROM rows \
 GROUP BY 1,2,3,4 ORDER BY 1,2,3,4";
-const MATCH_DETAIL_CACHE_VERSION: i32 = 14;
+const MATCH_DETAIL_CACHE_VERSION: i32 = 15;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
 
@@ -377,20 +377,31 @@ async fn format_match(
         };
         let players = state.database.query_json(
             "WITH facts AS ( \
-               SELECT match_id,roster_slot,private_slot,player_id,private_player_id,player_name,champion_id, \
-                 champion_name,task_force,win_status,kills,deaths,assists,damage,damage_taken,healing,mitigation, \
-                 credits,objective_time,account_level,mastery_level,party_id,portal_id,portal_user_id,platform, \
-                 participant_kind,source FROM casual_match_players WHERE match_id=$1 \
-               UNION ALL SELECT match_id,roster_slot,private_slot,player_id,private_player_id,player_name,champion_id, \
-                 champion_name,task_force,win_status,kills,deaths,assists,damage,damage_taken,healing,mitigation, \
-                 credits,objective_time,account_level,mastery_level,party_id,portal_id,portal_user_id,platform, \
-                 participant_kind,source FROM special_match_players WHERE match_id=$1), \
+               SELECT p.match_id,p.roster_slot,p.private_slot,p.player_id,p.private_player_id,p.player_name,p.champion_id, \
+                 p.champion_name,p.task_force,p.win_status,p.kills,p.deaths,p.assists,p.damage_done_in_hand,p.damage,p.damage_taken, \
+                 p.healing,p.mitigation,p.credits,p.objective_time,p.account_level,p.mastery_level,p.party_id,p.portal_id, \
+                 p.portal_user_id,p.platform,p.participant_kind,p.source,m.duration_seconds \
+               FROM casual_match_players p JOIN casual_matches m USING(match_id) WHERE p.match_id=$1 \
+               UNION ALL SELECT p.match_id,p.roster_slot,p.private_slot,p.player_id,p.private_player_id,p.player_name,p.champion_id, \
+                 p.champion_name,p.task_force,p.win_status,p.kills,p.deaths,p.assists,p.damage_done_in_hand,p.damage,p.damage_taken, \
+                 p.healing,p.mitigation,p.credits,p.objective_time,p.account_level,p.mastery_level,p.party_id,p.portal_id, \
+                 p.portal_user_id,p.platform,p.participant_kind,p.source,m.duration_seconds \
+               FROM special_match_players p JOIN special_matches m USING(match_id) WHERE p.match_id=$1), \
              party_groups AS (SELECT party_id FROM facts WHERE party_id>0 GROUP BY party_id HAVING COUNT(*)>1), \
              party_numbered AS (SELECT party_id,ROW_NUMBER() OVER (ORDER BY party_id) AS party_num FROM party_groups) \
              SELECT f.match_id,f.player_id,f.private_slot,f.player_name,f.champion_id, \
                COALESCE(c.name,f.champion_name) AS champion_name,f.task_force,f.win_status,f.kills,f.deaths,f.assists, \
+               COALESCE(f.damage_done_in_hand,CASE WHEN COALESCE(history.raw_data->>'Damage_Done_In_Hand','') ~ '^[0-9]{1,10}$' \
+                 THEN (history.raw_data->>'Damage_Done_In_Hand')::INT END) AS damage_done_in_hand, \
                f.damage AS damage_done_physical,f.damage_taken,f.healing,f.mitigation AS damage_mitigated, \
                f.credits AS gold_earned,f.objective_time AS objective_assists,f.account_level,f.mastery_level, \
+               ROUND((f.kills::NUMERIC+f.assists::NUMERIC/2)/GREATEST(f.deaths,1),2)::DOUBLE PRECISION AS kda, \
+               CASE WHEN f.duration_seconds>0 THEN ROUND(f.damage::NUMERIC*60/f.duration_seconds,2)::DOUBLE PRECISION ELSE 0 END AS damage_per_minute, \
+               CASE WHEN f.duration_seconds>0 THEN ROUND(f.healing::NUMERIC*60/f.duration_seconds,2)::DOUBLE PRECISION ELSE 0 END AS healing_per_minute, \
+               CASE WHEN f.duration_seconds>0 THEN ROUND(f.mitigation::NUMERIC*60/f.duration_seconds,2)::DOUBLE PRECISION ELSE 0 END AS mitigation_per_minute, \
+               CASE WHEN f.duration_seconds>0 THEN ROUND(f.credits::NUMERIC*60/f.duration_seconds,2)::DOUBLE PRECISION ELSE 0 END AS gold_per_minute, \
+               CASE WHEN f.duration_seconds>0 THEN ROUND((f.credits-500)::NUMERIC*60/f.duration_seconds,2)::DOUBLE PRECISION ELSE 0 END AS egpm, \
+               f.duration_seconds AS time_in_match,0 AS healing_self,0::DOUBLE PRECISION AS healing_self_per_minute,0::DOUBLE PRECISION AS afk_rate, \
                f.party_id,COALESCE(pn.party_num,0::bigint) AS party,f.portal_id,f.portal_user_id,f.platform,f.participant_kind,f.source, \
                f.private_player_id,pp.alias AS private_account_alias,pp.verified_name AS private_account_verified_name, \
                COALESCE(pp.verified_name,pp.alias) AS private_account_display_name, \
@@ -409,6 +420,7 @@ async fn format_match(
              FROM facts f LEFT JOIN champions c ON c.id=f.champion_id \
              LEFT JOIN players p ON p.id=f.player_id \
              LEFT JOIN players_private pp ON pp.id=f.private_player_id \
+             LEFT JOIN player_match_history_entries history ON history.match_id=f.match_id AND history.player_id=f.player_id AND f.player_id>0 \
              LEFT JOIN party_numbered pn ON pn.party_id=f.party_id ORDER BY f.task_force,f.roster_slot",
             &[&match_id],
         ).await.map_err(|error| ApiError::database(error,request_id))?;
