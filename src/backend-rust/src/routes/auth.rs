@@ -1439,7 +1439,7 @@ async fn check_link_verification(
         .database
         .one_json(
             "UPDATE player_link_verifications verification SET attempt_count=attempt_count+1,last_attempt_at=now(), \
-               next_attempt_at=now()+make_interval(secs=>$2) FROM players player \
+               next_attempt_at=now()+make_interval(secs=>$2::INT) FROM players player \
              WHERE verification.user_id=$1 AND player.id=verification.player_id AND verification.expires_at>now() \
                AND verification.attempt_count<$3 AND(verification.next_attempt_at IS NULL OR verification.next_attempt_at<=now()) \
                AND(verification.locked_until IS NULL OR verification.locked_until<=now()) \
