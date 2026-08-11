@@ -97,6 +97,8 @@ pub enum ConfigError {
     InvalidOidcJwksUrl,
     #[error("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN must contain at least 32 bytes")]
     OidcBffTokenTooShort,
+    #[error("unable to read {0}: {1}")]
+    SecretFile(&'static str, String),
 }
 
 impl BackendConfig {
@@ -122,8 +124,16 @@ impl BackendConfig {
             .unwrap_or_else(|| DEFAULT_HIREZ_RELAY_URL.to_owned())
             .trim_end_matches('/')
             .to_owned();
-        let service_token = nonempty(lookup("PALADINSCAT_SERVICE_TOKEN"));
-        let previous_service_token = nonempty(lookup("PALADINSCAT_SERVICE_TOKEN_PREVIOUS"));
+        let service_token = secret_value(
+            &lookup,
+            "PALADINSCAT_SERVICE_TOKEN",
+            "PALADINSCAT_SERVICE_TOKEN_FILE",
+        )?;
+        let previous_service_token = secret_value(
+            &lookup,
+            "PALADINSCAT_SERVICE_TOKEN_PREVIOUS",
+            "PALADINSCAT_SERVICE_TOKEN_PREVIOUS_FILE",
+        )?;
         validate_service_tokens(service_token.as_deref(), previous_service_token.as_deref())?;
         let developer_api_key_sha256 = nonempty(lookup("PALADINSCAT_DEVELOPER_API_KEY_SHA256"));
         if developer_api_key_sha256
@@ -135,12 +145,12 @@ impl BackendConfig {
         let oidc_issuer = nonempty(lookup("PALADINSCAT_OIDC_ISSUER"));
         let oidc_audience = nonempty(lookup("PALADINSCAT_OIDC_AUDIENCE"));
         let oidc_jwks_url = nonempty(lookup("PALADINSCAT_OIDC_JWKS_URL"));
-        let oidc_bff_service_token = nonempty(lookup("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN"))
-            .or_else(|| {
-                nonempty(lookup("PALADINSCAT_OIDC_BFF_SERVICE_TOKEN_FILE"))
-                    .and_then(|path| fs::read_to_string(path).ok())
-                    .and_then(|value| nonempty(Some(value)))
-            });
+        let oidc_bff_service_token = secret_value(
+            &lookup,
+            "PALADINSCAT_OIDC_BFF_SERVICE_TOKEN",
+            "PALADINSCAT_OIDC_BFF_SERVICE_TOKEN_FILE",
+        )?;
+        let admin_secret = secret_value(&lookup, "ADMIN_SECRET", "ADMIN_SECRET_FILE")?;
         if oidc_issuer.is_some() != oidc_audience.is_some() {
             return Err(ConfigError::IncompleteOidcConfiguration);
         }
@@ -208,7 +218,7 @@ impl BackendConfig {
             oidc_bff_service_token,
             service_token,
             previous_service_token,
-            admin_secret: nonempty(lookup("ADMIN_SECRET")),
+            admin_secret,
             developer_api_key_sha256,
             developer_api_key_sha256_file: nonempty(lookup(
                 "PALADINSCAT_DEVELOPER_API_KEY_SHA256_FILE",
@@ -238,6 +248,22 @@ impl BackendConfig {
             ),
         })
     }
+}
+
+fn secret_value(
+    lookup: &impl Fn(&str) -> Option<String>,
+    value_name: &'static str,
+    file_name: &'static str,
+) -> Result<Option<String>, ConfigError> {
+    if let Some(value) = nonempty(lookup(value_name)) {
+        return Ok(Some(value));
+    }
+    let Some(path) = nonempty(lookup(file_name)) else {
+        return Ok(None);
+    };
+    let value = fs::read_to_string(&path)
+        .map_err(|error| ConfigError::SecretFile(file_name, error.to_string()))?;
+    Ok(nonempty(Some(value)))
 }
 
 pub fn valid_oidc_jwks_url(value: &str) -> bool {

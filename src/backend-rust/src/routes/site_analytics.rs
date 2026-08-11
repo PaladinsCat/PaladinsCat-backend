@@ -106,6 +106,13 @@ async fn touch(
         .ok()
         .filter(|value| !value.trim().is_empty())
         .or_else(|| std::env::var("ADMIN_SECRET").ok())
+        .or_else(|| {
+            std::env::var("ADMIN_SECRET_FILE")
+                .ok()
+                .and_then(|path| std::fs::read_to_string(path).ok())
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+        })
         .unwrap_or_else(|| "paladinscat-anonymous-analytics".to_owned());
     let digest = format!(
         "{:x}",

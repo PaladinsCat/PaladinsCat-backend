@@ -257,8 +257,15 @@ fn required_env(name: &str) -> String {
     std::env::var(name)
         .ok()
         .filter(|value| !value.is_empty())
+        .or_else(|| {
+            std::env::var(format!("{name}_FILE"))
+                .ok()
+                .and_then(|path| std::fs::read_to_string(path).ok())
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+        })
         .unwrap_or_else(|| {
-            eprintln!("{name} is required");
+            eprintln!("{name} or {name}_FILE is required");
             std::process::exit(78);
         })
 }
