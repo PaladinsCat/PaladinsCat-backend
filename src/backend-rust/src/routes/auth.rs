@@ -233,7 +233,7 @@ async fn promote_oidc_identity(
         .await
         .map_err(|error| ApiError::database(error.into(), request_id))?;
     if let Some(row) = transaction.query_opt(
-        "UPDATE user_identities i SET migration_state='linked',last_login_at=now() FROM users active WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state IN ('linked','reset_required') AND active.id=i.user_id AND active.is_active=true RETURNING i.user_id",
+        "UPDATE user_identities i SET migration_state='linked',last_login_at=now() FROM users active WHERE i.issuer=$1 AND i.subject=$2 AND i.migration_state IN ('legacy','linked','reset_required') AND active.id=i.user_id AND active.is_active=true RETURNING i.user_id",
         &[&identity.issuer, &identity.subject],
     ).await.map_err(|error| ApiError::database(error.into(), request_id))? {
         let user_id: i32 = row.get(0);
@@ -686,9 +686,9 @@ mod oidc_tests {
             "CREATE UNIQUE INDEX test_users_email ON users(email)",
             "CREATE TABLE players(id INTEGER PRIMARY KEY,name TEXT)",
             "CREATE TABLE user_identities(user_id INTEGER NOT NULL,issuer TEXT NOT NULL,subject TEXT NOT NULL,migration_state TEXT NOT NULL,last_login_at TIMESTAMPTZ,PRIMARY KEY(issuer,subject))",
-            "INSERT INTO users(id,username,email,password_hash,salt,is_active) VALUES(1,'reset','reset@test','x','x',true),(2,'disabled','disabled@test','x','x',true),(3,'inactive','inactive@test','x','x',false)",
-            "SELECT setval(pg_get_serial_sequence('users','id'), 3)",
-            "INSERT INTO user_identities(user_id,issuer,subject,migration_state) VALUES(1,'https://auth.test/realms/test','reset','reset_required'),(2,'https://auth.test/realms/test','disabled','disabled'),(3,'https://auth.test/realms/test','inactive','reset_required')",
+            "INSERT INTO users(id,username,email,password_hash,salt,is_active) VALUES(1,'reset','reset@test','x','x',true),(2,'disabled','disabled@test','x','x',true),(3,'inactive','inactive@test','x','x',false),(4,'legacy','legacy@test','x','x',true)",
+            "SELECT setval(pg_get_serial_sequence('users','id'), 4)",
+            "INSERT INTO user_identities(user_id,issuer,subject,migration_state) VALUES(1,'https://auth.test/realms/test','reset','reset_required'),(2,'https://auth.test/realms/test','disabled','disabled'),(3,'https://auth.test/realms/test','inactive','reset_required'),(4,'https://auth.test/realms/test','legacy','legacy')",
         ] {
             database
                 .query_json(sql, &[])
@@ -703,6 +703,12 @@ mod oidc_tests {
             email: Some("new@example.test".to_owned()),
             preferred_username: Some("new-user".to_owned()),
         };
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("legacy"), &request_id)
+                .await
+                .expect("legacy promotion"),
+            OidcAdmission::User(4)
+        ));
         assert!(matches!(
             promote_oidc_identity(&database, &identity("reset"), &request_id)
                 .await
@@ -736,7 +742,7 @@ mod oidc_tests {
             promote_oidc_identity(&database, &unverified, &request_id)
                 .await
                 .expect("unverified claim"),
-            OidcAdmission::User(4)
+            OidcAdmission::User(5)
         ));
         let replay = identity("replay");
         let (first, second) = tokio::join!(
@@ -745,11 +751,11 @@ mod oidc_tests {
         );
         assert!(matches!(
             first.expect("first replay"),
-            OidcAdmission::User(5)
+            OidcAdmission::User(6)
         ));
         assert!(matches!(
             second.expect("second replay"),
-            OidcAdmission::User(5)
+            OidcAdmission::User(6)
         ));
         assert_eq!(
             database
@@ -765,6 +771,7 @@ mod oidc_tests {
             vec![
                 json!({"subject":"disabled","migration_state":"disabled","logged_in":false}),
                 json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}),
+                json!({"subject":"legacy","migration_state":"linked","logged_in":true}),
                 json!({"subject":"replay","migration_state":"linked","logged_in":true}),
                 json!({"subject":"reset","migration_state":"linked","logged_in":true}),
                 json!({"subject":"unverified","migration_state":"linked","logged_in":true})
