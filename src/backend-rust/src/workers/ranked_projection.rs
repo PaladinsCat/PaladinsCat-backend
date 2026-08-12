@@ -1,8 +1,6 @@
 use paladinscat_core::database::{Database, DatabaseError};
 
-use super::projections::{
-    project_performance, project_performance_many, project_scalable, project_scalable_many,
-};
+use super::projections::{project_performance_many, project_scalable_many};
 use super::rating::{RatingApplicationResult, RatingRepository};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -79,6 +77,29 @@ impl RankedProjectionRepository {
         Ok(())
     }
 
+    async fn finish_cumulative_stages(
+        &self,
+        match_id: i64,
+        needs_performance: bool,
+        needs_scalable: bool,
+    ) -> Result<bool, RankedProjectionError> {
+        if needs_performance {
+            self.project_performance_batch(&[match_id]).await?;
+        }
+        if needs_scalable {
+            self.project_scalable_batch(&[match_id]).await?;
+        }
+        self.database
+            .query_json(
+                "UPDATE match_ingest_status SET status='complete',acquisition_state='complete',\
+                 completed_at=COALESCE(completed_at,now()),lease_owner=NULL,lease_until=NULL,updated_at=now() \
+                 WHERE match_id=$1 AND completed_stages@>ARRAY['ranked_stats','performance_projections','scalable_stats']::TEXT[]",
+                &[&match_id],
+            )
+            .await?;
+        Ok(needs_performance || needs_scalable)
+    }
+
     pub async fn project_match(
         &self,
         match_id: i64,
@@ -132,23 +153,13 @@ impl RankedProjectionRepository {
                 .iter()
                 .any(|stage| stage == "performance_projections");
             let needs_scalable = !stages.iter().any(|stage| stage == "scalable_stats");
-            if needs_performance {
-                project_performance(&transaction, match_id).await?;
-            }
-            if needs_scalable {
-                project_scalable(&transaction, match_id).await?;
-            }
-            if needs_performance || needs_scalable {
-                transaction
-                    .execute(
-                        "UPDATE match_ingest_status SET completed_stages=(SELECT array_agg(DISTINCT stage ORDER BY stage) FROM unnest(completed_stages||ARRAY['performance_projections','scalable_stats']::TEXT[]) stage),status='complete',acquisition_state='complete',completed_at=COALESCE(completed_at,now()),lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE match_id=$1",
-                        &[&match_id],
-                    )
-                    .await?;
-                transaction.commit().await?;
+            transaction.commit().await?;
+            if self
+                .finish_cumulative_stages(match_id, needs_performance, needs_scalable)
+                .await?
+            {
                 return Ok(RankedProjectionResult::Projected);
             }
-            transaction.commit().await?;
             return Ok(RankedProjectionResult::AlreadyProjected);
         }
         let eligible = transaction
@@ -330,18 +341,15 @@ impl RankedProjectionRepository {
             .await?;
         project_compositions(&transaction, match_id).await?;
         project_relationships(&transaction, match_id).await?;
-        project_performance(&transaction, match_id).await?;
-        project_scalable(&transaction, match_id).await?;
         transaction
             .execute(
                 "UPDATE match_ingest_status SET completed_stages=(SELECT array_agg(DISTINCT stage ORDER BY stage) \
-                   FROM unnest(completed_stages||ARRAY['ranked_stats','performance_projections','scalable_stats']::TEXT[]) stage),\
-                 status='complete',acquisition_state='complete',completed_at=COALESCE(completed_at,now()),\
-                 lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE match_id=$1",
+                   FROM unnest(completed_stages||ARRAY['ranked_stats']::TEXT[]) stage),updated_at=now() WHERE match_id=$1",
                 &[&match_id],
             )
             .await?;
         transaction.commit().await?;
+        self.finish_cumulative_stages(match_id, true, true).await?;
         Ok(RankedProjectionResult::Projected)
     }
 }
@@ -398,4 +406,33 @@ async fn project_relationships(
         &[&match_id],
     ).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    const SOURCE: &str = include_str!("ranked_projection.rs");
+
+    #[test]
+    fn ranked_stage_commits_before_resumable_cumulative_stages() {
+        let body = SOURCE
+            .split_once("pub async fn project_match")
+            .expect("project_match")
+            .1
+            .split_once("async fn project_compositions")
+            .expect("project_match end")
+            .0;
+        let ranked_stage = body
+            .rfind("completed_stages||ARRAY['ranked_stats']")
+            .expect("ranked stage update");
+        let commit = body[ranked_stage..]
+            .find("transaction.commit().await?")
+            .map(|offset| ranked_stage + offset)
+            .expect("ranked stage commit");
+        let cumulative = body[commit..]
+            .find("finish_cumulative_stages")
+            .map(|offset| commit + offset)
+            .expect("cumulative stages");
+        assert!(ranked_stage < commit && commit < cumulative);
+        assert!(!body.contains("ARRAY['ranked_stats','performance_projections','scalable_stats']"));
+    }
 }
