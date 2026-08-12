@@ -655,7 +655,7 @@ fn map_changelog_entry(row: &Value) -> Value {
     json!({
         "id": value(row, "id"),
         "component": changelog_component(row),
-        "version": value(row, "version"),
+        "version": changelog_version(row),
         "gitCommit": string_or_empty(row, "git_commit"),
         "gitCommitShort": normalized_commit_short(row),
         "gitBranch": string_or_empty(row, "git_branch"),
@@ -671,6 +671,18 @@ fn map_changelog_entry(row: &Value) -> Value {
             "patch"
         },
     })
+}
+
+fn changelog_version(row: &Value) -> Value {
+    row.get("metadata")
+        .and_then(|metadata| metadata.get("componentVersion"))
+        .filter(|version| {
+            version
+                .as_str()
+                .is_some_and(|value| !value.trim().is_empty())
+        })
+        .cloned()
+        .unwrap_or_else(|| value(row, "version"))
 }
 
 fn changelog_component(row: &Value) -> String {
@@ -909,6 +921,21 @@ mod tests {
         assert_eq!(
             changelog_component(&json!({"component": "discordbot", "metadata": {}})),
             "discordbot"
+        );
+    }
+
+    #[test]
+    fn changelog_version_prefers_component_version_over_stack_version() {
+        assert_eq!(
+            changelog_version(&json!({
+                "version": "v0.1.0-split.9",
+                "metadata": {"componentVersion": "v0.1.46"}
+            })),
+            "v0.1.46"
+        );
+        assert_eq!(
+            changelog_version(&json!({"version": "v0.6.44", "metadata": {}})),
+            "v0.6.44"
         );
     }
 
