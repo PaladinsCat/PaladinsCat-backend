@@ -652,10 +652,13 @@ fn legacy_version(row: Option<&Value>) -> Value {
 fn map_changelog_entry(row: &Value) -> Value {
     let changelog = string_or_empty(row, "changelog");
     let change_count = release_change_count(row.get("metadata"), &changelog);
+    let component_version = changelog_component_version(row);
     json!({
         "id": value(row, "id"),
         "component": changelog_component(row),
-        "version": changelog_version(row),
+        "version": component_version.clone(),
+        "componentVersion": component_version,
+        "totalVersion": changelog_total_version(row),
         "gitCommit": string_or_empty(row, "git_commit"),
         "gitCommitShort": normalized_commit_short(row),
         "gitBranch": string_or_empty(row, "git_branch"),
@@ -673,7 +676,7 @@ fn map_changelog_entry(row: &Value) -> Value {
     })
 }
 
-fn changelog_version(row: &Value) -> Value {
+fn changelog_component_version(row: &Value) -> Value {
     row.get("metadata")
         .and_then(|metadata| metadata.get("componentVersion"))
         .filter(|version| {
@@ -683,6 +686,19 @@ fn changelog_version(row: &Value) -> Value {
         })
         .cloned()
         .unwrap_or_else(|| value(row, "version"))
+}
+
+fn changelog_total_version(row: &Value) -> Value {
+    if row
+        .get("metadata")
+        .and_then(|metadata| metadata.get("componentVersion"))
+        .is_some()
+        || changelog_component(row) == "legacy-monorepo"
+    {
+        value(row, "version")
+    } else {
+        Value::Null
+    }
 }
 
 fn changelog_component(row: &Value) -> String {
@@ -925,16 +941,24 @@ mod tests {
     }
 
     #[test]
-    fn changelog_version_prefers_component_version_over_stack_version() {
+    fn changelog_exposes_total_and_component_versions() {
         assert_eq!(
-            changelog_version(&json!({
-                "version": "v0.1.0-split.9",
+            changelog_component_version(&json!({
+                "version": "v2.4.82",
                 "metadata": {"componentVersion": "v0.1.46"}
             })),
             "v0.1.46"
         );
         assert_eq!(
-            changelog_version(&json!({"version": "v0.6.44", "metadata": {}})),
+            changelog_total_version(&json!({
+                "component": "stack",
+                "version": "v2.4.82",
+                "metadata": {"componentVersion": "v0.1.46", "services": "backend"}
+            })),
+            "v2.4.82"
+        );
+        assert_eq!(
+            changelog_component_version(&json!({"version": "v0.6.44", "metadata": {}})),
             "v0.6.44"
         );
     }
