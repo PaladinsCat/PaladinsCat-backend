@@ -14,7 +14,7 @@ chrono-tz = "0.10"
 deadpool-postgres = "0.14"
 flate2 = "1"
 futures = "0.3"
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10.4", features = ["rust_crypto"] }
 paladinscat-core = { path = "../paladinscat-core" }
 regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
