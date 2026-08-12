@@ -58,6 +58,13 @@ impl RankedProjectionRepository {
         let ids = match_ids.to_vec();
         let mut client = self.database.connection().await?;
         let transaction = client.transaction().await?;
+        // PostgreSQL eventually promotes these repeated array-parameter queries
+        // to generic plans. On the Timescale hypertables that loses the concrete
+        // match IDs needed for compressed-chunk pruning and turns an indexed
+        // projection into a whole-history scan.
+        transaction
+            .execute("SET LOCAL plan_cache_mode = force_custom_plan", &[])
+            .await?;
         match stage {
             "performance_projections" => {
                 project_performance_many(&transaction, &ids).await?;
@@ -434,5 +441,17 @@ mod tests {
             .expect("cumulative stages");
         assert!(ranked_stage < commit && commit < cumulative);
         assert!(!body.contains("ARRAY['ranked_stats','performance_projections','scalable_stats']"));
+    }
+
+    #[test]
+    fn cumulative_batches_force_match_specific_timescale_plans() {
+        let body = SOURCE
+            .split_once("async fn project_cumulative_batch")
+            .expect("cumulative batch")
+            .1
+            .split_once("async fn finish_cumulative_stages")
+            .expect("cumulative batch end")
+            .0;
+        assert!(body.contains("SET LOCAL plan_cache_mode = force_custom_plan"));
     }
 }

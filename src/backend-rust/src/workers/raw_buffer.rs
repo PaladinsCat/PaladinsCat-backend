@@ -611,24 +611,18 @@ async fn persist_match(
         return Ok(());
     }
     if finalized.population == super::match_lifecycle::MatchPopulation::Ranked {
-        // Ranked cumulative projection is owned by the bounded batch pass
-        // (apply_adaptive_ranked_projection_batches) and the bounded repair
-        // drain (repair_projection_gaps), both of which re-project idempotently
-        // from the stats_projection_matches registry in small pages. Re-running
-        // it inline per-row is redundant and, under load, can exceed the
-        // statement timeout and recycle the row forever. So a ranked projection
-        // failure here is NON-fatal: the facts have already landed (durable),
-        // so the row is marked terminal and the match is left OUT of the
-        // registry (stats_projection_matches), which is exactly the signal the
-        // repair drain uses to find and re-project it later.
+        // Facts are already readable, but the raw row remains projection debt
+        // until every independently committed ranked stage completes. Returning
+        // the error keeps the durable row pending; the next claim resumes from
+        // match_ingest_status.completed_stages without repeating finished work.
         let repository = RankedProjectionRepository::new(database.clone());
-        if let Err(error) = repository.project_match(payload.match_id).await {
-            tracing::warn!(
-                match_id = payload.match_id,
-                error = %error,
-                "ranked projection deferred inline (facts durable); bounded drain owns reprojection"
-            );
-        }
+        repository
+            .project_match(payload.match_id)
+            .await
+            .map_err(|error| RawBufferError::Invalid {
+                row_id: row.id,
+                message: format!("ranked projection pending: {error}"),
+            })?;
     } else {
         CasualMechanicsRepository::new(database.clone())
             .project_all_for_match(payload.match_id)
@@ -1153,6 +1147,21 @@ mod tests {
     fn facts_lane_default_matches_typescript() {
         assert_eq!(DEFAULT_FACT_CONCURRENCY, 8);
         assert_eq!(MAX_RETRIES, 3);
+    }
+
+    #[test]
+    fn ranked_projection_failure_retains_durable_raw_debt() {
+        let source = include_str!("raw_buffer.rs");
+        let body = source
+            .split_once("async fn persist_match")
+            .expect("persist match")
+            .1
+            .split_once("async fn persist_match_history")
+            .expect("persist match end")
+            .0;
+        assert!(body.contains("ranked projection pending"));
+        assert!(body.contains(".map_err(|error| RawBufferError::Invalid"));
+        assert!(!body.contains("if let Err(error) = repository.project_match"));
     }
 
     #[test]
