@@ -260,12 +260,8 @@ pub async fn mark_match_debt_staged_or_complete(
         .query_json(
             "WITH ids AS(SELECT id::BIGINT match_id FROM unnest($1::BIGINT[]) ids(id)),\
              complete_ids AS(\
-               SELECT mis.match_id FROM match_ingest_status mis JOIN ids USING(match_id) \
-               WHERE mis.status IN('complete','limited') \
-               UNION SELECT m.match_id FROM matches m JOIN ids USING(match_id) \
-               LEFT JOIN match_ingest_status mis USING(match_id) \
-               JOIN(SELECT match_id FROM match_players GROUP BY match_id HAVING count(*)>=10) mp USING(match_id) \
-               WHERE mis.status IS NULL OR mis.status IN('complete','limited')\
+               SELECT mis.match_id FROM match_ingest_status mis \
+               WHERE mis.match_id=ANY($1::BIGINT[]) AND(mis.status IN('complete','limited') OR mis.acquisition_state='facts_ready')\
              ) UPDATE hourly_ingest_match_debt debt SET \
                status=CASE WHEN complete_ids.match_id IS NULL THEN 'staged' ELSE 'complete' END,\
                reason=$2,staged_at=CASE WHEN complete_ids.match_id IS NULL THEN COALESCE(debt.staged_at,now()) ELSE debt.staged_at END,\
@@ -616,5 +612,24 @@ mod tests {
         assert!(!reason_implies_no_authority_payload(
             "canonical singleton returned no outcome"
         ));
+    }
+
+    #[test]
+    fn debt_completion_uses_only_the_ingest_ledger() {
+        let source = include_str!("discovery_control.rs")
+            .split_once("#[cfg(test)]")
+            .expect("worker source has tests")
+            .0;
+        let debt_completion = source
+            .split_once("pub async fn mark_match_debt_staged_or_complete")
+            .expect("debt completion function")
+            .1
+            .split_once("pub async fn mark_match_debt_complete")
+            .expect("next function")
+            .0;
+        assert!(debt_completion.contains("mis.match_id=ANY($1::BIGINT[])"));
+        assert!(debt_completion.contains("mis.acquisition_state='facts_ready'"));
+        assert!(!debt_completion.contains("match_players"));
+        assert!(!debt_completion.contains("GROUP BY"));
     }
 }
