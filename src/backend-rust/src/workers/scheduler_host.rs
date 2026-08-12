@@ -698,7 +698,14 @@ async fn dispatch(
                         .map_err(|error| error.to_string())?;
                 }
             }
-            Ok(json!({"refreshed":true}))
+            let performance_metric_stats =
+                super::projections::refresh_performance_metric_stats(&services.database)
+                    .await
+                    .map_err(|error| error.to_string())?;
+            Ok(json!({
+                "refreshed":true,
+                "performanceMetricStats":performance_metric_stats,
+            }))
         }
         "auto-ingester:drop-detection" => {
             let result = detect_dropped_matches(&services.database)

@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use futures::{StreamExt, stream};
 use paladinscat_core::database::{Database, DatabaseError};
@@ -17,8 +16,6 @@ use super::{
 
 const MAX_RETRIES: i32 = 3;
 const DEFAULT_FACT_CONCURRENCY: usize = 8;
-const PERFORMANCE_STATS_REFRESH_MIN_SECONDS: i64 = 5 * 60;
-static LAST_PERFORMANCE_STATS_REFRESH_AT: AtomicI64 = AtomicI64::new(0);
 
 #[derive(Clone, Copy, Debug, Default, Serialize)]
 pub struct RawBufferBatchResult {
@@ -203,36 +200,7 @@ async fn process_raw_buffer_batch_inner(
         return Ok(result);
     }
     super::maintenance::cleanup_raw_ingest_buffer_retention(database, "post-batch").await?;
-    if result.processed > 0
-        && performance_stats_refresh_due()
-        && let Err(error) = super::projections::refresh_performance_metric_stats(database).await
-    {
-        tracing::error!(%error, "post-ingest performance summary refresh failed");
-    }
     Ok(result)
-}
-
-fn performance_stats_refresh_due() -> bool {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .and_then(|duration| i64::try_from(duration.as_secs()).ok())
-        .unwrap_or_default();
-    let mut previous = LAST_PERFORMANCE_STATS_REFRESH_AT.load(Ordering::Relaxed);
-    loop {
-        if now.saturating_sub(previous) < PERFORMANCE_STATS_REFRESH_MIN_SECONDS {
-            return false;
-        }
-        match LAST_PERFORMANCE_STATS_REFRESH_AT.compare_exchange_weak(
-            previous,
-            now,
-            Ordering::Relaxed,
-            Ordering::Relaxed,
-        ) {
-            Ok(_) => return true,
-            Err(current) => previous = current,
-        }
-    }
 }
 
 fn merge_batch_result(target: &mut RawBufferBatchResult, source: RawBufferBatchResult) {
@@ -1183,32 +1151,19 @@ mod tests {
     }
 
     #[test]
-    fn performance_summary_refresh_is_immediate_then_throttled_for_five_minutes() {
-        LAST_PERFORMANCE_STATS_REFRESH_AT.store(0, Ordering::Relaxed);
-        assert!(performance_stats_refresh_due());
-        assert!(!performance_stats_refresh_due());
-        let now = LAST_PERFORMANCE_STATS_REFRESH_AT.load(Ordering::Relaxed);
-        LAST_PERFORMANCE_STATS_REFRESH_AT.store(
-            now - PERFORMANCE_STATS_REFRESH_MIN_SECONDS,
-            Ordering::Relaxed,
-        );
-        assert!(performance_stats_refresh_due());
-    }
-
-    #[test]
-    fn post_batch_order_is_quiesce_then_retention_then_histogram_summary() {
+    fn post_batch_does_not_rebuild_global_performance_summary() {
         let source = include_str!("raw_buffer.rs");
         let body = source
             .split_once("async fn process_raw_buffer_batch_inner")
             .unwrap()
             .1
-            .split_once("fn performance_stats_refresh_due")
+            .split_once("fn merge_batch_result")
             .unwrap()
             .0;
         let final_quiesce = body.rfind("should_stop.is_some_and").unwrap();
         let retention = body.find("cleanup_raw_ingest_buffer_retention").unwrap();
-        let summary = body.find("refresh_performance_metric_stats").unwrap();
-        assert!(final_quiesce < retention && retention < summary);
+        assert!(final_quiesce < retention);
+        assert!(!body.contains("refresh_performance_metric_stats"));
     }
 
     #[test]
@@ -1246,7 +1201,7 @@ mod tests {
             .split_once("async fn process_raw_buffer_batch_inner")
             .expect("batch implementation")
             .1
-            .split_once("fn performance_stats_refresh_due")
+            .split_once("fn merge_batch_result")
             .expect("batch implementation end")
             .0;
         assert!(

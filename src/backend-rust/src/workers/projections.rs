@@ -182,9 +182,12 @@ pub async fn project_performance_many(
                     AND m.duration_seconds>120
                 ),scoped AS(
                   SELECT metric_values.queue_id,scope.role_id,scope.role_name,metric_values.metric,
-                    CASE WHEN metric_values.metric IN('wpm','apm')
-                      THEN round(metric_values.value::NUMERIC,0)::DOUBLE PRECISION
-                      ELSE metric_values.value END value
+                    -- The histogram is an accumulated distribution, not a raw-fact
+                    -- store.  Exact floating-point keys created an unbounded number
+                    -- of buckets and expensive index writes for every new match.
+                    CASE WHEN metric_values.metric='kda'
+                      THEN round(metric_values.value::NUMERIC,1)::DOUBLE PRECISION
+                      ELSE round(metric_values.value::NUMERIC,0)::DOUBLE PRECISION END value
                   FROM metric_values
                   CROSS JOIN LATERAL(VALUES
                     (0,'Global'::TEXT),(metric_values.match_role_id,metric_values.match_role_name)
@@ -783,6 +786,8 @@ mod tests {
         assert_eq!(body.matches(".query(").count(), 1);
         assert_eq!(body.matches(".execute(").count(), 6);
         assert!(!body.contains("WHERE m.match_id=$1"));
+        assert!(body.contains("metric_values.metric='kda'"));
+        assert!(body.contains("round(metric_values.value::NUMERIC,0)"));
     }
 
     #[test]
