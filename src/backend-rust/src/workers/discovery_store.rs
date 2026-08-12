@@ -141,7 +141,7 @@ pub async fn filter_already_handled_match_ids(
     }
     let status_rows = database
         .query_json(
-            "SELECT match_id,status,COALESCE(completed_stages,'{}'::TEXT[]) @> ARRAY['player_facts','match_bans','ranked_stats']::TEXT[] ranked_complete FROM match_ingest_status WHERE match_id=ANY($1)",
+            "SELECT match_id,status,acquisition_state FROM match_ingest_status WHERE match_id=ANY($1)",
             &[&ids],
         )
         .await
@@ -153,22 +153,19 @@ pub async fn filter_already_handled_match_ids(
                 integer(&row, "match_id")?,
                 (
                     row.get("status")?.as_str()?.to_owned(),
-                    row.get("ranked_complete")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false),
+                    row.get("acquisition_state")?.as_str()?.to_owned(),
                 ),
             ))
         })
         .collect::<HashMap<_, _>>();
     let terminal = |id: i64| {
-        // TS parity (ingest-guards.ts isCompleteOrLegacy): a durable row counts
-        // as handled when status is 'complete'/'limited' OR when no
-        // match_ingest_status row exists at all (legacy / pre-migration data).
-        // No queue-486 ranked_complete special case: TS never requires
-        // completed_stages to consider a match terminal.
+        // The durable ledger is authoritative. Facts-ready rows are safe to
+        // skip because their fact transaction has completed; legacy rows are
+        // still handled by the bounded matches lookup below.
         match statuses.get(&id) {
-            Some((status, _ranked_complete)) => {
+            Some((status, acquisition_state)) => {
                 matches!(status.as_str(), "complete" | "limited")
+                    || acquisition_state == "facts_ready"
             }
             None => true,
         }
@@ -183,10 +180,6 @@ pub async fn filter_already_handled_match_ids(
         .filter_map(|row| integer(&row, "match_id"))
         .filter(|id| terminal(*id))
         .collect::<HashSet<_>>();
-    let players = database.query_json(
-        "SELECT match_id FROM match_players WHERE match_id=ANY($1) GROUP BY match_id HAVING count(*)>=10",
-        &[&ids],
-    ).await?.into_iter().filter_map(|row| integer(&row, "match_id")).filter(|id| terminal(*id)).collect::<HashSet<_>>();
     let raw = if include_raw_buffer {
         let text_ids = ids.iter().map(i64::to_string).collect::<Vec<_>>();
         database.query_json(
@@ -207,9 +200,7 @@ pub async fn filter_already_handled_match_ids(
     let skipped = ids
         .iter()
         .copied()
-        .filter(|id| {
-            matches.contains(id) || players.contains(id) || raw.contains(id) || pull.contains(id)
-        })
+        .filter(|id| matches.contains(id) || raw.contains(id) || pull.contains(id))
         .collect::<Vec<_>>();
     let skipped_set = skipped.iter().copied().collect::<HashSet<_>>();
     Ok(MatchIngestGuardResult {
@@ -220,7 +211,7 @@ pub async fn filter_already_handled_match_ids(
         skipped_ids: skipped,
         skipped: MatchIngestGuardCounts {
             matches: matches.len(),
-            match_players: players.len(),
+            match_players: 0,
             raw_buffer: raw.len(),
             pull_list: pull.len(),
             total_unique: skipped_set.len(),
@@ -251,4 +242,26 @@ fn normalize_region(value: Option<&str>) -> &'static str {
 fn integer(row: &Value, key: &str) -> Option<i64> {
     row.get(key)
         .and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ingest_guard_uses_the_ledger_not_player_fact_counts() {
+        let source = include_str!("discovery_store.rs")
+            .split_once("#[cfg(test)]")
+            .expect("worker source has tests")
+            .0;
+        let guard = source
+            .split_once("pub async fn filter_already_handled_match_ids")
+            .expect("ingest guard")
+            .1
+            .split_once("fn normalize_region")
+            .expect("next function")
+            .0;
+        assert!(guard.contains("acquisition_state"));
+        assert!(guard.contains("acquisition_state == \"facts_ready\""));
+        assert!(!guard.contains("FROM match_players"));
+        assert!(!guard.contains("GROUP BY"));
+    }
 }
