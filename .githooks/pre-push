@@ -1,3 +1,9 @@
 #!/bin/sh
-echo "[repository-boundary] BLOCKED: remote policy is not configured for this extracted repository." >&2
-exit 1
+set -eu
+root="$(git rev-parse --show-toplevel)"
+expected="https://github.com/NabiCook/PaladinsCat-backend.git"
+if [ "$2" != "$expected" ]; then
+  echo "[repository-boundary] BLOCKED: unexpected push destination: $2" >&2
+  exit 1
+fi
+exec pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$root/scripts/security/Test-FullHistoryCredentialBoundary.ps1" -RepositoryRoot "$root"
