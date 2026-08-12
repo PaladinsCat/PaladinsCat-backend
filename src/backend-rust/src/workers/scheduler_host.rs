@@ -205,13 +205,17 @@ fn bounded_nonranked_acquisition_max_matches(value: Option<usize>) -> usize {
 /// for hours, which stalled discovery by keeping its post-discovery inline
 /// drain alive forever.
 fn bounded_buffer_drain_max_batches(value: Option<usize>) -> usize {
-    value.unwrap_or(20).clamp(1, 1_000)
+    // Projection debt is durable in raw_ingest_buffer.  On the production
+    // 1-vCPU database, allowing a single scheduler invocation to drain five
+    // or more 50-row batches keeps expensive ranked projections continuously
+    // CPU-bound.  Process one bounded batch and resume on the next schedule.
+    value.unwrap_or(1).clamp(1, 1)
 }
 
 fn buffer_drain_max_batches_per_run() -> usize {
     // Prefer the new operator knob; fall back to the legacy
     // RUST_BUFFER_DRAIN_MAX_BATCHES used by prior deployment configs, then the
-    // built-in default of 20.
+    // built-in one-batch production budget.
     bounded_buffer_drain_max_batches(
         std::env::var("BUFFER_DRAIN_MAX_BATCHES_PER_RUN")
             .ok()
