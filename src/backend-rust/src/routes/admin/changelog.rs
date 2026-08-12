@@ -55,6 +55,7 @@ fn map_entry(row: Value) -> Value {
         .unwrap_or_default();
     json!({
         "id": row.get("id").cloned().unwrap_or(Value::Null),
+        "component": row.get("component").and_then(Value::as_str).unwrap_or("stack"),
         "version": row.get("version").cloned().unwrap_or(Value::Null),
         "gitCommit": commit,
         "gitCommitShort": row.get("git_commit_short").and_then(Value::as_str)
@@ -84,7 +85,7 @@ pub(super) async fn list(
         .unwrap_or(100)
         .clamp(1, 100);
     let rows = state.database.query_json(
-        "SELECT id,version,git_commit,git_commit_short,git_branch,deployed_at,source,metadata,changelog \
+        "SELECT id,component,version,git_commit,git_commit_short,git_branch,deployed_at,source,metadata,changelog \
          FROM stack_versions WHERE component='stack' \
          ORDER BY deployed_at DESC,id DESC LIMIT $1",
         &[&limit],
@@ -131,7 +132,7 @@ pub(super) async fn update(
     let changelog: Option<String> = (!normalized.is_empty()).then_some(normalized);
     let row = state.database.one_json(
         "UPDATE stack_versions SET changelog=$2 WHERE id=$1 AND component='stack' \
-         RETURNING id,version,git_commit,git_commit_short,git_branch,deployed_at,source,metadata,changelog",
+         RETURNING id,component,version,git_commit,git_commit_short,git_branch,deployed_at,source,metadata,changelog",
         &[&id, &changelog],
     ).await.map_err(|error| ApiError::database(error, &request_id))?;
     let Some(row) = row else {

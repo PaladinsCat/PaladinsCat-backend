@@ -190,7 +190,7 @@ async fn load_changelog(
     if query.get("preview").is_some_and(|value| value == "true") {
         let row = database
             .one_json(
-                "SELECT id, version, git_commit, git_commit_short, git_branch, \
+                "SELECT id, component, version, git_commit, git_commit_short, git_branch, \
                         deployed_at, source, metadata, changelog \
                  FROM stack_versions \
                  WHERE component = 'stack' AND changelog IS NOT NULL AND changelog <> '' \
@@ -208,7 +208,7 @@ async fn load_changelog(
     );
     let public_versions = "\
       SELECT DISTINCT ON (COALESCE(NULLIF(git_commit, ''), 'row:' || id::text)) \
-        id, version, git_commit, git_commit_short, git_branch, deployed_at, \
+        id, component, version, git_commit, git_commit_short, git_branch, deployed_at, \
         source, metadata, changelog \
       FROM stack_versions \
       WHERE component = 'stack' \
@@ -231,7 +231,7 @@ async fn load_changelog(
     let rows = database
         .query_json(
             &format!(
-                "SELECT id, version, git_commit, git_commit_short, git_branch, \
+                "SELECT id, component, version, git_commit, git_commit_short, git_branch, \
                         deployed_at, source, metadata, changelog \
                  FROM ({public_versions}) AS public_versions \
                  ORDER BY deployed_at DESC, id DESC \
@@ -654,6 +654,7 @@ fn map_changelog_entry(row: &Value) -> Value {
     let change_count = release_change_count(row.get("metadata"), &changelog);
     json!({
         "id": value(row, "id"),
+        "component": changelog_component(row),
         "version": value(row, "version"),
         "gitCommit": string_or_empty(row, "git_commit"),
         "gitCommitShort": normalized_commit_short(row),
@@ -670,6 +671,58 @@ fn map_changelog_entry(row: &Value) -> Value {
             "patch"
         },
     })
+}
+
+fn changelog_component(row: &Value) -> String {
+    let stored = string_or_empty(row, "component");
+    if !stored.is_empty() && stored != "stack" {
+        return stored;
+    }
+    if let Some(component) = row
+        .get("metadata")
+        .and_then(|metadata| metadata.get("releaseComponent"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return component.to_owned();
+    }
+    let services = row
+        .get("metadata")
+        .and_then(|metadata| metadata.get("services"));
+    let parsed = match services {
+        Some(Value::String(value)) => value
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>(),
+        Some(Value::Array(values)) => values
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+    let repositories = parsed
+        .iter()
+        .map(|service| match service.as_str() {
+            "backend"
+            | "backend-rust-api"
+            | "backend-rust-auto-ingester"
+            | "backend-rust-hourly-gap-checker"
+            | "hirezrelay" => "backend",
+            "discordbot" | "discord-bot" => "discord-bot",
+            other => other,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    match repositories.into_iter().collect::<Vec<_>>().as_slice() {
+        [component] => (*component).to_owned(),
+        [] => "legacy-monorepo".to_owned(),
+        _ => "stack".to_owned(),
+    }
 }
 
 fn release_change_count(metadata: Option<&Value>, changelog: &str) -> usize {
@@ -833,6 +886,30 @@ mod tests {
             2
         );
         assert_eq!(release_change_count(None, "**Added**\n- One\n- Two"), 2);
+    }
+
+    #[test]
+    fn changelog_component_separates_split_repositories_from_legacy_history() {
+        assert_eq!(
+            changelog_component(
+                &json!({"component": "stack", "metadata": {"services": "backend,backend-rust-api"}})
+            ),
+            "backend"
+        );
+        assert_eq!(
+            changelog_component(
+                &json!({"component": "stack", "metadata": {"releaseComponent": "frontend", "services": "frontend"}})
+            ),
+            "frontend"
+        );
+        assert_eq!(
+            changelog_component(&json!({"component": "stack", "metadata": {}})),
+            "legacy-monorepo"
+        );
+        assert_eq!(
+            changelog_component(&json!({"component": "discordbot", "metadata": {}})),
+            "discordbot"
+        );
     }
 
     #[test]
