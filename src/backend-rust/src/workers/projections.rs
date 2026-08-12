@@ -479,9 +479,11 @@ pub async fn project_scalable_many(
               count(*) FILTER(WHERE lower(COALESCE(mp.win_status,'')) IN('loser','loss'))::BIGINT
             FROM scope JOIN match_players mp
               ON mp.match_id=scope.match_id AND mp.entry_datetime=scope.entry_datetime
-            JOIN match_player_talents mpt ON mpt.match_id=mp.match_id AND mpt.player_id=mp.player_id
+            JOIN match_player_talents mpt ON mpt.match_id=scope.match_id
+              AND mpt.match_id=mp.match_id AND mpt.player_id=mp.player_id
             JOIN talents t ON t.talent_id=mpt.talent_id AND t.champion_id=mp.champion_id
-            JOIN match_player_cards mpc ON mpc.match_id=mp.match_id AND mpc.player_id=mp.player_id
+            JOIN match_player_cards mpc ON mpc.match_id=scope.match_id
+              AND mpc.match_id=mp.match_id AND mpc.player_id=mp.player_id
             WHERE mp.champion_id>0 GROUP BY 1,2,3,4,5,6
           )INSERT INTO stats_talent_card_aggregate SELECT *,now() FROM source
           ON CONFLICT(queue_id,lobby_tier,champion_id,talent_id,card_id,card_level) DO UPDATE SET
@@ -530,7 +532,8 @@ pub async fn project_scalable_many(
               count(*) FILTER(WHERE lower(COALESCE(mp.win_status,'')) IN('loser','loss'))::BIGINT
             FROM scope JOIN match_players mp
               ON mp.match_id=scope.match_id AND mp.entry_datetime=scope.entry_datetime
-            JOIN match_player_items mpi ON mpi.match_id=mp.match_id AND mpi.player_id=mp.player_id
+            JOIN match_player_items mpi ON mpi.match_id=scope.match_id
+              AND mpi.match_id=mp.match_id AND mpi.player_id=mp.player_id
             WHERE mp.champion_id>0 GROUP BY 1,2,3,4,5,6,7
           )INSERT INTO stats_item_aggregate SELECT *,now() FROM source
           ON CONFLICT(queue_id,lobby_tier,champion_id,map_name,item_id,slot,item_level) DO UPDATE SET
@@ -548,7 +551,8 @@ pub async fn project_scalable_many(
               COALESCE(sum(mp.assists),0)::BIGINT
             FROM scope JOIN match_players mp
               ON mp.match_id=scope.match_id AND mp.entry_datetime=scope.entry_datetime
-            JOIN match_player_talents mpt ON mpt.match_id=mp.match_id AND mpt.player_id=mp.player_id
+            JOIN match_player_talents mpt ON mpt.match_id=scope.match_id
+              AND mpt.match_id=mp.match_id AND mpt.player_id=mp.player_id
             JOIN talents t ON t.talent_id=mpt.talent_id AND t.champion_id=mp.champion_id
             WHERE mp.champion_id>0 GROUP BY 1,2,3,4,5
           )INSERT INTO stats_talent_aggregate SELECT *,now() FROM source
@@ -571,7 +575,8 @@ pub async fn project_scalable_many(
               COALESCE(sum(mp.assists),0)::BIGINT
             FROM scope JOIN match_players mp
               ON mp.match_id=scope.match_id AND mp.entry_datetime=scope.entry_datetime
-            JOIN match_player_cards mpc ON mpc.match_id=mp.match_id AND mpc.player_id=mp.player_id
+            JOIN match_player_cards mpc ON mpc.match_id=scope.match_id
+              AND mpc.match_id=mp.match_id AND mpc.player_id=mp.player_id
             WHERE mp.champion_id>0 GROUP BY 1,2,3,4,5
           )INSERT INTO stats_card_aggregate SELECT *,now() FROM source
           ON CONFLICT(queue_id,lobby_tier,champion_id,card_id,card_level) DO UPDATE SET
@@ -794,6 +799,9 @@ mod tests {
             .0;
         assert!(body.contains("unnest($1::BIGINT[])"));
         assert!(body.contains("m.match_id=ANY($1::BIGINT[])"));
+        assert!(body.contains("mpt.match_id=scope.match_id"));
+        assert!(body.contains("mpc.match_id=scope.match_id"));
+        assert!(body.contains("mpi.match_id=scope.match_id"));
         assert_eq!(projections.matches("format!(").count(), 6);
         // claim + match aggregate + player aggregate + six aggregate families
         // + two metric histograms, matching projectMatchesWithClient.

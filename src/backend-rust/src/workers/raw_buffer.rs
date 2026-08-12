@@ -121,6 +121,7 @@ async fn process_raw_buffer_batch_inner(
         tracing::warn!("relay cache cleanup unavailable before raw-buffer batch");
     }
     recover_stale_leases(database).await?;
+    requeue_incomplete_ranked_projections(database).await?;
     let rows = claim_rows(database, batch_size).await?;
     if rows.is_empty() {
         return Ok(RawBufferBatchResult::default());
@@ -455,6 +456,23 @@ async fn renew_claimed_matches(
 
 async fn recover_stale_leases(database: &Database) -> Result<(), DatabaseError> {
     recover_stale_leases_for(database, None).await
+}
+
+async fn requeue_incomplete_ranked_projections(database: &Database) -> Result<(), DatabaseError> {
+    database
+        .query_json(
+            "UPDATE raw_ingest_buffer rib SET status='pending',processed_at=NULL,available_at=now(),\
+             error_message='ranked projection repair: required cumulative stage missing' \
+             FROM match_ingest_status mis JOIN matches m ON m.match_id=mis.match_id \
+             WHERE rib.status='processed' AND rib.entity_type='match' AND rib.entity_id~'^[0-9]+$' \
+               AND mis.match_id=rib.entity_id::BIGINT AND COALESCE(m.is_ranked,m.queue_id=486) \
+               AND mis.completed_stages@>ARRAY['player_facts','match_bans','ranked_stats']::TEXT[] \
+               AND NOT mis.completed_stages@>ARRAY['ranked_stats','performance_projections','scalable_stats']::TEXT[] \
+             RETURNING rib.id",
+            &[],
+        )
+        .await?;
+    Ok(())
 }
 
 async fn recover_stale_leases_for(
@@ -1208,8 +1226,16 @@ mod tests {
             .find("cleanupFetchedPlayersCache")
             .expect("relay cleanup");
         let stale = body.find("recover_stale_leases").expect("stale recovery");
+        let projection_repair = body
+            .find("requeue_incomplete_ranked_projections")
+            .expect("projection repair");
         let claim = body.find("claim_rows").expect("claim");
-        assert!(headroom < cleanup && cleanup < stale && stale < claim);
+        assert!(
+            headroom < cleanup
+                && cleanup < stale
+                && stale < projection_repair
+                && projection_repair < claim
+        );
         assert!(body.contains("let Err(error)"));
     }
 
