@@ -228,6 +228,14 @@ fn buffer_drain_max_batches_per_run() -> usize {
     )
 }
 
+fn buffer_drain_batch_size() -> usize {
+    std::env::var("BUFFER_DRAIN_BATCH_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(8)
+        .clamp(1, 8)
+}
+
 fn auto_ingester_presence_source(trigger: &str) -> &'static str {
     match trigger {
         "cron" => "auto-ingester-cron",
@@ -659,7 +667,7 @@ async fn dispatch(
                     process_buffer_batch_until(
                         &services.database,
                         Some(&relay),
-                        50,
+                        buffer_drain_batch_size(),
                         &services.should_stop,
                     )
                 },
