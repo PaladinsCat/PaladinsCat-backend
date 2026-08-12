@@ -722,7 +722,12 @@ async fn authorize_prehandler(
             None,
         );
     }
-    if method == Method::POST && matches!(effective_path, "/auth/oidc/transactions") {
+    if method == Method::POST
+        && matches!(
+            effective_path,
+            "/auth/oidc/transactions" | "/auth/login" | "/auth/account/password"
+        )
+    {
         let address =
             resolve_client_address(headers, peer, state.security.trust_cloudflare_headers);
         let result = state
@@ -1207,6 +1212,14 @@ mod tests {
             .route(
                 "/auth/oidc/transactions",
                 post(|| async { Json(json!({"authenticated": false})) }),
+            )
+            .route(
+                "/auth/login",
+                post(|| async { Json(json!({"legacy": true})) }),
+            )
+            .route(
+                "/auth/account/password",
+                post(|| async { Json(json!({"legacy": true})) }),
             );
         Router::new()
             .merge(routes.clone())
@@ -1530,25 +1543,33 @@ mod tests {
 
     #[tokio::test]
     async fn authentication_guard_preserves_limit_headers_on_success_and_failure() {
-        let allowed = fixture_router(fixture_state(&[]))
-            .oneshot(
-                HttpRequest::builder()
-                    .method(Method::POST)
-                    .uri("/auth/oidc/transactions")
-                    .body(Body::empty())
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
-        assert_eq!(allowed.status(), StatusCode::OK);
-        assert_eq!(
-            allowed.headers().get("x-auth-ratelimit-limit"),
-            Some(&HeaderValue::from_static("10"))
-        );
-        assert_eq!(
-            allowed.headers().get("x-auth-ratelimit-remaining"),
-            Some(&HeaderValue::from_static("9"))
-        );
+        for path in [
+            "/auth/oidc/transactions",
+            "/auth/login",
+            "/auth/account/password",
+        ] {
+            let allowed = fixture_router(fixture_state(&[]))
+                .oneshot(
+                    HttpRequest::builder()
+                        .method(Method::POST)
+                        .uri(path)
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(allowed.status(), StatusCode::OK, "{path}");
+            assert_eq!(
+                allowed.headers().get("x-auth-ratelimit-limit"),
+                Some(&HeaderValue::from_static("10")),
+                "{path}"
+            );
+            assert_eq!(
+                allowed.headers().get("x-auth-ratelimit-remaining"),
+                Some(&HeaderValue::from_static("9")),
+                "{path}"
+            );
+        }
 
         for (backend_available, status, code) in [
             (
@@ -1568,25 +1589,33 @@ mod tests {
                     backend_available,
                 },
             });
-            let response = fixture_router(state)
-                .oneshot(
-                    HttpRequest::builder()
-                        .method(Method::POST)
-                        .uri("/auth/oidc/transactions")
-                        .body(Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
-            assert_eq!(response.status(), status);
-            assert_eq!(
-                response.headers().get("x-auth-ratelimit-limit").unwrap(),
-                "10"
-            );
-            assert_eq!(
-                response_json(response).await["error"]["code"],
-                Value::String(code.to_owned())
-            );
+            for path in [
+                "/auth/oidc/transactions",
+                "/auth/login",
+                "/auth/account/password",
+            ] {
+                let response = fixture_router(state.clone())
+                    .oneshot(
+                        HttpRequest::builder()
+                            .method(Method::POST)
+                            .uri(path)
+                            .body(Body::empty())
+                            .expect("request"),
+                    )
+                    .await
+                    .expect("response");
+                assert_eq!(response.status(), status, "{path}");
+                assert_eq!(
+                    response.headers().get("x-auth-ratelimit-limit").unwrap(),
+                    "10",
+                    "{path}"
+                );
+                assert_eq!(
+                    response_json(response).await["error"]["code"],
+                    Value::String(code.to_owned()),
+                    "{path}"
+                );
+            }
         }
     }
 

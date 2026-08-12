@@ -22,7 +22,7 @@ use serde_json::json;
 use crate::{
     foundation::FoundationState,
     request::RequestId,
-    routes::identity::{require_session, session},
+    routes::identity::{Session, session},
     workers::{relay::WorkerRelayClient, requested_match::RequestedMatchIngestor},
 };
 
@@ -127,30 +127,13 @@ pub fn router(foundation: FoundationState) -> Router {
         })
 }
 
-async fn require_auth(
-    database: &Database,
-    headers: &HeaderMap,
-    request_id: &RequestId,
-) -> Result<(), Response> {
-    require_session(database, headers, request_id)
-        .await
-        .map(|_| ())
-        .map_err(|_| {
-            coded_error(
-                StatusCode::UNAUTHORIZED,
-                "UNAUTHORIZED",
-                "Authentication required",
-            )
-        })
-}
-
 async fn require_admin(
     database: &Database,
     headers: &HeaderMap,
     request_id: &RequestId,
 ) -> Result<(), Response> {
     match session(database, headers, request_id).await {
-        Ok(Some(user)) if user.is_admin => Ok(()),
+        Ok(user) if is_admin_session(user.as_ref()) => Ok(()),
         _ => Err(coded_error(
             StatusCode::UNAUTHORIZED,
             "UNAUTHORIZED",
@@ -159,10 +142,36 @@ async fn require_admin(
     }
 }
 
+fn is_admin_session(session: Option<&Session>) -> bool {
+    session.is_some_and(|user| user.is_admin)
+}
+
 fn coded_error(status: StatusCode, code: &str, message: &str) -> Response {
     (
         status,
         Json(json!({"error":{"code":code,"message":message}})),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_access_rejects_authenticated_non_admins() {
+        let member = Session {
+            user_id: 1,
+            username: "member".to_owned(),
+            is_admin: false,
+            linked_player_id: None,
+        };
+        let admin = Session {
+            is_admin: true,
+            ..member.clone()
+        };
+        assert!(!is_admin_session(None));
+        assert!(!is_admin_session(Some(&member)));
+        assert!(is_admin_session(Some(&admin)));
+    }
 }

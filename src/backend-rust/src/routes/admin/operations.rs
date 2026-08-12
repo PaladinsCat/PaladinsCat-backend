@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-use super::{AdminState, require_auth};
+use super::{AdminState, require_admin};
 
 pub(super) async fn batch_fetch(
     State(state): State<AdminState>,
@@ -29,7 +29,7 @@ pub(super) async fn batch_fetch(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let supplied = body
@@ -156,7 +156,7 @@ pub(super) async fn delete_hourly_match_count(
     headers: HeaderMap,
     Path((date, hour, queue_id)): Path<(String, String, String)>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let Some(hour) = hour.parse::<i32>().ok() else {
@@ -190,7 +190,7 @@ pub(super) async fn process_buffer(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let batch = body
@@ -213,7 +213,7 @@ pub(super) async fn buffer_retention(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let supplied = body
@@ -237,7 +237,7 @@ pub(super) async fn refresh_coplay(
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     match state
@@ -261,7 +261,7 @@ pub(super) async fn refresh_baselines(
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     match refresh_baselines_with_job(&state.database, "manual").await {
@@ -275,7 +275,7 @@ pub(super) async fn refresh_derived_projections(
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     match refresh_derived_projections_with_job(&state.database, "manual").await {
@@ -290,7 +290,7 @@ pub(super) async fn sync_api_keys(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let keys = if let Some(dev_id) = body.get("devId").and_then(Value::as_str) {
@@ -353,7 +353,7 @@ pub(super) async fn reset_api_key_budgets(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let keys = if let Some(dev_id) = body.get("devId").and_then(Value::as_str) {

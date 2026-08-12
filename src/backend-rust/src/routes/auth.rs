@@ -83,12 +83,12 @@ pub fn router(
             "/auth/account/player-link/verification/check",
             post(check_link_verification),
         );
-    let router = if config.identity_cutover_enabled {
-        router
-    } else {
+    let router = if config.legacy_password_login_enabled {
         router
             .route("/auth/login", post(login))
             .route("/auth/account/password", post(change_password))
+    } else {
+        router
     };
     router.with_state(AuthState {
         database,
@@ -440,11 +440,11 @@ mod oidc_tests {
     }
 
     #[tokio::test]
-    async fn legacy_password_routes_follow_identity_cutover() {
-        let app = |cutover: bool| {
+    async fn legacy_password_routes_require_explicit_rollback_opt_in() {
+        let app = |rollback: bool| {
             let config = BackendConfig::from_lookup(|name| match name {
                 "DATABASE_URL" => Some("postgres://fixture".to_owned()),
-                "PALADINSCAT_IDENTITY_CUTOVER_ENABLED" if cutover => Some("true".to_owned()),
+                "PALADINSCAT_LEGACY_PASSWORD_LOGIN_ENABLED" if rollback => Some("true".to_owned()),
                 _ => None,
             })
             .expect("config");
@@ -466,7 +466,7 @@ mod oidc_tests {
                 )
                 .await
                 .expect("response");
-            assert_ne!(response.status(), StatusCode::NOT_FOUND, "default {uri}");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "default {uri}");
             let response = app(true)
                 .oneshot(
                     Request::builder()
@@ -477,10 +477,10 @@ mod oidc_tests {
                 )
                 .await
                 .expect("response");
-            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+            assert_ne!(response.status(), StatusCode::NOT_FOUND, "rollback {uri}");
         }
-        for cutover in [false, true] {
-            let response = app(cutover)
+        for rollback in [false, true] {
+            let response = app(rollback)
                 .oneshot(
                     Request::builder()
                         .method("POST")
@@ -494,6 +494,21 @@ mod oidc_tests {
                 response.status(),
                 StatusCode::NOT_FOUND,
                 "registration is Keycloak-only"
+            );
+            let response = app(rollback)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/auth/oidc/exchange")
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_ne!(
+                response.status(),
+                StatusCode::NOT_FOUND,
+                "OIDC exchange remains available"
             );
         }
     }

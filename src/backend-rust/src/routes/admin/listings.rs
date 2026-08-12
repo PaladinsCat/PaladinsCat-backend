@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::{error::ApiError, request::RequestId};
 
-use super::{AdminState, require_auth};
+use super::{AdminState, require_admin};
 
 fn pagination(query: &HashMap<String, String>) -> (i64, i64) {
     let page = query
@@ -55,7 +55,7 @@ pub(super) async fn sync_jobs(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let (limit, offset) = pagination(&query);
@@ -89,7 +89,7 @@ pub(super) async fn sync_jobs_type(
     headers: HeaderMap,
     Path(job_type): Path<String>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     rows(
@@ -107,7 +107,7 @@ pub(super) async fn pull_list(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let (limit, offset) = pagination(&query);
@@ -126,7 +126,7 @@ pub(super) async fn api_log(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let (limit, offset) = pagination(&query);
@@ -170,7 +170,7 @@ pub(super) async fn api_log_key(
     headers: HeaderMap,
     Path(dev_id): Path<String>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     rows(
@@ -189,7 +189,7 @@ pub(super) async fn hourly_usage(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let mut predicates = Vec::new();
@@ -225,7 +225,7 @@ pub(super) async fn hourly_match_counts(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let (limit, offset) = pagination(&query);
@@ -267,7 +267,7 @@ pub(super) async fn hourly_match_counts_date(
     headers: HeaderMap,
     Path(date): Path<String>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     rows(

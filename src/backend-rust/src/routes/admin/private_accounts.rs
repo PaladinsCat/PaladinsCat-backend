@@ -13,7 +13,7 @@ use crate::{
     workers::private_identity::{PRIVATE_IDENTITY_VERSION, backfill_private_account_identities},
 };
 
-use super::{AdminState, require_auth};
+use super::{AdminState, require_admin};
 
 pub(super) async fn reconcile(
     State(state): State<AdminState>,
@@ -21,7 +21,7 @@ pub(super) async fn reconcile(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let apply = body.get("apply").and_then(Value::as_bool).unwrap_or(false);
@@ -42,7 +42,7 @@ pub(super) async fn verify_name(
     Path(private_id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let Some(private_id) = private_id.parse::<i32>().ok().filter(|id| *id > 0) else {
@@ -185,7 +185,7 @@ pub(super) async fn moderation(
     Path(private_id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiError> {
-    if let Err(response) = require_auth(&state.database, &headers, &request_id).await {
+    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
         return Ok(response);
     }
     let Some(private_id) = private_id.parse::<i32>().ok().filter(|id| *id > 0) else {

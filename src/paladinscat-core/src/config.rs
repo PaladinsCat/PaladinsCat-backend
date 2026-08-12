@@ -50,6 +50,8 @@ pub struct BackendConfig {
     pub public_api_global_limit_per_minute: u64,
     pub account_auth_attempts_per_window: u64,
     pub account_auth_window_ms: u64,
+    /// Emergency rollback only. Native password endpoints stay absent unless this is explicitly true.
+    pub legacy_password_login_enabled: bool,
     pub identity_cutover_enabled: bool,
     pub oidc_issuer: Option<String>,
     pub oidc_audience: Option<String>,
@@ -211,7 +213,13 @@ impl BackendConfig {
                 lookup("ACCOUNT_AUTH_WINDOW_MS"),
                 DEFAULT_ACCOUNT_AUTH_WINDOW_MS,
             ),
-            identity_cutover_enabled: parse_true(lookup("PALADINSCAT_IDENTITY_CUTOVER_ENABLED")),
+            legacy_password_login_enabled: parse_true(lookup(
+                "PALADINSCAT_LEGACY_PASSWORD_LOGIN_ENABLED",
+            )),
+            // Kept for frontend/API compatibility: the secure default is Keycloak-only.
+            identity_cutover_enabled: !parse_true(lookup(
+                "PALADINSCAT_LEGACY_PASSWORD_LOGIN_ENABLED",
+            )),
             oidc_issuer,
             oidc_audience,
             oidc_jwks_url,
@@ -386,7 +394,8 @@ mod tests {
         assert_eq!(config.public_api_global_limit_per_minute, 6_000);
         assert_eq!(config.account_auth_attempts_per_window, 10);
         assert_eq!(config.account_auth_window_ms, 15 * 60_000);
-        assert!(!config.identity_cutover_enabled);
+        assert!(!config.legacy_password_login_enabled);
+        assert!(config.identity_cutover_enabled);
         assert_eq!(config.developer_api_rate_limit_per_minute, 120);
         assert_eq!(config.developer_api_concurrency_limit, 10);
         assert_eq!(config.deployment_redis_startup_timeout_ms, 5_000);
@@ -394,12 +403,13 @@ mod tests {
         assert_eq!(config.api_host, "127.0.0.1");
         assert_eq!(config.api_port, 3_310);
 
-        let cutover = load_config(&[
+        let rollback = load_config(&[
             ("DATABASE_URL", "postgres://fixture"),
-            ("PALADINSCAT_IDENTITY_CUTOVER_ENABLED", "true"),
+            ("PALADINSCAT_LEGACY_PASSWORD_LOGIN_ENABLED", "true"),
         ])
-        .expect("cutover config");
-        assert!(cutover.identity_cutover_enabled);
+        .expect("rollback config");
+        assert!(rollback.legacy_password_login_enabled);
+        assert!(!rollback.identity_cutover_enabled);
 
         let bounded = load_config(&[
             ("DATABASE_URL", "postgres://fixture"),
