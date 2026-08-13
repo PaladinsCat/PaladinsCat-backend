@@ -12,7 +12,7 @@ base64 = "0.22"
 deadpool-postgres = "0.14"
 futures = "0.3"
 hex = "0.4"
-md-5 = "0.10"
+md-5 = "0.11"
 paladinscat-core = { path = "../paladinscat-core" }
 rand = "0.9"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
