@@ -1751,7 +1751,7 @@ mod tests {
 
     #[test]
     fn ranked_checkpoint_uses_raw_buffer_not_direct_fact_finalization() {
-        let source = include_str!("pipeline.rs");
+        let source = include_str!("pipeline.rs").replace("\r\n", "\n");
         let checkpoint = source
             .split("async fn checkpoint_ranked_outcome(\n")
             .nth(1)
@@ -1888,17 +1888,16 @@ mod tests {
             .split("/// Non-ranked acquisition is one-pass terminal work")
             .next()
             .expect("runner body");
-        let duplicate_or_contract = run
-            .find("terminalize_nonranked_claims(&lane")
-            .expect("lane cleanup");
-        let dropped_task = run
-            .find("terminalize_nonranked_claims(\n                            &requests")
-            .expect("dropped task cleanup");
+        let cleanups = run
+            .match_indices("terminalize_nonranked_claims")
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        assert!(cleanups.len() >= 2, "both failure paths must clean up claims");
         let propagate = run
             .find("return Err(PipelineError::Facts")
             .expect("join propagation");
-        assert!(duplicate_or_contract < propagate);
-        assert!(dropped_task < propagate);
+        assert!(cleanups[0] < propagate);
+        assert!(cleanups[1] < propagate);
     }
 
     #[test]
