@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "jsonwebtoken"
+        versions: [">=11.0.0"]
+      - dependency-name: "aes-gcm"
+        versions: [">=0.11.0"]
+      - dependency-name: "sha2"
+        versions: [">=0.11.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
