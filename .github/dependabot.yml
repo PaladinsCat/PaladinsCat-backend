@@ -12,6 +12,14 @@ updates:
         versions: [">=0.11.0"]
       - dependency-name: "sha2"
         versions: [">=0.11.0"]
+      - dependency-name: "redis"
+        versions: [">=1.0.0"]
+      - dependency-name: "rand"
+        versions: [">=0.10.0"]
+      - dependency-name: "base64"
+        versions: [">=0.23.0"]
+      - dependency-name: "md-5"
+        versions: [">=0.11.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
