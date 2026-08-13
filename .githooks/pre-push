@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 root="$(git rev-parse --show-toplevel)"
-expected="https://github.com/NabiCook/PaladinsCat-backend.git"
+expected="https://github.com/PaladinsCat/PaladinsCat-backend.git"
 if [ "$2" != "$expected" ]; then
   echo "[repository-boundary] BLOCKED: unexpected push destination: $2" >&2
   exit 1
