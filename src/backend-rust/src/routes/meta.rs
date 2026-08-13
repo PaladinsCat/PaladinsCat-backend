@@ -211,7 +211,7 @@ async fn load_changelog(
         id, component, version, git_commit, git_commit_short, git_branch, deployed_at, \
         source, metadata, changelog \
       FROM stack_versions \
-      WHERE component = 'stack' \
+      WHERE component = 'stack' AND changelog IS NOT NULL AND changelog <> '' \
       ORDER BY \
         COALESCE('aggregate:' || NULLIF(metadata->>'aggregateCommitCount', ''), 'git:' || NULLIF(git_commit, ''), 'row:' || id::text), \
         (changelog IS NOT NULL AND changelog <> '') DESC, \
