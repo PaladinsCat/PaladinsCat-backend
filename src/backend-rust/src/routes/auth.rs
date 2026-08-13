@@ -182,7 +182,7 @@ async fn auth_user_row(
     request_id: &RequestId,
 ) -> Result<Value, ApiError> {
     database.one_json(
-        "SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id WHERE u.id=$1",
+        "SELECT u.id,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.role,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id WHERE u.id=$1",
         &[&user_id],
     ).await.map_err(|error| ApiError::database(error, request_id))?.ok_or_else(|| ApiError::internal(request_id))
 }
@@ -905,6 +905,7 @@ fn auth_user(row: &Value) -> Value {
         "bio":row.get("bio").cloned().unwrap_or(Value::Null),
         "time_zone":row.get("time_zone").cloned().unwrap_or(Value::Null),
         "is_admin":row.get("is_admin").and_then(Value::as_bool).unwrap_or(false),
+        "is_project_developer":row.get("role").and_then(Value::as_str).is_some_and(|role| matches!(role,"developer"|"admin")),
         "is_approved":row.get("is_approved").and_then(Value::as_bool).unwrap_or(false),
         "created_at":row.get("created_at").cloned().unwrap_or(Value::Null),
         "last_login":row.get("last_login").cloned().unwrap_or(Value::Null),
@@ -941,7 +942,7 @@ async fn login(
         .database
         .one_json(
             "SELECT u.id,u.username,u.email,u.password_hash,u.salt,u.avatar_url,u.bio,u.time_zone,
-               u.is_admin,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name
+               u.is_admin,u.role,u.is_approved,u.created_at,u.last_login,u.linked_player_id,linked_player.name AS linked_player_name
              FROM users u LEFT JOIN players linked_player ON linked_player.id=u.linked_player_id
              WHERE lower(u.username)=lower($1) OR lower(u.email)=lower($1) LIMIT 1",
             &[&identifier],
@@ -1024,7 +1025,7 @@ async fn me(
         &state,
         &headers,
         &request_id,
-        "s.user_id,s.expires_at,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.linked_player_id,linked_player.name AS linked_player_name",
+        "s.user_id,s.expires_at,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.role,u.is_approved,u.linked_player_id,linked_player.name AS linked_player_name",
     )
     .await?;
     Ok(match row {
@@ -1087,7 +1088,7 @@ async fn account(
         &state,
         &headers,
         &request_id,
-        "s.user_id,s.expires_at,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.is_approved,u.linked_player_id,u.created_at,u.last_login",
+        "s.user_id,s.expires_at,u.username,u.email,u.avatar_url,u.bio,u.time_zone,u.is_admin,u.role,u.is_approved,u.linked_player_id,u.created_at,u.last_login",
     )
     .await?;
     let Some(row) = row else {
@@ -1115,6 +1116,7 @@ async fn account(
                 "bio":row.get("bio").cloned().unwrap_or(Value::Null),
                 "time_zone":row.get("time_zone").cloned().unwrap_or(Value::Null),
                 "is_admin":row.get("is_admin").and_then(Value::as_bool).unwrap_or(false),
+                "is_project_developer":row.get("role").and_then(Value::as_str).is_some_and(|role| matches!(role,"developer"|"admin")),
                 "is_approved":row.get("is_approved").and_then(Value::as_bool).unwrap_or(false),
                 "linked_player_id":row.get("linked_player_id").cloned().unwrap_or(Value::Null),
                 "created_at":row.get("created_at").cloned().unwrap_or(Value::Null),
@@ -1204,10 +1206,18 @@ async fn site_notifications(
     let rows = state
         .database
         .query_json(
-            "SELECT notification.id,notification.timestamp,notification.importance,notification.message,notification_read.read_at \
-             FROM notifications notification LEFT JOIN site_notification_reads notification_read \
-               ON notification_read.notification_id=notification.id AND notification_read.user_id=$1 \
-             ORDER BY(notification_read.read_at IS NULL) DESC,notification.importance DESC,notification.timestamp DESC,notification.id DESC LIMIT $2",
+            "SELECT * FROM ( \
+               SELECT notification.id,notification.timestamp,notification.importance,notification.message,notification_read.read_at \
+                 FROM notifications notification LEFT JOIN site_notification_reads notification_read \
+                   ON notification_read.notification_id=notification.id AND notification_read.user_id=$1 \
+               UNION ALL \
+               SELECT -notification.id AS id,notification.created_at AS timestamp,2 AS importance, \
+                 CASE notification.type WHEN 'ticket_created' THEN 'New ticket PC-'||notification.ticket_id::TEXT \
+                   WHEN 'ticket_status' THEN 'Ticket PC-'||notification.ticket_id::TEXT||' was updated' \
+                   WHEN 'ticket_comment' THEN 'New comment on ticket PC-'||notification.ticket_id::TEXT \
+                   ELSE 'New community activity' END AS message,notification.read_at \
+                 FROM user_notifications notification WHERE notification.user_id=$1 \
+             ) inbox ORDER BY(read_at IS NULL) DESC,importance DESC,timestamp DESC,id DESC LIMIT $2",
             &[&user_id, &limit],
         )
         .await
@@ -1221,7 +1231,7 @@ async fn read_site_notification(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let Some(id) = parse_id(&id) else {
+    let Some(id) = paladinscat_core::web_compat::parse_js_integer(&id).filter(|id| *id != 0) else {
         return Ok(simple_error(
             StatusCode::BAD_REQUEST,
             "Invalid notification id",
@@ -1231,6 +1241,13 @@ async fn read_site_notification(
         Ok(id) => id,
         Err(response) => return Ok(response),
     };
+    if id < 0 {
+        let read = state.database.one_json(
+            "UPDATE user_notifications SET read_at=COALESCE(read_at,now()) WHERE id=$1 AND user_id=$2 RETURNING -id AS id,read_at",
+            &[&-id, &user_id],
+        ).await.map_err(|error| ApiError::database(error, &request_id))?;
+        return Ok(match read { Some(row) => json_response(StatusCode::OK,row), None => simple_error(StatusCode::NOT_FOUND,"Notification not found") });
+    }
     if state
         .database
         .one_json("SELECT id FROM notifications WHERE id=$1::BIGINT", &[&id])
@@ -1275,6 +1292,10 @@ async fn read_all_site_notifications(
         )
         .await
         .map_err(|error| ApiError::database(error, &request_id))?;
+    state.database.query_json(
+        "UPDATE user_notifications SET read_at=COALESCE(read_at,now()) WHERE user_id=$1 RETURNING id",
+        &[&user_id],
+    ).await.map_err(|error| ApiError::database(error, &request_id))?;
     Ok(json_response(StatusCode::OK, json!({"read":true})))
 }
 
