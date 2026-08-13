@@ -188,9 +188,15 @@ mod tests {
             is_admin: true,
             ..member.clone()
         };
+        let developer = Session {
+            is_project_developer: true,
+            ..member.clone()
+        };
         assert!(!is_admin_session(None));
         assert!(!is_admin_session(Some(&member)));
         assert!(is_admin_session(Some(&admin)));
         assert!(!is_project_staff_session(Some(&member)));
+        assert!(is_project_staff_session(Some(&developer)));
+        assert!(is_project_staff_session(Some(&admin)));
     }
 }
