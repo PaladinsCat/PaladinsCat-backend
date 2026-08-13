@@ -43,6 +43,8 @@ use crate::{
 };
 
 const ONE_MINUTE_MS: u64 = 60_000;
+const OIDC_START_LIMIT: u64 = 30;
+const OIDC_START_WINDOW_MS: u64 = 15 * ONE_MINUTE_MS;
 const CONTENT_SECURITY_POLICY: &str = "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests";
 
 #[derive(Clone)]
@@ -722,11 +724,43 @@ async fn authorize_prehandler(
             None,
         );
     }
-    if method == Method::POST
-        && matches!(
-            effective_path,
-            "/auth/login" | "/auth/account/password"
-        )
+    if method == Method::POST && effective_path == "/auth/oidc/transactions" {
+        let address =
+            resolve_client_address(headers, peer, state.security.trust_cloudflare_headers);
+        let result = state
+            .rate_limits
+            .check(
+                &format!("oidc-start:{}", client_rate_limit_identity(&address)),
+                OIDC_START_LIMIT,
+                OIDC_START_WINDOW_MS,
+                false,
+            )
+            .await;
+        if !result.backend_available {
+            return (
+                Some(request_security_error(
+                    503,
+                    "PROTECTION_UNAVAILABLE",
+                    "The upstream protection boundary is temporarily unavailable. Cached data remains available.",
+                    result,
+                )),
+                Some(result),
+            );
+        }
+        if !result.allowed {
+            return (
+                Some(request_security_error(
+                    429,
+                    "OIDC_START_RATE_LIMITED",
+                    "Too many sign-in starts. Please try again later.",
+                    result,
+                )),
+                Some(result),
+            );
+        }
+        return (None, Some(result));
+    }
+    if method == Method::POST && matches!(effective_path, "/auth/login" | "/auth/account/password")
     {
         let address =
             resolve_client_address(headers, peer, state.security.trust_cloudflare_headers);
@@ -1121,6 +1155,7 @@ mod tests {
 
     struct AuthenticationRateLimits {
         auth: RateLimitResult,
+        oidc: Option<RateLimitResult>,
     }
 
     #[async_trait]
@@ -1134,6 +1169,11 @@ mod tests {
         ) -> RateLimitResult {
             if key.starts_with("account-auth:") {
                 return self.auth;
+            }
+            if key.starts_with("oidc-start:")
+                && let Some(result) = self.oidc
+            {
+                return result;
             }
             RateLimitResult {
                 remaining: limit.saturating_sub(1),
@@ -1567,6 +1607,22 @@ mod tests {
             );
         }
 
+        let oidc = fixture_router(fixture_state(&[]))
+            .oneshot(
+                HttpRequest::builder()
+                    .method(Method::POST)
+                    .uri("/auth/oidc/transactions")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(oidc.status(), StatusCode::OK);
+        assert_eq!(
+            oidc.headers().get("x-auth-ratelimit-limit"),
+            Some(&HeaderValue::from_static("30"))
+        );
+
         for (backend_available, status, code) in [
             (
                 false,
@@ -1584,6 +1640,7 @@ mod tests {
                     allowed: false,
                     backend_available,
                 },
+                oidc: None,
             });
             for path in ["/auth/login", "/auth/account/password"] {
                 let response = fixture_router(state.clone())
@@ -1619,6 +1676,13 @@ mod tests {
                 allowed: false,
                 backend_available: true,
             },
+            oidc: Some(RateLimitResult {
+                remaining: 0,
+                total: OIDC_START_LIMIT,
+                reset_at_ms: unix_time_ms().saturating_add(OIDC_START_WINDOW_MS),
+                allowed: false,
+                backend_available: true,
+            }),
         });
         let oidc = fixture_router(state)
             .oneshot(
@@ -1630,8 +1694,11 @@ mod tests {
             )
             .await
             .expect("response");
-        assert_eq!(oidc.status(), StatusCode::OK);
-        assert!(oidc.headers().get("x-auth-ratelimit-limit").is_none());
+        assert_eq!(oidc.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response_json(oidc).await["error"]["code"],
+            "OIDC_START_RATE_LIMITED"
+        );
     }
 
     #[tokio::test]
