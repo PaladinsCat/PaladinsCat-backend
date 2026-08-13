@@ -725,7 +725,7 @@ async fn authorize_prehandler(
     if method == Method::POST
         && matches!(
             effective_path,
-            "/auth/oidc/transactions" | "/auth/login" | "/auth/account/password"
+            "/auth/login" | "/auth/account/password"
         )
     {
         let address =
@@ -1543,11 +1543,7 @@ mod tests {
 
     #[tokio::test]
     async fn authentication_guard_preserves_limit_headers_on_success_and_failure() {
-        for path in [
-            "/auth/oidc/transactions",
-            "/auth/login",
-            "/auth/account/password",
-        ] {
+        for path in ["/auth/login", "/auth/account/password"] {
             let allowed = fixture_router(fixture_state(&[]))
                 .oneshot(
                     HttpRequest::builder()
@@ -1589,11 +1585,7 @@ mod tests {
                     backend_available,
                 },
             });
-            for path in [
-                "/auth/oidc/transactions",
-                "/auth/login",
-                "/auth/account/password",
-            ] {
+            for path in ["/auth/login", "/auth/account/password"] {
                 let response = fixture_router(state.clone())
                     .oneshot(
                         HttpRequest::builder()
@@ -1617,6 +1609,29 @@ mod tests {
                 );
             }
         }
+
+        let mut state = fixture_state(&[]);
+        state.rate_limits = Arc::new(AuthenticationRateLimits {
+            auth: RateLimitResult {
+                remaining: 0,
+                total: 10,
+                reset_at_ms: unix_time_ms().saturating_add(60_000),
+                allowed: false,
+                backend_available: true,
+            },
+        });
+        let oidc = fixture_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .method(Method::POST)
+                    .uri("/auth/oidc/transactions")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(oidc.status(), StatusCode::OK);
+        assert!(oidc.headers().get("x-auth-ratelimit-limit").is_none());
     }
 
     #[tokio::test]
