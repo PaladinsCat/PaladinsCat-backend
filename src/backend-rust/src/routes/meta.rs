@@ -207,13 +207,13 @@ async fn load_changelog(
         query.get("perPage").map(String::as_str),
     );
     let public_versions = "\
-      SELECT DISTINCT ON (COALESCE(NULLIF(git_commit, ''), 'row:' || id::text)) \
+      SELECT DISTINCT ON (COALESCE('aggregate:' || NULLIF(metadata->>'aggregateCommitCount', ''), 'git:' || NULLIF(git_commit, ''), 'row:' || id::text)) \
         id, component, version, git_commit, git_commit_short, git_branch, deployed_at, \
         source, metadata, changelog \
       FROM stack_versions \
       WHERE component = 'stack' \
       ORDER BY \
-        COALESCE(NULLIF(git_commit, ''), 'row:' || id::text), \
+        COALESCE('aggregate:' || NULLIF(metadata->>'aggregateCommitCount', ''), 'git:' || NULLIF(git_commit, ''), 'row:' || id::text), \
         (changelog IS NOT NULL AND changelog <> '') DESC, \
         deployed_at DESC, \
         id DESC";
