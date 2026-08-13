@@ -5,8 +5,9 @@ mod listings;
 mod notifications;
 mod operations;
 mod private_accounts;
+mod roles;
 
-pub const ROUTE_COUNT: usize = 31;
+pub const ROUTE_COUNT: usize = 35;
 
 use std::time::Duration;
 
@@ -106,6 +107,9 @@ pub fn router(foundation: FoundationState) -> Router {
         .route("/admin/changelog", get(changelog::list))
         .route("/admin/changelog/{id}", put(changelog::update))
         .route("/admin/dashboard", get(dashboard::get))
+        .route("/developer/dashboard", get(dashboard::get_developer))
+        .route("/admin/accounts", get(roles::search_accounts))
+        .route("/admin/accounts/{id}/role", put(roles::update_role))
         .route(
             "/admin/notifications",
             get(notifications::list).post(notifications::create),
@@ -146,6 +150,19 @@ fn is_admin_session(session: Option<&Session>) -> bool {
     session.is_some_and(|user| user.is_admin)
 }
 
+pub(crate) fn is_project_staff_session(session: Option<&Session>) -> bool {
+    session.is_some_and(|user| user.is_admin || user.is_project_developer)
+}
+
+pub(crate) async fn require_project_staff(
+    database: &Database, headers: &HeaderMap, request_id: &RequestId,
+) -> Result<(), Response> {
+    match session(database, headers, request_id).await {
+        Ok(user) if is_project_staff_session(user.as_ref()) => Ok(()),
+        _ => Err(coded_error(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Operations access required")),
+    }
+}
+
 fn coded_error(status: StatusCode, code: &str, message: &str) -> Response {
     (
         status,
@@ -164,6 +181,7 @@ mod tests {
             user_id: 1,
             username: "member".to_owned(),
             is_admin: false,
+            is_project_developer: false,
             linked_player_id: None,
         };
         let admin = Session {
@@ -173,5 +191,6 @@ mod tests {
         assert!(!is_admin_session(None));
         assert!(!is_admin_session(Some(&member)));
         assert!(is_admin_session(Some(&admin)));
+        assert!(!is_project_staff_session(Some(&member)));
     }
 }

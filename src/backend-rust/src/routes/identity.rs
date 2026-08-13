@@ -14,6 +14,7 @@ pub(crate) struct Session {
     pub user_id: i32,
     pub username: String,
     pub is_admin: bool,
+    pub is_project_developer: bool,
     pub linked_player_id: Option<i64>,
 }
 
@@ -28,7 +29,7 @@ pub(crate) async fn session(
     let token_hash = format!("{:x}", Sha256::digest(token.as_bytes()));
     let row = database
         .one_json(
-            "SELECT s.user_id,u.username,u.is_admin,u.linked_player_id \
+            "SELECT s.user_id,u.username,u.is_admin,(u.role IN ('developer','admin')) AS is_project_developer,u.linked_player_id \
              FROM sessions s JOIN users u ON u.id=s.user_id \
              WHERE s.token=$1 AND s.expires_at>now()",
             &[&token_hash],
@@ -45,6 +46,10 @@ pub(crate) async fn session(
                 .to_owned(),
             is_admin: row
                 .get("is_admin")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            is_project_developer: row
+                .get("is_project_developer")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
             linked_player_id: as_i64(row.get("linked_player_id")),

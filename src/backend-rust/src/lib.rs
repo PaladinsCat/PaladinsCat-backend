@@ -140,6 +140,7 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             database.clone(),
             route_cache.clone(),
         ))
+        .merge(routes::operations::router(database.clone()))
         .merge(routes::matches::router(
             database.clone(),
             foundation.redis.clone(),

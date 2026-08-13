@@ -9,14 +9,21 @@ use time::OffsetDateTime;
 
 use crate::{error::ApiError, request::RequestId};
 
-use super::{AdminState, require_admin};
+use super::{AdminState, require_admin, require_project_staff};
 
 pub(super) async fn get(
     State(state): State<AdminState>,
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
-) -> Result<Response, ApiError> {
-    if let Err(response) = require_admin(&state.database, &headers, &request_id).await {
+) -> Result<Response, ApiError> { dashboard(state, request_id, headers, false).await }
+
+pub(super) async fn get_developer(
+    State(state): State<AdminState>, Extension(request_id): Extension<RequestId>, headers: HeaderMap,
+) -> Result<Response, ApiError> { dashboard(state, request_id, headers, true).await }
+
+async fn dashboard(state: AdminState, request_id: RequestId, headers: HeaderMap, developer: bool) -> Result<Response, ApiError> {
+    let access = if developer { require_project_staff(&state.database, &headers, &request_id).await } else { require_admin(&state.database, &headers, &request_id).await };
+    if let Err(response) = access {
         return Ok(response);
     }
     let traffic_summary = state.database.one_json(
@@ -50,8 +57,13 @@ pub(super) async fn get(
     let totals = state.database.one_json(
         "SELECT (SELECT COUNT(*)::INT FROM matches) AS matches,\
          (SELECT COUNT(*)::INT FROM matches WHERE queue_id=486) AS ranked_matches,\
+         (SELECT COUNT(*)::INT FROM matches WHERE queue_id IS DISTINCT FROM 486) AS casual_matches,\
+         (SELECT COUNT(*) FILTER(WHERE broken IS NOT TRUE AND recovered IS NOT TRUE)::INT FROM matches) AS direct_matches,\
+         (SELECT COUNT(*) FILTER(WHERE recovered IS TRUE)::INT FROM matches) AS recovered_matches,\
+         (SELECT COUNT(*) FILTER(WHERE broken IS TRUE AND recovered IS NOT TRUE)::INT FROM matches) AS incomplete_matches,\
          (SELECT COUNT(*)::INT FROM players WHERE id>0) AS players,\
          (SELECT COUNT(*)::INT FROM users) AS registered_users,\
+         (SELECT COUNT(*)::INT FROM users WHERE linked_player_id IS NOT NULL) AS verified_accounts,\
          (SELECT COUNT(*)::INT FROM builds) AS community_builds,\
          pg_database_size(current_database())::BIGINT AS database_bytes",
         &[],
@@ -116,6 +128,12 @@ pub(super) async fn get(
     {
         summary.extend(active);
     }
+    let mut keys = keys.map_err(|error| ApiError::database(error, &request_id))?;
+    if developer {
+        for (index, key) in keys.iter_mut().enumerate() {
+            if let Some(object) = key.as_object_mut() { object.remove("dev_id"); object.insert("label".to_owned(), Value::String(format!("Key {}", index + 1))); }
+        }
+    }
     let payload = json!({
         "generated_at": OffsetDateTime::now_utc(),
         "traffic": {
@@ -128,7 +146,7 @@ pub(super) async fn get(
             "pipeline": pipeline.map_err(|error| ApiError::database(error, &request_id))?.unwrap_or_else(|| Value::Object(Map::new())),
         },
         "hirez": {
-            "keys": keys.map_err(|error| ApiError::database(error, &request_id))?,
+            "keys": keys,
             "hourly": hourly.map_err(|error| ApiError::database(error, &request_id))?,
             "endpoints": endpoints.map_err(|error| ApiError::database(error, &request_id))?,
         }

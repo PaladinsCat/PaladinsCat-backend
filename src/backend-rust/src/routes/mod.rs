@@ -11,6 +11,7 @@ pub(crate) mod lobby_tier;
 pub mod matches;
 pub mod meta;
 pub mod notifications;
+pub mod operations;
 pub mod player_ext;
 pub mod players;
 pub mod public_operations;
@@ -36,6 +37,7 @@ pub fn count_implemented_routes() -> usize {
         + matches::ROUTE_COUNT
         + meta::ROUTE_COUNT
         + notifications::ROUTE_COUNT
+        + operations::ROUTE_COUNT
         + player_ext::ROUTE_COUNT
         + players::ROUTE_COUNT
         + public_operations::ROUTE_COUNT
