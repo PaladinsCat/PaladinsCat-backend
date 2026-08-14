@@ -50,10 +50,7 @@ async fn require_session(
     headers: &HeaderMap,
     request_id: &RequestId,
 ) -> Result<Session, ApiError> {
-    let token = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
+    let token = crate::routes::identity::session_token(headers)
         .ok_or_else(|| {
             ApiError::coded(StatusCode::UNAUTHORIZED, "AUTH", "Authentication required")
         })?;

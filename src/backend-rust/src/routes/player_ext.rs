@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
     body::to_bytes,
     extract::{Extension, Path, Query, Request, State},
-    http::{HeaderMap, StatusCode, header::AUTHORIZATION},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -629,11 +629,7 @@ async fn require_user_session(
     headers: &HeaderMap,
     request_id: &RequestId,
 ) -> Result<UserSession, ApiError> {
-    let Some(token) = headers
-        .get(AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-    else {
+    let Some(token) = crate::routes::identity::session_token(headers) else {
         return Err(ApiError::coded(
             StatusCode::UNAUTHORIZED,
             "AUTH",

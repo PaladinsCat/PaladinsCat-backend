@@ -57,7 +57,7 @@ pub(crate) async fn session(
     }))
 }
 
-fn session_token(headers: &HeaderMap) -> Option<&str> {
+pub(crate) fn session_token(headers: &HeaderMap) -> Option<&str> {
     headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
