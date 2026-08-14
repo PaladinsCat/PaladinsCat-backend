@@ -24,7 +24,7 @@ use crate::{
     workers::relay::WorkerRelayClient,
 };
 
-use super::identity::{as_i64, json_response, parse_id, simple_error};
+use super::identity::{as_i64, json_response, parse_id, session_token, simple_error};
 
 pub const ROUTE_COUNT: usize = 18;
 
@@ -410,7 +410,10 @@ async fn oidc_transaction_consume(
 }
 
 fn oidc_bff_authorized(state: &AuthState, headers: &HeaderMap) -> bool {
-    oidc_bff_token_matches(state.oidc_bff_service_token.as_deref(), bearer(headers))
+    oidc_bff_token_matches(
+        state.oidc_bff_service_token.as_deref(),
+        service_bearer(headers),
+    )
 }
 
 fn oidc_bff_token_matches(expected: Option<&str>, candidate: Option<&str>) -> bool {
@@ -437,6 +440,21 @@ mod oidc_tests {
         assert!(oidc_state(&json!({"state":"x".repeat(32)})).is_some());
         assert!(oidc_state(&json!({"state":"x".repeat(31)})).is_none());
         assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
+    }
+
+    #[test]
+    fn bff_service_auth_never_accepts_a_browser_session_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            "__Host-pc_session=browser-session".parse().expect("cookie"),
+        );
+        assert_eq!(service_bearer(&headers), None);
+        headers.insert(
+            AUTHORIZATION,
+            "Bearer service-token".parse().expect("authorization"),
+        );
+        assert_eq!(service_bearer(&headers), Some("service-token"));
     }
 
     #[tokio::test]
@@ -795,23 +813,12 @@ mod oidc_tests {
     }
 }
 
-fn bearer(headers: &HeaderMap) -> Option<&str> {
+fn service_bearer(headers: &HeaderMap) -> Option<&str> {
     headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .filter(|value| !value.is_empty())
-        .or_else(|| {
-            headers
-                .get("cookie")
-                .and_then(|value| value.to_str().ok())
-                .and_then(|value| {
-                    value
-                        .split(';')
-                        .find_map(|part| part.trim().strip_prefix("__Host-pc_session="))
-                        .filter(|value| !value.is_empty())
-                })
-        })
 }
 
 fn sha256(value: impl AsRef<[u8]>) -> String {
@@ -828,7 +835,7 @@ async fn session_row(
     request_id: &RequestId,
     select: &str,
 ) -> Result<Option<Value>, ApiError> {
-    let Some(token) = bearer(headers) else {
+    let Some(token) = session_token(headers) else {
         return Ok(None);
     };
     state
@@ -851,7 +858,7 @@ async fn require_user_id(
     request_id: &RequestId,
     missing: &'static str,
 ) -> Result<Result<i32, Response>, ApiError> {
-    if bearer(headers).is_none() {
+    if session_token(headers).is_none() {
         return Ok(Err(simple_error(StatusCode::UNAUTHORIZED, missing)));
     }
     let row = session_row(state, headers, request_id, "s.user_id").await?;
@@ -997,7 +1004,7 @@ async fn logout(
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Some(token) = bearer(&headers) {
+    if let Some(token) = session_token(&headers) {
         state
             .database
             .query_json(
@@ -1018,7 +1025,7 @@ async fn me(
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if bearer(&headers).is_none() {
+    if session_token(&headers).is_none() {
         return Ok(simple_error(StatusCode::UNAUTHORIZED, "No token"));
     }
     let row = session_row(
@@ -1081,7 +1088,7 @@ async fn account(
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if bearer(&headers).is_none() {
+    if session_token(&headers).is_none() {
         return Ok(simple_error(StatusCode::UNAUTHORIZED, "No token"));
     }
     let row = session_row(
