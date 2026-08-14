@@ -368,6 +368,9 @@ impl MatchFactRepository {
             add_stage(&transaction, payload.match_id, "player_facts").await?;
             stages.insert("player_facts".to_owned());
         }
+        if population == MatchPopulation::Ranked {
+            persist_ranked_party_groups(&transaction, payload).await?;
+        }
         // Private-account observations and their inferred identity links share
         // the same transaction as canonical player facts. Replays are safe:
         // the immutable match/slot observation upsert preserves resolved links.
@@ -714,6 +717,141 @@ async fn upsert_hourly_count(
                 "#
             ),
             &[&date, &(hour as i32), &payload.queue_id, &region_count, &total_count],
+        )
+        .await?;
+
+    Ok(())
+}
+
+/// Persists the immutable ranked-party facts that drive boosted detection.
+/// Aggregate changes are sourced only from newly inserted facts, so replaying
+/// a finalized match cannot increase either counter twice.
+async fn persist_ranked_party_groups(
+    transaction: &Transaction<'_>,
+    payload: &CanonicalMatchPayload,
+) -> Result<(), MatchFactError> {
+    transaction
+        .execute(
+            r#"
+            WITH grouped AS (
+              SELECT
+                mp.match_id,
+                mp.task_force,
+                mp.party_id AS observed_party_id,
+                array_agg(DISTINCT mp.player_id ORDER BY mp.player_id) AS player_ids,
+                count(DISTINCT mp.player_id)::SMALLINT AS stack_size,
+                COALESCE(max(mp.league_tier) FILTER (WHERE mp.league_tier > 0), 0)::SMALLINT
+                  AS max_known_tier,
+                min(mp.entry_datetime) AS entry_datetime
+              FROM match_players mp
+              JOIN matches m
+                ON m.match_id = mp.match_id
+               AND m.entry_datetime = mp.entry_datetime
+              WHERE mp.match_id = $1
+                AND mp.entry_datetime = $2::text::timestamptz
+                AND m.queue_id = 486
+                AND COALESCE(m.is_ranked, TRUE)
+                AND mp.player_id > 0
+                AND mp.party_id IS NOT NULL
+                AND mp.party_id <> 0
+                AND mp.task_force IN (1, 2)
+                AND mp.champion_id > 0
+                AND COALESCE(mp.source, 'direct') IN ('direct', 'recovered')
+              GROUP BY mp.match_id, mp.task_force, mp.party_id
+            ), eligible AS (
+              SELECT
+                match_id,
+                array_to_string(player_ids, ':') AS group_key,
+                player_ids,
+                stack_size,
+                task_force,
+                observed_party_id,
+                max_known_tier,
+                entry_datetime
+              FROM grouped
+              WHERE stack_size BETWEEN 2 AND 5
+                AND (stack_size = 2 OR max_known_tier <= 20)
+            ), inserted AS (
+              INSERT INTO match_party_groups (
+                match_id, group_key, player_ids, stack_size, task_force,
+                observed_party_id, max_known_tier, entry_datetime
+              )
+              SELECT
+                match_id, group_key, player_ids, stack_size, task_force,
+                observed_party_id, max_known_tier, entry_datetime
+              FROM eligible
+              ON CONFLICT (match_id, group_key) DO NOTHING
+              RETURNING *
+            )
+            INSERT INTO party_stack_stats (
+              group_key, player_ids, stack_size, match_count,
+              first_seen, last_seen, updated_at
+            )
+            SELECT group_key, player_ids, stack_size, 1, entry_datetime, entry_datetime, now()
+            FROM inserted
+            ON CONFLICT (group_key) DO UPDATE SET
+              match_count = party_stack_stats.match_count + EXCLUDED.match_count,
+              first_seen = LEAST(party_stack_stats.first_seen, EXCLUDED.first_seen),
+              last_seen = GREATEST(party_stack_stats.last_seen, EXCLUDED.last_seen),
+              updated_at = now()
+            "#,
+            &[&payload.match_id, &payload.entry_datetime],
+        )
+        .await?;
+
+    transaction
+        .execute(
+            r#"
+            WITH candidates AS (
+              SELECT
+                mpg.match_id,
+                low.player_id AS player_low_id,
+                high.player_id AS player_high_id,
+                mpg.group_key AS source_group_key,
+                mpg.entry_datetime
+              FROM match_party_groups mpg
+              CROSS JOIN LATERAL unnest(mpg.player_ids) WITH ORDINALITY
+                AS low(player_id, ordinal)
+              CROSS JOIN LATERAL unnest(mpg.player_ids) WITH ORDINALITY
+                AS high(player_id, ordinal)
+              WHERE mpg.match_id = $1
+                AND low.ordinal < high.ordinal
+            ), inserted AS (
+              INSERT INTO match_party_pairs (
+                match_id, player_low_id, player_high_id,
+                source_group_key, entry_datetime
+              )
+              SELECT
+                match_id, player_low_id, player_high_id,
+                source_group_key, entry_datetime
+              FROM candidates
+              ON CONFLICT (match_id, player_low_id, player_high_id) DO NOTHING
+              RETURNING *
+            ), grouped AS (
+              SELECT
+                player_low_id,
+                player_high_id,
+                count(*)::INTEGER AS match_count,
+                min(entry_datetime) AS first_seen,
+                max(entry_datetime) AS last_seen
+              FROM inserted
+              GROUP BY player_low_id, player_high_id
+            )
+            INSERT INTO party_pair_stats (
+              player_low_id, player_high_id, match_count,
+              first_seen, last_seen, updated_at
+            )
+            SELECT
+              player_low_id, player_high_id, match_count,
+              first_seen, last_seen, now()
+            FROM grouped
+            ON CONFLICT (player_low_id, player_high_id) DO UPDATE SET
+              match_count = party_pair_stats.match_count + EXCLUDED.match_count,
+              first_seen = LEAST(party_pair_stats.first_seen, EXCLUDED.first_seen),
+              last_seen = GREATEST(party_pair_stats.last_seen, EXCLUDED.last_seen),
+              updated_at = now()
+            "#,
+            &[&payload.match_id],
         )
         .await?;
 
@@ -1778,6 +1916,36 @@ mod tests {
             .0;
         assert!(hourly_count.contains("&[&date,"));
         assert!(!hourly_count.contains("&date.to_string()"));
+    }
+
+    #[test]
+    fn ranked_finalization_projects_party_facts_idempotently() {
+        let source = include_str!("match_facts.rs").replace("\r\n", "\n");
+        let finalizer = source
+            .split_once("pub async fn finalize")
+            .expect("finalizer")
+            .1
+            .split_once("async fn classify_queue")
+            .expect("finalizer end")
+            .0;
+        assert!(finalizer.contains("persist_ranked_party_groups(&transaction, payload).await?"));
+
+        let projection = source
+            .split_once("async fn persist_ranked_party_groups")
+            .expect("party projection")
+            .1
+            .split_once("async fn persist_nonranked_match")
+            .expect("party projection end")
+            .0;
+        assert!(projection.contains("ON CONFLICT (match_id, group_key) DO NOTHING"));
+        assert!(
+            projection.contains("ON CONFLICT (match_id, player_low_id, player_high_id) DO NOTHING")
+        );
+        assert!(projection.contains("FROM inserted\n            ON CONFLICT (group_key)"));
+        assert!(
+            projection
+                .contains("FROM grouped\n            ON CONFLICT (player_low_id, player_high_id)")
+        );
     }
 
     #[test]
