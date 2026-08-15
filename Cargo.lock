@@ -1438,6 +1438,7 @@ dependencies = [
  "paladinscat-core",
  "rand 0.9.5",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1448,6 +1449,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "webpki-roots",
 ]
 
 [[package]]

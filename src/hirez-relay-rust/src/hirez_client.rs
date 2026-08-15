@@ -70,6 +70,7 @@ impl HirezApiClient {
         let mut last_app_error = String::new();
         let mut last_key_dev_id: Option<String> = None;
         let mut attempts_made = 0;
+        let mut transport_failed = false;
 
         for attempt in 0..=max_retries {
             attempts_made = attempt + 1;
@@ -134,6 +135,7 @@ impl HirezApiClient {
                     break;
                 }
                 Err(error) => {
+                    transport_failed = true;
                     last_error = Some(error.to_string());
                     if attempt < max_retries {
                         self.retry_sleeper.sleep_before_retry(attempt + 1).await;
@@ -196,7 +198,8 @@ impl HirezApiClient {
             });
         let terminal_vendor_return = message.contains("HIREZ_NOT_FOUND_OR_INVALID")
             || message.contains("HIREZ_UNKNOWN_RETURN");
-        let is_key_fault = !terminal_vendor_return
+        let is_key_fault = !transport_failed
+            && !terminal_vendor_return
             && !message.contains("404")
             && !message.contains("422")
             && !message.contains("ECONNRESET")
@@ -627,6 +630,11 @@ mod tests {
             assert_eq!(fixture.transport.calls.load(Ordering::Relaxed), 2);
             assert_eq!(fixture.keys.usage.load(Ordering::Relaxed), 2);
             assert_eq!(fixture.keys.logs.lock().expect("logs").len(), 2);
+            assert_eq!(
+                fixture.keys.failures.lock().expect("failures").as_slice(),
+                [("1234".to_owned(), false)],
+                "transport failures must not poison credential health"
+            );
         }
     }
 

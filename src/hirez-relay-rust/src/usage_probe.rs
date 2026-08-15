@@ -71,7 +71,7 @@ impl DirectUsageProbe {
                 )));
             }
             Err(error) => {
-                self.key_state.record_failure(&key.dev_id, true).await;
+                self.key_state.record_failure(&key.dev_id, false).await;
                 return Err(KeyPoolError::Probe(error.to_string()));
             }
         };

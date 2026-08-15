@@ -118,7 +118,7 @@ impl SessionManager {
                 self.key_state
                     .log_endpoint(&key.dev_id, "createsession", elapsed, "session_management")
                     .await;
-                self.key_state.record_failure(&key.dev_id, true).await;
+                self.key_state.record_failure(&key.dev_id, false).await;
                 return Err(error.into());
             }
         };

@@ -16,6 +16,7 @@ md-5 = "0.10"
 paladinscat-core = { path = "../paladinscat-core" }
 rand = "0.9"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -26,3 +27,4 @@ tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-time-
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1", features = ["v4"] }
+webpki-roots = "1"
