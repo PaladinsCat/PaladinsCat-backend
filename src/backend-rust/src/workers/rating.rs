@@ -122,6 +122,17 @@ impl RatingRepository {
             tx.rollback().await?;
             return Ok(RatingApplicationResult::Busy);
         }
+        let rebuild_pending = tx
+            .query_one(
+                "SELECT EXISTS(SELECT 1 FROM rating_rebuild_requests WHERE request_key='global')",
+                &[],
+            )
+            .await?
+            .get::<_, bool>(0);
+        if should_defer_incremental(rebuilding, rebuild_pending) {
+            tx.rollback().await?;
+            return Ok(RatingApplicationResult::Deferred);
+        }
         if !rebuilding {
             record_late_arrival(&tx, match_id).await?;
         }
@@ -215,6 +226,10 @@ impl RatingRepository {
         super::projections::rebuild_best_champion_ratings(&self.database).await?;
         Ok(report)
     }
+}
+
+fn should_defer_incremental(rebuilding: bool, rebuild_pending: bool) -> bool {
+    !rebuilding && rebuild_pending
 }
 
 pub fn is_valid_state(state: GlickoState) -> bool {
@@ -646,6 +661,13 @@ fn integer(row: &Value, key: &str) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pending_global_rebuild_freezes_only_incremental_updates() {
+        assert!(should_defer_incremental(false, true));
+        assert!(!should_defer_incremental(true, true));
+        assert!(!should_defer_incremental(false, false));
+    }
 
     #[test]
     fn weighted_team_is_one_event() {
