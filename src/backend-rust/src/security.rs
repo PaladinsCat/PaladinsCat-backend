@@ -58,6 +58,9 @@ static SAFE_PATHS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     .map(|pattern| Regex::new(pattern).expect("safe developer API path regex"))
     .collect()
 });
+static ANONYMOUS_READ_PATHS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    vec![Regex::new(r"^/stats/champions$").expect("anonymous v1 read path regex")]
+});
 static GUARDED_WRITE_PATHS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![Regex::new(r"^/players/\d+/refresh$").expect("guarded developer API write regex")]
 });
@@ -236,6 +239,9 @@ pub fn resolve_developer_api_route(method: &str, raw_url: &str) -> DeveloperApiD
         "/version" => Some("/meta/version"),
         _ => None,
     };
+    let anonymous_read = ANONYMOUS_READ_PATHS
+        .iter()
+        .any(|pattern| pattern.is_match(path));
     let guarded_write = GUARDED_WRITE_PATHS
         .iter()
         .any(|pattern| pattern.is_match(path));
@@ -250,7 +256,7 @@ pub fn resolve_developer_api_route(method: &str, raw_url: &str) -> DeveloperApiD
             "This endpoint is not part of the PaladinsCat v1 API.",
         );
     }
-    let method_supported = matches!(normalized_method.as_str(), "GET" | "HEAD")
+    let method_supported = (matches!(normalized_method.as_str(), "GET" | "HEAD") && !guarded_write)
         || (normalized_method == "POST" && guarded_write);
     if !method_supported {
         return rejected_decision(
@@ -280,7 +286,7 @@ pub fn resolve_developer_api_route(method: &str, raw_url: &str) -> DeveloperApiD
     DeveloperApiDecision {
         attempted: true,
         supported: true,
-        anonymous: anonymous_target.is_some(),
+        anonymous: anonymous_target.is_some() || anonymous_read,
         target_url: format!("{}{query}", anonymous_target.unwrap_or(path)),
         status_code: None,
         code: None,
@@ -463,7 +469,7 @@ mod tests {
             DeveloperApiDecision {
                 attempted: true,
                 supported: true,
-                anonymous: false,
+                anonymous: true,
                 target_url: "/stats/champions?limit=5".to_owned(),
                 status_code: None,
                 code: None,
@@ -488,6 +494,9 @@ mod tests {
             Some(405)
         );
         assert!(resolve_developer_api_route("POST", "/v1/players/716515038/refresh").supported);
+        assert!(!resolve_developer_api_route("GET", "/v1/players/716515038/refresh").supported);
+        assert!(!resolve_developer_api_route("GET", "/v1/players/716515038").anonymous);
+        assert!(!resolve_developer_api_route("GET", "/v1/matches/1280340959").anonymous);
         assert_eq!(
             resolve_developer_api_route("GET", "/v1/search/universal?q=name&remote=true").code,
             Some("REMOTE_LOOKUP_NOT_AVAILABLE")

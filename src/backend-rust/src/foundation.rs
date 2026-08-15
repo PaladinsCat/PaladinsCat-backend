@@ -338,7 +338,10 @@ pub async fn application_foundation(
         public_guard = Some(state.active_requests.begin());
     }
 
-    if !internal && !bypasses_public_rate_limit(effective_path) {
+    // v1 routes, including anonymous health/version and public reads, remain
+    // subject to both the client IP and global external quotas. Preserve the
+    // legacy health/migration bypasses for unversioned/internal surfaces.
+    if !internal && (developer.attempted || !bypasses_public_rate_limit(effective_path)) {
         let peer = request
             .extensions()
             .get::<ConnectInfo<SocketAddr>>()
@@ -1246,6 +1249,10 @@ mod tests {
                 get(|| async { Json(json!([{"champion_id": 1}])) }),
             )
             .route(
+                "/players/{id}/refresh",
+                post(|| async { Json(json!({"refreshed": true})) }),
+            )
+            .route(
                 "/recovery/pending",
                 get(|| async { Json(json!({"private": true})) }),
             )
@@ -1416,7 +1423,7 @@ mod tests {
             hash,
         )]));
 
-        let missing = app
+        let anonymous_read = app
             .clone()
             .oneshot(
                 HttpRequest::builder()
@@ -1426,16 +1433,47 @@ mod tests {
             )
             .await
             .expect("response");
-        assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(anonymous_read.status(), StatusCode::OK);
         assert_eq!(
-            missing.headers().get("x-paladinscat-api-version"),
+            anonymous_read.headers().get("x-paladinscat-api-version"),
             Some(&HeaderValue::from_static("v1"))
         );
+        assert_eq!(anonymous_read.headers().get(CACHE_CONTROL), None);
+        assert_eq!(
+            anonymous_read.headers().get("x-ratelimit-limit").unwrap(),
+            "300"
+        );
+        let anonymous_body = response_json(anonymous_read).await;
+        let legacy_read = app
+            .clone()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/stats/champions")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(legacy_read.status(), StatusCode::OK);
+        assert_eq!(anonymous_body, response_json(legacy_read).await);
+
+        let missing = app
+            .clone()
+            .oneshot(
+                HttpRequest::builder()
+                    .method(Method::POST)
+                    .uri("/v1/players/716515038/refresh")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(missing.headers().get("x-ratelimit-limit").unwrap(), "300");
         assert_eq!(
             missing.headers().get(CACHE_CONTROL),
             Some(&HeaderValue::from_static("private, no-store"))
         );
-        assert_eq!(missing.headers().get("x-ratelimit-limit").unwrap(), "300");
         assert_eq!(
             response_json(missing).await["error"]["code"],
             "INVALID_API_KEY"
@@ -1445,7 +1483,8 @@ mod tests {
             .clone()
             .oneshot(
                 HttpRequest::builder()
-                    .uri("/v1/stats/champions")
+                    .method(Method::POST)
+                    .uri("/v1/players/716515038/refresh")
                     .header(AUTHORIZATION, format!("Bearer {key}"))
                     .body(Body::empty())
                     .expect("request"),
@@ -1453,6 +1492,7 @@ mod tests {
             .await
             .expect("response");
         assert_eq!(allowed.status(), StatusCode::OK);
+        assert_eq!(allowed.headers().get("x-ratelimit-limit").unwrap(), "300");
         assert_eq!(
             allowed
                 .headers()
@@ -1460,7 +1500,7 @@ mod tests {
                 .unwrap(),
             "120"
         );
-        assert_eq!(response_json(allowed).await, json!([{"champion_id": 1}]));
+        assert_eq!(response_json(allowed).await, json!({"refreshed": true}));
 
         let forbidden = app
             .clone()
@@ -1490,7 +1530,7 @@ mod tests {
             .expect("response");
         assert_eq!(anonymous.status(), StatusCode::OK);
         assert_eq!(anonymous.headers().get(CACHE_CONTROL), None);
-        assert_eq!(anonymous.headers().get("x-ratelimit-limit"), None);
+        assert_eq!(anonymous.headers().get("x-ratelimit-limit").unwrap(), "300");
         assert!(
             !anonymous
                 .headers()
@@ -1501,11 +1541,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn v1_side_by_side_http_e2e_matches_the_legacy_payload() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fixture HTTP server");
+        let address = listener.local_addr().expect("fixture address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, fixture_router(fixture_state(&[])))
+                .await
+                .expect("serve fixture router");
+        });
+        let client = reqwest::Client::new();
+        let legacy = client
+            .get(format!("http://{address}/stats/champions"))
+            .send()
+            .await
+            .expect("legacy HTTP response");
+        let v1 = client
+            .get(format!("http://{address}/v1/stats/champions"))
+            .send()
+            .await
+            .expect("v1 HTTP response");
+
+        assert_eq!(legacy.status(), StatusCode::OK);
+        assert_eq!(v1.status(), StatusCode::OK);
+        assert_eq!(v1.headers()["x-paladinscat-api-version"], "v1");
+        assert_eq!(v1.headers()["x-ratelimit-limit"], "300");
+        assert_eq!(
+            legacy.json::<Value>().await.unwrap(),
+            v1.json::<Value>().await.unwrap()
+        );
+
+        server.abort();
+        let _ = server.await;
+    }
+
+    #[tokio::test]
+    async fn v1_pilot_is_wired_through_the_production_router() {
+        let legacy = crate::candidate_router(fixture_state(&[]))
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/stats/champions")
+                    .body(Body::empty())
+                    .expect("legacy request"),
+            )
+            .await
+            .expect("legacy response");
+        let v1 = crate::candidate_router(fixture_state(&[]))
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/v1/stats/champions")
+                    .body(Body::empty())
+                    .expect("v1 request"),
+            )
+            .await
+            .expect("v1 response");
+
+        assert_ne!(legacy.status(), StatusCode::NOT_FOUND);
+        assert_eq!(legacy.status(), v1.status());
+        assert_eq!(v1.headers()["x-paladinscat-api-version"], "v1");
+    }
+
+    #[tokio::test]
     async fn unconfigured_developer_api_fails_before_key_parsing() {
         let response = fixture_router(fixture_state(&[]))
             .oneshot(
                 HttpRequest::builder()
-                    .uri("/v1/stats/champions")
+                    .method(Method::POST)
+                    .uri("/v1/players/716515038/refresh")
                     .body(Body::empty())
                     .expect("request"),
             )
