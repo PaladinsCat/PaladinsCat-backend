@@ -430,7 +430,10 @@ pub(super) async fn report(
                        INSERT INTO player_community_votes(player_id,user_id,vote_type,reason) VALUES($1,$2,$3,$4) \
                        ON CONFLICT(player_id,user_id,vote_type) DO NOTHING RETURNING id \
                      ), updated_player AS ( \
-                       UPDATE players SET {column}={column}+1 WHERE id=$1 AND EXISTS(SELECT 1 FROM inserted_vote) \
+                       UPDATE players SET {column}=( \
+                         SELECT COUNT(*)::INT FROM player_community_votes \
+                         WHERE player_id=$1 AND vote_type=$3 \
+                       )+CASE WHEN EXISTS(SELECT 1 FROM inserted_vote) THEN 1 ELSE 0 END WHERE id=$1 \
                        RETURNING {column} AS count \
                      ) SELECT EXISTS(SELECT 1 FROM inserted_vote) AS created,(SELECT count FROM updated_player) AS count"
                 ),
