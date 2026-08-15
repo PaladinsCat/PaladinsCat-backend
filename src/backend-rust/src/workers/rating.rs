@@ -425,6 +425,7 @@ async fn calculate_changes(
               AND m.queue_id=486
               AND NOT COALESCE(m.limited,FALSE)
               AND COALESCE(m.is_ranked,m.queue_id=486)=TRUE
+              AND m.winning_task_force IN (1,2)
               AND COALESCE(mis.status,'complete') IN ('processing','partial','complete')
               AND COALESCE(mp.source,'direct') IN ('direct','recovered')
               AND mp.player_id>0
