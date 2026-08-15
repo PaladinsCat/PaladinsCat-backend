@@ -297,14 +297,39 @@ impl RealRuntime {
                     .map_err(|e| RelayError::Upstream(e.to_string()))?
             }
             "getApiKeyStatus" => to_value(self.key_pool.status())?,
-            "cleanupFetchedPlayersCache" | "clearMatchHistoryCache" => return Ok(None),
+            "cleanupFetchedPlayersCache" | "clearMatchHistoryCache" => {
+                return Ok(Some(RelayDispatchResult::Json(Value::Bool(true))));
+            }
             _ => {
                 return Err(RelayError::Unsupported(format!(
                     "Unsupported HirezRelay operation: {operation}"
                 )));
             }
         };
-        Ok(Some(RelayDispatchResult::Json(result)))
+        Ok(Some(RelayDispatchResult::Json(sanitize_json_strings(
+            result,
+        ))))
+    }
+}
+
+fn sanitize_json_strings(value: Value) -> Value {
+    match value {
+        Value::String(value) => Value::String(value.replace('\0', "").replace("\\u0000", "")),
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(sanitize_json_strings).collect())
+        }
+        Value::Object(values) => Value::Object(
+            values
+                .into_iter()
+                .map(|(key, value)| {
+                    (
+                        key.replace('\0', "").replace("\\u0000", ""),
+                        sanitize_json_strings(value),
+                    )
+                })
+                .collect(),
+        ),
+        value => value,
     }
 }
 
@@ -516,5 +541,21 @@ mod tests {
         assert_eq!(value["authKey"], "secret");
         assert_eq!(value["daily_limit"], 15_000);
         assert!(value.get("dailyLimit").is_none());
+    }
+
+    #[test]
+    fn sanitizes_postgres_incompatible_nulls_from_upstream_json() {
+        let value = sanitize_json_strings(json!({
+            "name": "lowelo\0player",
+            "nested": ["escaped\\u0000value"],
+        }));
+        assert_eq!(value["name"], "loweloplayer");
+        assert_eq!(value["nested"][0], "escapedvalue");
+    }
+
+    #[test]
+    fn cleanup_operations_return_an_acknowledgement_payload() {
+        let source = include_str!("real_dispatch.rs");
+        assert!(source.contains("return Ok(Some(RelayDispatchResult::Json(Value::Bool(true))))"));
     }
 }
