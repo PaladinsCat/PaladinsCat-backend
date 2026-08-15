@@ -376,34 +376,10 @@ async fn calculate_changes(
               COALESCE(mp.source,'direct') AS source,
               m.queue_id,
               m.winning_task_force,
-              (
-                SELECT count(*)::int
-                FROM match_players roster
-                WHERE roster.match_id=m.match_id
-                  AND roster.entry_datetime=m.entry_datetime
-              ) AS roster_count,
-              (
-                SELECT count(*)::int
-                FROM match_players roster
-                WHERE roster.match_id=m.match_id
-                  AND roster.entry_datetime=m.entry_datetime
-                  AND roster.player_id=0
-                  AND upper(COALESCE(roster.player_name,''))='PRIVATEACCOUNT'
-              ) AS private_count,
-              (
-                SELECT count(*)::int
-                FROM match_players roster
-                WHERE roster.match_id=m.match_id
-                  AND roster.entry_datetime=m.entry_datetime
-                  AND roster.task_force=1
-              ) AS team_one,
-              (
-                SELECT count(*)::int
-                FROM match_players roster
-                WHERE roster.match_id=m.match_id
-                  AND roster.entry_datetime=m.entry_datetime
-                  AND roster.task_force=2
-              ) AS team_two,
+              roster.roster_count,
+              roster.private_count,
+              roster.team_one,
+              roster.team_two,
               pqr.mu::double precision AS queue_mu,
               pqr.phi::double precision AS queue_phi,
               pqr.volatility::double precision AS queue_sigma,
@@ -414,6 +390,14 @@ async fn calculate_changes(
             JOIN match_players mp
               ON mp.match_id=m.match_id
              AND mp.entry_datetime=m.entry_datetime
+            JOIN LATERAL (
+              SELECT count(*)::int AS roster_count,
+                count(*) FILTER(WHERE player_id=0 AND upper(COALESCE(player_name,''))='PRIVATEACCOUNT')::int AS private_count,
+                count(*) FILTER(WHERE task_force=1)::int AS team_one,
+                count(*) FILTER(WHERE task_force=2)::int AS team_two
+              FROM match_players
+              WHERE match_id=m.match_id AND entry_datetime=m.entry_datetime
+            ) roster ON TRUE
             LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id
             LEFT JOIN player_queue_ratings pqr
               ON pqr.player_id=mp.player_id
