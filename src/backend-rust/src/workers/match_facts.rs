@@ -18,6 +18,14 @@ use super::private_identity::persist_and_resolve_private_identities;
 const RANKED_STATS_QUEUE_ID: i32 = 486;
 const FACT_STAGES: [&str; 3] = ["core", "player_facts", "match_bans"];
 const PRIVATE_ACCOUNT_NAME: &str = "PRIVATEACCOUNT";
+const ENSURE_QUEUE_TAXONOMY_SQL: &str = r#"
+INSERT INTO queue_types (
+  queue_id, queue_name, is_ranked, stats_scope, participant_model,
+  stats_enabled, track_presence
+)
+VALUES ($1, 'Unclassified Queue ' || $1::text, false, 'other', 'unknown', false, false)
+ON CONFLICT (queue_id) DO NOTHING
+"#;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MatchFactError {
@@ -440,26 +448,31 @@ async fn classify_queue(
     transaction: &Transaction<'_>,
     queue_id: i32,
 ) -> Result<MatchPopulation, MatchFactError> {
+    // Queue taxonomy controls downstream projections; it must never reject an
+    // otherwise valid match at the ingestion boundary. Unknown queues are
+    // retained as unclassified special matches with statistics disabled.
+    transaction
+        .execute(ENSURE_QUEUE_TAXONOMY_SQL, &[&queue_id])
+        .await?;
     let row = transaction
-        .query_opt(
+        .query_one(
             "SELECT is_ranked, stats_scope FROM queue_types WHERE queue_id=$1",
             &[&queue_id],
         )
-        .await?
-        .ok_or_else(|| {
-            MatchFactError::InvalidPayload(format!(
-                "queue_id {queue_id} is absent from the canonical queue taxonomy"
-            ))
-        })?;
+        .await?;
     let is_ranked = row.get::<_, bool>("is_ranked");
     let stats_scope = row.get::<_, String>("stats_scope");
-    Ok(if is_ranked || stats_scope == "ranked" {
+    Ok(population_for_queue(is_ranked, &stats_scope))
+}
+
+fn population_for_queue(is_ranked: bool, stats_scope: &str) -> MatchPopulation {
+    if is_ranked || stats_scope == "ranked" {
         MatchPopulation::Ranked
     } else if stats_scope == "casual" {
         MatchPopulation::Casual
     } else {
         MatchPopulation::Special
-    })
+    }
 }
 
 async fn lock_ingest_status(
@@ -1946,6 +1959,16 @@ mod tests {
             projection
                 .contains("FROM grouped\n            ON CONFLICT (player_low_id, player_high_id)")
         );
+    }
+
+    #[test]
+    fn unknown_queue_ids_are_ingested_as_unclassified_special_matches() {
+        assert_eq!(
+            population_for_queue(false, "other"),
+            MatchPopulation::Special
+        );
+        assert!(ENSURE_QUEUE_TAXONOMY_SQL.contains("ON CONFLICT (queue_id) DO NOTHING"));
+        assert!(ENSURE_QUEUE_TAXONOMY_SQL.contains("'other', 'unknown', false, false"));
     }
 
     #[test]

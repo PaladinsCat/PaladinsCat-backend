@@ -17,6 +17,19 @@ use super::{
 };
 
 const COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(200);
+const FACTS_DURABLE_SQL: &str = r#"
+SELECT
+  (
+    EXISTS(SELECT 1 FROM matches WHERE match_id=$1)
+    OR EXISTS(SELECT 1 FROM casual_matches WHERE match_id=$1)
+    OR EXISTS(SELECT 1 FROM special_matches WHERE match_id=$1)
+  ) AS match_exists,
+  COALESCE(
+    (SELECT completed_stages @> ARRAY['player_facts','match_bans']::text[]
+     FROM match_ingest_status WHERE match_id=$1),
+    FALSE
+  ) AS facts_durable
+"#;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -299,18 +312,7 @@ impl RequestedMatchIngestor {
 
     async fn facts_are_durable(&self, match_id: i64) -> Result<bool, String> {
         self.database
-            .one_json(
-                r#"
-                SELECT
-                  EXISTS(SELECT 1 FROM matches WHERE match_id=$1) AS match_exists,
-                  COALESCE(
-                    (SELECT completed_stages @> ARRAY['player_facts','match_bans']::text[]
-                     FROM match_ingest_status WHERE match_id=$1),
-                    FALSE
-                  ) AS facts_durable
-                "#,
-                &[&match_id],
-            )
+            .one_json(FACTS_DURABLE_SQL, &[&match_id])
             .await
             .map(|row| {
                 row.is_some_and(|row| {
@@ -388,6 +390,13 @@ mod tests {
             MatchPopulation::Ranked.as_database(),
             MatchPopulation::Casual.as_database()
         );
+    }
+
+    #[test]
+    fn durable_requested_matches_accept_every_population_table() {
+        assert!(FACTS_DURABLE_SQL.contains("FROM matches"));
+        assert!(FACTS_DURABLE_SQL.contains("FROM casual_matches"));
+        assert!(FACTS_DURABLE_SQL.contains("FROM special_matches"));
     }
 
     #[test]
