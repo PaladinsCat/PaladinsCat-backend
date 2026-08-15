@@ -26,9 +26,70 @@ fn role_id_sql() -> String {
     )
 }
 
+// Derive all weighted percentile bounds while scanning the windowed histogram
+// once. The previous lateral subqueries rescanned the 1M+ row CTE ten times and
+// consistently exceeded the production statement timeout.
+const PERFORMANCE_METRIC_STATS_REFRESH_SQL: &str = r#"
+WITH histogram AS MATERIALIZED (
+  SELECT queue_id,role_id,role_name,metric,value,sample_count::BIGINT sample_count,
+    sum(sample_count) OVER(PARTITION BY queue_id,role_id,metric ORDER BY value) cumulative,
+    sum(sample_count) OVER(PARTITION BY queue_id,role_id,metric) sample_size
+  FROM performance_metric_histogram WHERE sample_count>0
+), grouped AS (
+  SELECT queue_id,role_id,max(role_name) role_name,metric,max(sample_size) sample_size,
+    min(value) min_value,max(value) max_value,
+    sum(value*sample_count)/sum(sample_count) mean_value,
+    min(value) FILTER(WHERE cumulative>floor((sample_size-1)*0.10)) p10_lower,
+    min(value) FILTER(WHERE cumulative>ceil((sample_size-1)*0.10)) p10_upper,
+    min(value) FILTER(WHERE cumulative>floor((sample_size-1)*0.25)) p25_lower,
+    min(value) FILTER(WHERE cumulative>ceil((sample_size-1)*0.25)) p25_upper,
+    min(value) FILTER(WHERE cumulative>floor((sample_size-1)*0.50)) median_lower,
+    min(value) FILTER(WHERE cumulative>ceil((sample_size-1)*0.50)) median_upper,
+    min(value) FILTER(WHERE cumulative>floor((sample_size-1)*0.75)) p75_lower,
+    min(value) FILTER(WHERE cumulative>ceil((sample_size-1)*0.75)) p75_upper,
+    min(value) FILTER(WHERE cumulative>floor((sample_size-1)*0.90)) p90_lower,
+    min(value) FILTER(WHERE cumulative>ceil((sample_size-1)*0.90)) p90_upper
+  FROM histogram GROUP BY queue_id,role_id,metric
+), modes AS (
+  SELECT DISTINCT ON(queue_id,role_id,metric) queue_id,role_id,metric,mode_value
+  FROM (
+    SELECT queue_id,role_id,metric,
+      CASE WHEN metric='kda' THEN round(value::NUMERIC,1)::DOUBLE PRECISION
+        ELSE round(value::NUMERIC,0)::DOUBLE PRECISION END mode_value,
+      sum(sample_count) mode_count
+    FROM histogram GROUP BY 1,2,3,4
+  ) counts
+  ORDER BY queue_id,role_id,metric,mode_count DESC,mode_value
+)
+INSERT INTO performance_metric_stats(
+  queue_id,role_id,role_name,metric,min_value,max_value,mean_value,
+  median_value,mode_value,p10_value,p25_value,p75_value,p90_value,
+  sample_size,updated_at
+)
+SELECT g.queue_id,g.role_id,g.role_name,g.metric,
+  round(g.min_value::NUMERIC,2),round(g.max_value::NUMERIC,2),
+  round(g.mean_value::NUMERIC,2),
+  round((g.median_lower+(g.median_upper-g.median_lower)*
+    (((g.sample_size-1)*0.50)-floor((g.sample_size-1)*0.50)))::NUMERIC,2),
+  round(m.mode_value::NUMERIC,2),
+  round((g.p10_lower+(g.p10_upper-g.p10_lower)*
+    (((g.sample_size-1)*0.10)-floor((g.sample_size-1)*0.10)))::NUMERIC,2),
+  round((g.p25_lower+(g.p25_upper-g.p25_lower)*
+    (((g.sample_size-1)*0.25)-floor((g.sample_size-1)*0.25)))::NUMERIC,2),
+  round((g.p75_lower+(g.p75_upper-g.p75_lower)*
+    (((g.sample_size-1)*0.75)-floor((g.sample_size-1)*0.75)))::NUMERIC,2),
+  round((g.p90_lower+(g.p90_upper-g.p90_lower)*
+    (((g.sample_size-1)*0.90)-floor((g.sample_size-1)*0.90)))::NUMERIC,2),
+  g.sample_size,now()
+FROM grouped g JOIN modes m USING(queue_id,role_id,metric)
+"#;
+
 pub async fn refresh_performance_metric_stats(database: &Database) -> Result<u64, DatabaseError> {
     let mut client = database.connection().await?;
     let transaction = client.transaction().await?;
+    transaction
+        .batch_execute("SET LOCAL lock_timeout='5s';SET LOCAL statement_timeout='2min'")
+        .await?;
     let locked = transaction
         .query_one(
             "SELECT pg_try_advisory_xact_lock(hashtext('baseline:refresh')) locked",
@@ -44,42 +105,7 @@ pub async fn refresh_performance_metric_stats(database: &Database) -> Result<u64
         .execute("DELETE FROM performance_metric_stats", &[])
         .await?;
     let inserted = transaction
-        .execute(
-            r#"
-            WITH histogram AS (
-              SELECT queue_id,role_id,role_name,metric,value,sample_count::BIGINT sample_count,
-                sum(sample_count) OVER(PARTITION BY queue_id,role_id,metric ORDER BY value) cumulative,
-                sum(sample_count) OVER(PARTITION BY queue_id,role_id,metric) sample_size
-              FROM performance_metric_histogram WHERE sample_count>0
-            ), groups AS (
-              SELECT queue_id,role_id,max(role_name) role_name,metric,max(sample_size) sample_size,
-                min(value) min_value,max(value) max_value,
-                sum(value*sample_count)/sum(sample_count) mean_value
-              FROM histogram GROUP BY queue_id,role_id,metric
-            ), fractions(fraction,name) AS (
-              VALUES (0.5::DOUBLE PRECISION,'median'),(0.1,'p10'),(0.25,'p25'),(0.75,'p75'),(0.9,'p90')
-            ), percentile_values AS (
-              SELECT g.queue_id,g.role_id,g.metric,f.name,
-                lower_row.value+(upper_row.value-lower_row.value)*
-                  (((g.sample_size-1)*f.fraction)-floor((g.sample_size-1)*f.fraction)) value
-              FROM groups g CROSS JOIN fractions f
-              JOIN LATERAL(SELECT h.value FROM histogram h WHERE h.queue_id=g.queue_id AND h.role_id=g.role_id AND h.metric=g.metric AND h.cumulative>floor((g.sample_size-1)*f.fraction) ORDER BY h.value LIMIT 1) lower_row ON TRUE
-              JOIN LATERAL(SELECT h.value FROM histogram h WHERE h.queue_id=g.queue_id AND h.role_id=g.role_id AND h.metric=g.metric AND h.cumulative>ceil((g.sample_size-1)*f.fraction) ORDER BY h.value LIMIT 1) upper_row ON TRUE
-            ), modes AS (
-              SELECT DISTINCT ON(queue_id,role_id,metric) queue_id,role_id,metric,mode_value
-              FROM(SELECT queue_id,role_id,metric,CASE WHEN metric='kda' THEN round(value::NUMERIC,1)::DOUBLE PRECISION ELSE round(value::NUMERIC,0)::DOUBLE PRECISION END mode_value,sum(sample_count) mode_count FROM histogram GROUP BY 1,2,3,4) counts
-              ORDER BY queue_id,role_id,metric,mode_count DESC,mode_value
-            )
-            INSERT INTO performance_metric_stats(queue_id,role_id,role_name,metric,min_value,max_value,mean_value,median_value,mode_value,p10_value,p25_value,p75_value,p90_value,sample_size,updated_at)
-            SELECT g.queue_id,g.role_id,g.role_name,g.metric,round(g.min_value::NUMERIC,2),round(g.max_value::NUMERIC,2),round(g.mean_value::NUMERIC,2),
-              round(max(p.value) FILTER(WHERE p.name='median')::NUMERIC,2),round(m.mode_value::NUMERIC,2),
-              round(max(p.value) FILTER(WHERE p.name='p10')::NUMERIC,2),round(max(p.value) FILTER(WHERE p.name='p25')::NUMERIC,2),
-              round(max(p.value) FILTER(WHERE p.name='p75')::NUMERIC,2),round(max(p.value) FILTER(WHERE p.name='p90')::NUMERIC,2),g.sample_size,now()
-            FROM groups g JOIN percentile_values p USING(queue_id,role_id,metric) JOIN modes m USING(queue_id,role_id,metric)
-            GROUP BY g.queue_id,g.role_id,g.role_name,g.metric,g.min_value,g.max_value,g.mean_value,m.mode_value,g.sample_size
-            "#,
-            &[],
-        )
+        .execute(PERFORMANCE_METRIC_STATS_REFRESH_SQL, &[])
         .await?;
     transaction.commit().await?;
     Ok(inserted)
@@ -835,5 +861,12 @@ mod tests {
         let performance = body.find("CumulativeProjectionStage::Performance").unwrap();
         let scalable = body.find("CumulativeProjectionStage::Scalable").unwrap();
         assert!(performance < scalable);
+    }
+
+    #[test]
+    fn performance_stats_refresh_uses_single_pass_percentile_bounds() {
+        assert!(super::PERFORMANCE_METRIC_STATS_REFRESH_SQL.contains("AS MATERIALIZED"));
+        assert!(super::PERFORMANCE_METRIC_STATS_REFRESH_SQL.contains("FILTER(WHERE cumulative>"));
+        assert!(!super::PERFORMANCE_METRIC_STATS_REFRESH_SQL.contains("JOIN LATERAL"));
     }
 }
