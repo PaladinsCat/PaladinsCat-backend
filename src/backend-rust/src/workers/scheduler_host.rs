@@ -838,12 +838,17 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         .and_then(|value| value.parse().ok())
         .unwrap_or(8_usize)
         .max(1);
-    let ranked = ranked_gap_candidates(&services.database, now, &min_date, due)
+    let mut ranked = ranked_gap_candidates(&services.database, now, &min_date, due)
         .await
         .map_err(|error| error.to_string())?;
-    let presence = presence_gap_candidates(&services.database, now, &min_date)
+    let mut presence = presence_gap_candidates(&services.database, now, &min_date)
         .await
         .map_err(|error| error.to_string())?;
+    // Hi-Rez history exposes only the newest 50 matches. Drain the newest
+    // discovery windows first so an outage backlog cannot age recoverable
+    // matches out of that bounded fallback while older gaps consume quota.
+    ranked.reverse();
+    presence.reverse();
     let mut candidates = ranked.clone();
     candidates.extend(presence.iter().cloned());
     if candidates.is_empty() {
