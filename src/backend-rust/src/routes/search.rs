@@ -16,6 +16,7 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use tokio::time::sleep;
 
 use crate::{
     error::ApiError,
@@ -429,9 +430,28 @@ async fn run_remote_lookup(
         );
     };
     let outcome = async {
-        vendor_guard(&state.redis, identity, &format!("search-{target}"), q).await?;
         if target == "match-id" {
             let match_id = q.parse::<i64>().map_err(|error| error.to_string())?;
+            if let Err(guard_error) =
+                vendor_guard(&state.redis, identity, &format!("search-{target}"), q).await
+            {
+                // A page-load lookup and an immediate manual lookup can race.
+                // The first request owns provider work; the second waits only
+                // for its durable database result instead of reporting the
+                // entity cooldown as a search failure.
+                for _ in 0..50 {
+                    sleep(Duration::from_millis(100)).await;
+                    let rows = state
+                        .database
+                        .query_json(MATCH_SEARCH_BY_ID_SQL, &[&match_id])
+                        .await
+                        .map_err(|error| error.to_string())?;
+                    if !rows.is_empty() {
+                        return Ok::<Vec<Value>, String>(rows.iter().map(match_result).collect());
+                    }
+                }
+                return Err(guard_error);
+            }
             let ingestor = state
                 .requested_match
                 .as_ref()
@@ -453,6 +473,8 @@ async fn run_remote_lookup(
                 .map_err(|error| error.to_string())?;
             return Ok::<Vec<Value>, String>(rows.iter().map(match_result).collect());
         }
+
+        vendor_guard(&state.redis, identity, &format!("search-{target}"), q).await?;
 
         let candidate_ids = if target == "player-id" {
             vec![q.parse::<i64>().map_err(|error| error.to_string())?]
@@ -1306,7 +1328,12 @@ mod tests {
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_matches"));
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM casual_match_players"));
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_match_players"));
-        assert_eq!(MATCH_SEARCH_BY_ID_SQL.matches("match_id=$1::BIGINT").count(), 3);
+        assert_eq!(
+            MATCH_SEARCH_BY_ID_SQL
+                .matches("match_id=$1::BIGINT")
+                .count(),
+            3
+        );
     }
 
     #[test]
