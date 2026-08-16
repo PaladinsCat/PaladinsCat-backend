@@ -18,6 +18,36 @@ pub fn roster_evidence_is_complete(queue_id: i32, player_count: usize) -> bool {
     }
 }
 
+/// Purpose: identify modes where the provider does not guarantee PvP score
+/// fields. Input: provider queue ID. Output: true for bot/PvE and Arcade.
+pub fn has_optional_completed_score(queue_id: i32) -> bool {
+    has_variable_human_roster(queue_id) || queue_id == 10332
+}
+
+/// Purpose: remove provider unavailable/sentinel score fragments without
+/// turning them into contradictory durable facts. Input/output: queue-aware
+/// optional score triple. Valid conventional scores are preserved unchanged.
+pub fn normalize_score_evidence(
+    queue_id: i32,
+    team1: Option<i32>,
+    team2: Option<i32>,
+    winner: Option<i32>,
+) -> (Option<i32>, Option<i32>, Option<i32>) {
+    if valid_standard_score(team1, team2, winner) {
+        return (team1, team2, winner);
+    }
+    if has_optional_completed_score(queue_id)
+        && (team1.is_none()
+            || team2.is_none()
+            || winner.is_none_or(|value| !matches!(value, 1 | 2))
+            || team1.is_some_and(|value| value < 0)
+            || team2.is_some_and(|value| value < 0))
+    {
+        return (None, None, None);
+    }
+    (team1, team2, winner)
+}
+
 /// Purpose: validate score evidence according to the queue participant model.
 /// Input: queue ID, optional team scores, and optional winning task force.
 /// Output: whether completed-match score evidence is authoritative. Relationship:
@@ -29,10 +59,18 @@ pub fn score_evidence_is_complete(
     team2: Option<i32>,
     winner: Option<i32>,
 ) -> bool {
-    if has_variable_human_roster(queue_id) && team1.is_none() && team2.is_none() && winner.is_none()
+    let (team1, team2, winner) = normalize_score_evidence(queue_id, team1, team2, winner);
+    if has_optional_completed_score(queue_id)
+        && team1.is_none()
+        && team2.is_none()
+        && winner.is_none()
     {
         return true;
     }
+    valid_standard_score(team1, team2, winner)
+}
+
+fn valid_standard_score(team1: Option<i32>, team2: Option<i32>, winner: Option<i32>) -> bool {
     match (team1, team2, winner) {
         (Some(team1), Some(team2), Some(1)) => team1 >= 0 && team2 >= 0 && team1 > team2,
         (Some(team1), Some(team2), Some(2)) => team1 >= 0 && team2 >= 0 && team2 > team1,
@@ -56,7 +94,11 @@ mod tests {
     #[test]
     fn score_policy_distinguishes_fixed_and_variable_queues() {
         assert!(score_evidence_is_complete(10297, None, None, None));
-        assert!(!score_evidence_is_complete(10297, Some(2), None, None));
+        assert!(score_evidence_is_complete(10297, Some(2), None, None));
+        assert_eq!(
+            normalize_score_evidence(10332, Some(4), Some(-20), Some(1)),
+            (None, None, None)
+        );
         assert!(!score_evidence_is_complete(
             10297,
             Some(2),
@@ -65,6 +107,7 @@ mod tests {
         ));
         assert!(score_evidence_is_complete(486, Some(4), Some(2), Some(1)));
         assert!(!score_evidence_is_complete(486, None, None, None));
+        assert!(!score_evidence_is_complete(486, Some(2), None, None));
         assert!(!score_evidence_is_complete(486, Some(2), Some(4), Some(1)));
     }
 }

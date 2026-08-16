@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use paladinscat_core::{
     database::{Database, DatabaseError},
-    queue::{has_variable_human_roster, roster_evidence_is_complete, score_evidence_is_complete},
+    queue::{
+        has_variable_human_roster, normalize_score_evidence, roster_evidence_is_complete,
+        score_evidence_is_complete,
+    },
     region::canonical_region,
 };
 use serde::Deserialize;
@@ -106,9 +109,10 @@ impl CanonicalMatchPayload {
                 "relay response did not contain a completed match".to_owned(),
             )
         })?;
-        let payload = serde_json::from_value::<Self>(candidate).map_err(|error| {
+        let mut payload = serde_json::from_value::<Self>(candidate).map_err(|error| {
             MatchFactError::InvalidPayload(format!("match contract decode failed: {error}"))
         })?;
+        payload.normalize_score_evidence();
         payload.validate()?;
         Ok(payload)
     }
@@ -154,7 +158,7 @@ impl CanonicalMatchPayload {
                 }
             }
         }
-        let payload = Self {
+        let mut payload = Self {
             match_id: integer(&["Match", "match_id"]),
             entry_datetime: text(&[
                 "Entry_Datetime",
@@ -207,8 +211,21 @@ impl CanonicalMatchPayload {
             players: rows.clone(),
             extra,
         };
+        payload.normalize_score_evidence();
         payload.validate()?;
         Ok(payload)
+    }
+
+    /// Purpose: canonicalize provider score sentinels before validation or
+    /// persistence. Input/output: this typed payload. Relationship: delegates
+    /// queue semantics to the shared core policy used by every ingest path.
+    fn normalize_score_evidence(&mut self) {
+        (self.team1_score, self.team2_score, self.winning_task_force) = normalize_score_evidence(
+            self.queue_id,
+            self.team1_score,
+            self.team2_score,
+            self.winning_task_force,
+        );
     }
 
     fn validate(&self) -> Result<(), MatchFactError> {
@@ -2007,6 +2024,14 @@ mod tests {
             ),
             "complete"
         );
+
+        let mut arcade = complete_match();
+        arcade["queue_id"] = json!(10332);
+        arcade["team2_score"] = json!(-20);
+        let payload = CanonicalMatchPayload::from_relay_value(arcade).expect("arcade shell");
+        assert_eq!(payload.team1_score, None);
+        assert_eq!(payload.team2_score, None);
+        assert_eq!(payload.winning_task_force, None);
     }
 
     #[test]
