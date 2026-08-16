@@ -30,6 +30,15 @@ use super::{
     requested_match::{MatchIngestRequest, RequestedMatchIngestor, RequestedMatchStatus},
 };
 
+const MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL: &str = "SELECT requested.match_id FROM unnest($1::BIGINT[]) WITH ORDINALITY requested(match_id,ordinality) \
+     LEFT JOIN match_ingest_status lifecycle ON lifecycle.match_id=requested.match_id \
+     WHERE requested.match_id>0 AND NOT COALESCE((\
+       lifecycle.status='complete' OR (lifecycle.status='limited' AND (\
+         lifecycle.acquisition_state<>'unavailable' \
+         OR lifecycle.error_message IS NOT DISTINCT FROM $2\
+       ))\
+     ),FALSE) ORDER BY requested.ordinality";
+
 #[derive(Debug, thiserror::Error)]
 pub enum PipelineError {
     #[error(transparent)]
@@ -203,7 +212,7 @@ impl CanonicalIngestPipeline {
             mark_hourly_ingest_empty(&self.database, date, hour, queue_id).await?;
             return Ok(result);
         }
-        let fetch_ids = self.undurable_match_ids(&ids).await?;
+        let fetch_ids = self.match_ids_requiring_canonical_work(&ids).await?;
         result.skipped = ids.len().saturating_sub(fetch_ids.len());
         progress.claimed_raw_match_count = Some(i32::try_from(ids.len()).unwrap_or(i32::MAX));
         let completed = self
@@ -255,28 +264,21 @@ impl CanonicalIngestPipeline {
             .collect())
     }
 
-    /// Purpose: enforce DB-first ingestion for every queue population.
-    /// Input: discovered match IDs. Output: only IDs lacking durable canonical
-    /// player facts; existing rows are never sent back to the vendor.
-    async fn undurable_match_ids(&self, match_ids: &[i64]) -> Result<Vec<i64>, PipelineError> {
+    /// Purpose: select canonical work from the indexed lifecycle authority.
+    /// Input: discovered `i64` match IDs. Output: only IDs that are neither
+    /// complete nor explicitly terminal; completed work is never replayed and
+    /// retryable limited rows remain in the shared vendor-protocol drain.
+    async fn match_ids_requiring_canonical_work(
+        &self,
+        match_ids: &[i64],
+    ) -> Result<Vec<i64>, PipelineError> {
         if match_ids.is_empty() {
             return Ok(Vec::new());
         }
         let rows = self
             .database
             .query_json(
-                "SELECT requested.match_id FROM unnest($1::BIGINT[]) WITH ORDINALITY requested(match_id,ordinality) \
-                 WHERE requested.match_id>0 AND NOT (\
-                   (EXISTS(SELECT 1 FROM matches WHERE match_id=requested.match_id) \
-                     AND EXISTS(SELECT 1 FROM match_players WHERE match_id=requested.match_id)) \
-                   OR (EXISTS(SELECT 1 FROM casual_matches WHERE match_id=requested.match_id) \
-                     AND EXISTS(SELECT 1 FROM casual_match_players WHERE match_id=requested.match_id)) \
-                   OR (EXISTS(SELECT 1 FROM special_matches WHERE match_id=requested.match_id) \
-                     AND EXISTS(SELECT 1 FROM special_match_players WHERE match_id=requested.match_id)) \
-                   OR EXISTS(SELECT 1 FROM match_ingest_status \
-                     WHERE match_id=requested.match_id AND status='limited' \
-                       AND (acquisition_state<>'unavailable' OR error_message IS NOT DISTINCT FROM $2))\
-                 ) ORDER BY requested.ordinality",
+                MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL,
                 &[&match_ids, &TERMINAL_NO_COMPLETED_MATCH_REASON],
             )
             .await?;
@@ -287,49 +289,7 @@ impl CanonicalIngestPipeline {
             // string form falsely classifies every match as already durable.
             .filter_map(|row| extract_match_id(&row))
             .collect::<Vec<_>>();
-        let fetch_set = fetch_ids.iter().copied().collect::<HashSet<_>>();
-        for match_id in match_ids
-            .iter()
-            .copied()
-            .filter(|match_id| !fetch_set.contains(match_id))
-        {
-            self.ensure_stored_projection(match_id).await?;
-        }
         Ok(fetch_ids)
-    }
-
-    /// Purpose: complete projections from facts already present in PostgreSQL.
-    /// Input: one durable match ID. Output: the population projector has run;
-    /// no relay/vendor operation is permitted by this function.
-    async fn ensure_stored_projection(&self, match_id: i64) -> Result<(), PipelineError> {
-        let population = self
-            .database
-            .one_json(
-                "SELECT CASE WHEN EXISTS(SELECT 1 FROM matches WHERE match_id=$1) THEN 'ranked' \
-                 WHEN EXISTS(SELECT 1 FROM casual_matches WHERE match_id=$1) THEN 'casual' \
-                 WHEN EXISTS(SELECT 1 FROM special_matches WHERE match_id=$1) THEN 'special' END AS population",
-                &[&match_id],
-            )
-            .await?
-            .and_then(|row| row.get("population").and_then(Value::as_str).map(str::to_owned))
-            .ok_or_else(|| PipelineError::Facts(format!("stored match {match_id} has no population table")))?;
-        match population.as_str() {
-            "ranked" => self
-                .ranked
-                .project_match(match_id)
-                .await
-                .map(|_| ())
-                .map_err(|error| PipelineError::Facts(format!("{error:?}"))),
-            "casual" | "special" => self
-                .casual
-                .project_all_for_match(match_id)
-                .await
-                .map(|_| ())
-                .map_err(|error| PipelineError::Facts(format!("{error:?}"))),
-            _ => Err(PipelineError::Facts(format!(
-                "stored match {match_id} has unknown population {population}"
-            ))),
-        }
     }
 
     /// Purpose: drain every discovered match through one shared batch pipeline.
@@ -946,5 +906,14 @@ mod tests {
         assert!(drain.contains("while !remaining.is_empty()"));
         assert!(drain.contains("remaining.iter().take(10)"));
         assert!(!drain.contains("LIMIT"));
+    }
+
+    #[test]
+    fn canonical_work_selection_uses_only_the_indexed_lifecycle_authority() {
+        assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("LEFT JOIN match_ingest_status"));
+        assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("NOT COALESCE"));
+        assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("status='complete'"));
+        assert!(!MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("FROM matches"));
+        assert!(!MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("FROM match_players"));
     }
 }
