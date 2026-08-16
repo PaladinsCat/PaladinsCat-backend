@@ -55,6 +55,8 @@ GROUP BY 1,2,3,4 ORDER BY 1,2,3,4";
 const MATCH_DETAIL_CACHE_VERSION: i32 = 18;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
+const RECENT_MATCHES_FRESH_TTL_SECONDS: u64 = 60;
+const RECENT_MATCHES_STALE_TTL_SECONDS: u64 = 180;
 
 pub const ROUTE_COUNT: usize = 21;
 
@@ -495,6 +497,16 @@ async fn paged_matches(
         }
         None => None,
     };
+    let cache_key = paged_matches_cache_key(queue_id, limit, cursor.as_ref());
+    if let Some(cached) = state.route_cache.get(&cache_key).await {
+        let rows = cached.payload.as_array().cloned().unwrap_or_default();
+        return Ok(paged_matches_response(
+            rows,
+            limit,
+            query.contains_key("_queue_shape"),
+            Some(cached.fresh_until),
+        ));
+    }
     let (sql, params) = if let Some(cursor) = cursor {
         (
             "SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.duration_seconds,m.region, \
@@ -518,12 +530,38 @@ async fn paged_matches(
             vec![QueryParam::Int32(queue_id), QueryParam::Int64(limit + 1)],
         )
     };
-    let mut rows = state
+    let rows = state
         .database
         .query_json_params(sql, &params)
         .await
         .map_err(|error| ApiError::database(error, request_id))?;
-    if query.contains_key("_queue_shape") {
+    state
+        .route_cache
+        .store(
+            &cache_key,
+            Value::Array(rows.clone()),
+            RECENT_MATCHES_FRESH_TTL_SECONDS,
+            RECENT_MATCHES_STALE_TTL_SECONDS,
+        )
+        .await;
+    Ok(paged_matches_response(
+        rows,
+        limit,
+        query.contains_key("_queue_shape"),
+        None,
+    ))
+}
+
+/// Purpose: render one cached or database-backed recent-match page. Input:
+/// raw rows including the look-ahead row, typed limit, response shape, and
+/// optional cache freshness. Output: public JSON plus cursor/cache headers.
+fn paged_matches_response(
+    mut rows: Vec<Value>,
+    limit: i64,
+    queue_shape: bool,
+    fresh_until: Option<i64>,
+) -> Response {
+    if queue_shape {
         for row in &mut rows {
             if let Some(object) = row.as_object_mut() {
                 object.remove("queue_id");
@@ -533,20 +571,36 @@ async fn paged_matches(
     }
     let has_more = rows.len() > usize::try_from(limit).unwrap_or(0);
     rows.truncate(usize::try_from(limit).unwrap_or(0));
-    let mut response = (StatusCode::OK, Json(Value::Array(rows.clone()))).into_response();
+    let next_cursor = has_more
+        .then(|| rows.last().and_then(encode_cursor))
+        .flatten();
+    let payload = Value::Array(rows);
+    let mut response = match fresh_until {
+        Some(fresh_until) => crate::route_cache::json_cache_response(payload, "HIT", fresh_until),
+        None => cache_miss((StatusCode::OK, Json(payload)).into_response()),
+    };
     if has_more
-        && let Some(cursor) = rows.last().and_then(encode_cursor)
+        && let Some(cursor) = next_cursor
         && let Ok(value) = HeaderValue::from_str(&cursor)
     {
         response
             .headers_mut()
             .insert(HeaderName::from_static("x-next-cursor"), value);
     }
-    response.headers_mut().insert(
-        HeaderName::from_static("x-cache"),
-        HeaderValue::from_static("MISS"),
-    );
-    Ok(response)
+    response
+}
+
+/// Purpose: key only parameters that alter the recent-match payload. Input:
+/// queue ID, bounded limit, and parsed cursor. Output: stable cache key shared
+/// by the route and warmer; unrelated query parameters cannot bypass caching.
+fn paged_matches_cache_key(queue_id: i32, limit: i64, cursor: Option<&MatchCursor>) -> String {
+    match cursor {
+        Some(cursor) => format!(
+            "route:matches:/matches/paged:queue:{queue_id}:limit:{limit}:at:{}:id:{}",
+            cursor.at, cursor.id
+        ),
+        None => format!("route:matches:/matches/paged:queue:{queue_id}:limit:{limit}:first"),
+    }
 }
 
 async fn dropped_nonranked(
@@ -2700,6 +2754,22 @@ fn cache_miss(mut response: Response) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recent_match_cache_key_uses_only_payload_parameters() {
+        let cursor = MatchCursor {
+            at: "2026-08-16T20:00:00Z".to_owned(),
+            id: 128_000_001,
+        };
+        assert_eq!(
+            paged_matches_cache_key(486, 20, None),
+            "route:matches:/matches/paged:queue:486:limit:20:first"
+        );
+        assert_eq!(
+            paged_matches_cache_key(486, 20, Some(&cursor)),
+            "route:matches:/matches/paged:queue:486:limit:20:at:2026-08-16T20:00:00Z:id:128000001"
+        );
+    }
 
     #[test]
     fn casual_hourly_regions_prefer_durable_match_facts_and_canonicalize_aliases() {
