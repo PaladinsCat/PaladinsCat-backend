@@ -36,20 +36,39 @@ WITH candidates AS (
   SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
     (SELECT COUNT(DISTINCT mp.player_id)::INT FROM match_players mp
       WHERE mp.match_id=m.match_id AND mp.entry_datetime=m.entry_datetime) AS player_count,
+    (SELECT COUNT(*)::INT FROM match_players mp
+      WHERE mp.match_id=m.match_id AND mp.entry_datetime=m.entry_datetime AND mp.task_force=1) AS team1_count,
+    (SELECT COUNT(*)::INT FROM match_players mp
+      WHERE mp.match_id=m.match_id AND mp.entry_datetime=m.entry_datetime AND mp.task_force=2) AS team2_count,
+    q.queue_name,q.stats_scope,q.participant_model,
     0 AS source_order
-  FROM matches m WHERE m.match_id=$1::BIGINT
+  FROM matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id
+  WHERE m.match_id=$1::BIGINT
   UNION ALL
   SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
     (SELECT COUNT(DISTINCT mp.player_id)::INT FROM casual_match_players mp
-      WHERE mp.match_id=m.match_id),1
-  FROM casual_matches m WHERE m.match_id=$1::BIGINT
+      WHERE mp.match_id=m.match_id),
+    (SELECT COUNT(*)::INT FROM casual_match_players mp
+      WHERE mp.match_id=m.match_id AND mp.task_force=1),
+    (SELECT COUNT(*)::INT FROM casual_match_players mp
+      WHERE mp.match_id=m.match_id AND mp.task_force=2),
+    q.queue_name,q.stats_scope,q.participant_model,1
+  FROM casual_matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id
+  WHERE m.match_id=$1::BIGINT
   UNION ALL
   SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
     (SELECT COUNT(DISTINCT mp.player_id)::INT FROM special_match_players mp
-      WHERE mp.match_id=m.match_id),2
-  FROM special_matches m WHERE m.match_id=$1::BIGINT
+      WHERE mp.match_id=m.match_id),
+    (SELECT COUNT(*)::INT FROM special_match_players mp
+      WHERE mp.match_id=m.match_id AND mp.task_force=1),
+    (SELECT COUNT(*)::INT FROM special_match_players mp
+      WHERE mp.match_id=m.match_id AND mp.task_force=2),
+    q.queue_name,q.stats_scope,q.participant_model,2
+  FROM special_matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id
+  WHERE m.match_id=$1::BIGINT
 )
-SELECT match_id,entry_datetime,map,queue_id,region,duration_seconds,player_count
+SELECT match_id,entry_datetime,map,queue_id,region,duration_seconds,player_count,
+       team1_count,team2_count,queue_name,stats_scope,participant_model
 FROM candidates ORDER BY source_order,entry_datetime DESC LIMIT 1
 "#;
 
@@ -933,14 +952,34 @@ fn match_result(row: &Value) -> Value {
     let id = field_text(row, "match_id");
     let map = nonempty_field(row, "map").unwrap_or_else(|| "Unknown map".to_owned());
     let region = nonempty_field(row, "region").unwrap_or_else(|| "Unknown region".to_owned());
-    let queue_id = value_i64(row.get("queue_id"));
     let player_count = value_i64(row.get("player_count"));
+    let team1_count = value_i64(row.get("team1_count"));
+    let team2_count = value_i64(row.get("team2_count"));
+    let stats_scope = nonempty_field(row, "stats_scope");
+    let participant_model = nonempty_field(row, "participant_model");
+    let is_custom =
+        stats_scope.as_deref() == Some("custom") || participant_model.as_deref() == Some("custom");
+    let queue_name = if is_custom {
+        Some("Custom Match".to_owned())
+    } else {
+        nonempty_field(row, "queue_name").map(|name| {
+            if name.starts_with("Unclassified Queue ") {
+                "Unclassified".to_owned()
+            } else {
+                name
+            }
+        })
+    };
     let mut subtitle = vec![map.clone(), region.clone()];
-    if let Some(queue_id) = queue_id.filter(|value| *value != 0) {
-        subtitle.push(format!("Queue {queue_id}"));
+    if let Some(queue_name) = &queue_name {
+        subtitle.push(queue_name.clone());
     }
-    if let Some(player_count) = player_count {
-        subtitle.push(format!("{player_count}/10 players"));
+    if let (Some(team1), Some(team2)) = (team1_count, team2_count) {
+        if team1 + team2 > 0 {
+            subtitle.push(format!("{team1}/{team2} players"));
+        }
+    } else if let Some(player_count) = player_count.filter(|count| count % 2 == 0) {
+        subtitle.push(format!("{0}/{0} players", player_count / 2));
     }
     json!({
         "type": "match",
@@ -953,8 +992,14 @@ fn match_result(row: &Value) -> Value {
             "entryDatetime": row.get("entry_datetime").cloned().unwrap_or(Value::Null),
             "map": row.get("map").cloned().unwrap_or(Value::Null),
             "queueId": row.get("queue_id").cloned().unwrap_or(Value::Null),
+            "queueName": queue_name,
+            "statsScope": stats_scope,
+            "participantModel": participant_model,
+            "isCustom": is_custom,
             "region": row.get("region").cloned().unwrap_or(Value::Null),
             "playerCount": row.get("player_count").cloned().unwrap_or(Value::Null),
+            "team1Count": row.get("team1_count").cloned().unwrap_or(Value::Null),
+            "team2Count": row.get("team2_count").cloned().unwrap_or(Value::Null),
             "durationSeconds": row.get("duration_seconds").cloned().unwrap_or(Value::Null),
         }
     })
@@ -1330,10 +1375,55 @@ mod tests {
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_match_players"));
         assert_eq!(
             MATCH_SEARCH_BY_ID_SQL
+                .matches("LEFT JOIN queue_types")
+                .count(),
+            3
+        );
+        assert_eq!(
+            MATCH_SEARCH_BY_ID_SQL
                 .matches("match_id=$1::BIGINT")
                 .count(),
             3
         );
+    }
+
+    #[test]
+    fn match_result_uses_team_counts_and_queue_taxonomy() {
+        let result = match_result(&json!({
+            "match_id": 1281509825_i64,
+            "map": "LIVE Jaguar Falls",
+            "region": "NA",
+            "queue_id": 424,
+            "queue_name": "Casual Siege",
+            "stats_scope": "casual",
+            "participant_model": "pvp",
+            "player_count": 10,
+            "team1_count": 5,
+            "team2_count": 5
+        }));
+        assert_eq!(
+            result["subtitle"],
+            "LIVE Jaguar Falls · NA · Casual Siege · 5/5 players"
+        );
+        assert_eq!(result["meta"]["isCustom"], false);
+
+        let custom = match_result(&json!({
+            "match_id": 1281501224_i64,
+            "map": "Ranked Brightmarsh",
+            "region": "NA",
+            "queue_id": 458,
+            "queue_name": "Custom Match",
+            "stats_scope": "custom",
+            "participant_model": "custom",
+            "player_count": 10,
+            "team1_count": 5,
+            "team2_count": 5
+        }));
+        assert_eq!(
+            custom["subtitle"],
+            "Ranked Brightmarsh · NA · Custom Match · 5/5 players"
+        );
+        assert_eq!(custom["meta"]["isCustom"], true);
     }
 
     #[test]
