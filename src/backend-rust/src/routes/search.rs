@@ -63,7 +63,9 @@ WITH candidates AS (
       WHERE mp.match_id=m.match_id AND mp.task_force=1),
     (SELECT COUNT(*)::INT FROM special_match_players mp
       WHERE mp.match_id=m.match_id AND mp.task_force=2),
-    q.queue_name,q.stats_scope,q.participant_model,2
+    CASE WHEN m.stats_scope='custom' OR m.participant_model='custom' THEN 'Custom Match' ELSE q.queue_name END,
+    COALESCE(NULLIF(m.stats_scope,''),q.stats_scope),
+    COALESCE(NULLIF(m.participant_model,''),q.participant_model),2
   FROM special_matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id
   WHERE m.match_id=$1::BIGINT
 )
@@ -1373,6 +1375,7 @@ mod tests {
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_matches"));
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM casual_match_players"));
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_match_players"));
+        assert!(MATCH_SEARCH_BY_ID_SQL.contains("m.stats_scope='custom'"));
         assert_eq!(
             MATCH_SEARCH_BY_ID_SQL
                 .matches("LEFT JOIN queue_types")

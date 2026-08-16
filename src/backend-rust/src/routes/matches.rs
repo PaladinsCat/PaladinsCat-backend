@@ -51,7 +51,7 @@ const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
     ELSE COALESCE(NULLIF(BTRIM(region),''),'Unknown') END AS region, \
   SUM(total_matches)::int AS total_matches FROM rows \
 GROUP BY 1,2,3,4 ORDER BY 1,2,3,4";
-const MATCH_DETAIL_CACHE_VERSION: i32 = 16;
+const MATCH_DETAIL_CACHE_VERSION: i32 = 17;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
 
@@ -306,10 +306,15 @@ async fn format_match(
     }
     let ranked = state
         .database
-        .one_json("SELECT * FROM matches WHERE match_id=$1", &[&match_id])
+        .one_json(
+            "SELECT m.*,q.queue_name,q.stats_scope,q.participant_model, \
+             COALESCE(q.stats_scope='custom' OR q.participant_model='custom',false) AS is_custom \
+             FROM matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id WHERE m.match_id=$1",
+            &[&match_id],
+        )
         .await
         .map_err(|error| ApiError::database(error, request_id))?;
-    let (match_row, players, bans) = if let Some(match_row) = ranked {
+    let (mut match_row, players, bans) = if let Some(match_row) = ranked {
         let entry_datetime = match_row
             .get("entry_datetime")
             .and_then(Value::as_str)
@@ -361,16 +366,20 @@ async fn format_match(
         (match_row, players, bans)
     } else {
         let Some(match_row) = state.database.one_json(
-            "SELECT match_id,entry_datetime,queue_id,false AS is_ranked,duration_seconds,region,map, \
+            "SELECT m.match_id,m.entry_datetime,m.queue_id,false AS is_ranked,m.duration_seconds,m.region,m.map, \
              team1_score,team2_score,winning_task_force,false AS has_replay,quality<>'complete' AS broken, \
              false AS recovered,quality<>'complete' AS limited, \
              CASE WHEN quality='complete' THEN NULL ELSE quality END AS limited_reason, \
-             source,ingested_at,quality,stats_eligible \
-             FROM casual_matches WHERE match_id=$1 UNION ALL \
-             SELECT match_id,entry_datetime,queue_id,false,duration_seconds,region,map,team1_score,team2_score, \
+             source,ingested_at,quality,stats_eligible,q.queue_name,q.stats_scope,q.participant_model, \
+             COALESCE(q.stats_scope='custom' OR q.participant_model='custom',false) AS is_custom \
+             FROM casual_matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id WHERE m.match_id=$1 UNION ALL \
+             SELECT m.match_id,m.entry_datetime,m.queue_id,false,m.duration_seconds,m.region,m.map,team1_score,team2_score, \
              winning_task_force,false,quality<>'complete',false,quality<>'complete', \
-             CASE WHEN quality='complete' THEN NULL ELSE quality END,source,ingested_at,quality,stats_eligible \
-             FROM special_matches WHERE match_id=$1 LIMIT 1",
+             CASE WHEN quality='complete' THEN NULL ELSE quality END,source,ingested_at,quality,stats_eligible, \
+             CASE WHEN m.stats_scope='custom' OR m.participant_model='custom' THEN 'Custom Match' ELSE q.queue_name END, \
+             m.stats_scope,m.participant_model, \
+             (m.stats_scope='custom' OR m.participant_model='custom') \
+             FROM special_matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id WHERE m.match_id=$1 LIMIT 1",
             &[&match_id],
         ).await.map_err(|error| ApiError::database(error,request_id))? else {
             return Ok(None);
@@ -426,9 +435,25 @@ async fn format_match(
         ).await.map_err(|error| ApiError::database(error,request_id))?;
         (match_row, players, Vec::new())
     };
+    normalize_match_queue_metadata(&mut match_row);
     let payload = json!({ "match": match_row, "players": players, "bans": bans });
     state.redis.set(&cache_key, &payload, Some(3_600)).await;
     Ok(Some(payload))
+}
+
+fn normalize_match_queue_metadata(match_row: &mut Value) {
+    let is_custom = match_row
+        .get("is_custom")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || match_row.get("stats_scope").and_then(Value::as_str) == Some("custom")
+        || match_row.get("participant_model").and_then(Value::as_str) == Some("custom");
+    if let Some(object) = match_row.as_object_mut() {
+        object.insert("is_custom".to_owned(), Value::Bool(is_custom));
+        if is_custom {
+            object.insert("queue_name".to_owned(), Value::from("Custom Match"));
+        }
+    }
 }
 
 async fn recent(
@@ -2757,6 +2782,19 @@ mod tests {
             talent_icon_url(Some("Seris"), Some("Resuscitate")),
             Value::from("/images/champions/Talent Seris Soul Collector.avif")
         );
+    }
+
+    #[test]
+    fn custom_match_metadata_uses_stored_scope_without_queue_id_lists() {
+        let mut row = json!({
+            "queue_id": 99999,
+            "queue_name": "Unclassified Queue 99999",
+            "stats_scope": "custom",
+            "participant_model": "custom"
+        });
+        normalize_match_queue_metadata(&mut row);
+        assert_eq!(row["is_custom"], true);
+        assert_eq!(row["queue_name"], "Custom Match");
     }
 
     #[test]
