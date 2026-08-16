@@ -28,8 +28,7 @@ use super::{
     },
     pipeline::CanonicalIngestPipeline,
     policy::{
-        ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, RANKED_STATS_QUEUE_ID,
-        api_headroom_snapshot,
+        ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot,
     },
     profile_enrichment::{ProfileEnrichmentRepository, ProfileEnrichmentResult},
     projections,
@@ -572,23 +571,20 @@ async fn dispatch(
             let (date, hour) = completed_discovery_window(now);
             let worker = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
                 .map_err(|error| error.to_string())?;
-            let presence_source = auto_ingester_presence_source(trigger);
-            // Every queue now completes discovery and canonical ingestion in
-            // this invocation; there is no second claimant or deferred ledger.
-            let ranked = worker
-                .discover_hour(RANKED_STATS_QUEUE_ID, &date, hour, "auto-ingester")
+            let discovery_source = auto_ingester_presence_source(trigger);
+            // Every configured queue enters the same collection method and
+            // shared queue-hour drain; there is no ranked/casual split.
+            let queues = worker
+                .discover_configured_queues(&date, hour, discovery_source)
                 .await;
-            let presence = worker
-                .discover_all_presence_queues(&date, hour, presence_source)
-                .await;
-            let presence_complete = presence.iter().filter(|result| result.is_ok()).count();
-            let presence_failed = presence.len() - presence_complete;
+            let completed = queues.iter().filter(|result| result.is_ok()).count();
+            let failed = queues.len() - completed;
             Ok(json!({
                 "date":date,
                 "hour":hour,
-                "ranked_complete":ranked.is_ok(),
-                "presence_complete":presence_complete,
-                "presence_failed":presence_failed
+                "queues":queues.len(),
+                "completed":completed,
+                "failed":failed
             }))
         }
         "auto-ingester:profile-enrichment" => {
@@ -781,17 +777,16 @@ async fn drain_view_counts(database: &Database, config: &BackendConfig) -> Resul
 async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let now = OffsetDateTime::now_utc();
     let min_date = configured_gap_min_date();
-    let ranked = ranked_gap_candidates(&services.database, now, &min_date)
+    let queue_ids = MATCH_COUNT_QUEUE_DEFINITIONS
+        .iter()
+        .filter(|queue| queue.track_presence)
+        .map(|queue| queue.queue_id)
+        .collect::<Vec<_>>();
+    let mut candidates = queue_hour_gap_candidates(&services.database, now, &min_date, &queue_ids)
         .await
         .map_err(|error| error.to_string())?;
-    let mut presence = presence_gap_candidates(&services.database, now, &min_date)
-        .await
-        .map_err(|error| error.to_string())?;
-    // Hi-Rez history exposes only the newest 50 matches. Merge every population
-    // into one newest-first order; ranked history must not run as a separate
-    // priority lane that pushes casual matches behind older ranked hours.
-    let mut candidates = ranked;
-    candidates.append(&mut presence);
+    // Hi-Rez history exposes only the newest 50 matches. Every queue uses one
+    // newest-first candidate set; no population owns a separate recovery lane.
     candidates.sort_by(|left, right| {
         right
             .date
@@ -833,15 +828,9 @@ struct GapCandidate {
 }
 
 impl GapCandidate {
-    fn ranked(date: String, hour: i32) -> Self {
-        Self {
-            queue_id: RANKED_STATS_QUEUE_ID,
-            date,
-            hour,
-        }
-    }
-
-    fn presence(queue_id: i32, date: String, hour: i32) -> Self {
+    /// Purpose: represent one missing queue-hour. Input: configured queue ID,
+    /// UTC date and hour. Output: typed candidate consumed by `discover_hour`.
+    fn new(queue_id: i32, date: String, hour: i32) -> Self {
         Self {
             queue_id,
             date,
@@ -850,65 +839,19 @@ impl GapCandidate {
     }
 }
 
-const RANKED_GAP_STATES_SQL: &str = r#"SELECT state.date::TEXT,state.hour,state.status,state.raw_match_count,
-         state.lease_until<=now() lease_due
-         FROM hourly_ingest_state state
-         WHERE state.queue_id=$3 AND state.date>=$1::TEXT::DATE AND state.date<=$2::TEXT::DATE"#;
-
-const PRESENCE_GAP_STATES_SQL: &str = r#"SELECT date::TEXT,hour,queue_id,status,lease_until<=now() lease_due
+const QUEUE_HOUR_STATES_SQL: &str = r#"SELECT date::TEXT,hour,queue_id,status,lease_until<=now() lease_due
          FROM hourly_ingest_state WHERE queue_id=ANY($1::INT[])
          AND date>=$2::TEXT::DATE AND date<=$3::TEXT::DATE"#;
 
-async fn ranked_gap_candidates(
+/// Purpose: calculate all missing/unfinished queue-hours through one DB query
+/// and one state predicate. Input: database, UTC clock, governed lower date,
+/// configured queue IDs. Output: candidates with no population-specific lane.
+/// Relationship: every result is consumed by `CanonicalIngestPipeline::discover_hour`.
+async fn queue_hour_gap_candidates(
     database: &Database,
     now: OffsetDateTime,
     min_date: &str,
-) -> Result<Vec<GapCandidate>, DatabaseError> {
-    let max_date = now.date().to_string();
-    let states = database
-        .query_json(
-            RANKED_GAP_STATES_SQL,
-            &[&min_date, &max_date, &RANKED_STATS_QUEUE_ID],
-        )
-        .await?;
-    Ok(ranked_gap_candidates_from_rows(now, min_date, states))
-}
-
-fn ranked_gap_candidates_from_rows(
-    now: OffsetDateTime,
-    min_date: &str,
-    states: Vec<Value>,
-) -> Vec<GapCandidate> {
-    let mut states_by_key = BTreeMap::new();
-    for row in states {
-        let Some((date, hour)) = row_key(&row) else {
-            continue;
-        };
-        states_by_key.insert((date, hour), row);
-    }
-    let mut candidates = BTreeMap::new();
-    for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
-        let key = (date.clone(), hour);
-        let handled = states_by_key.get(&key).is_some_and(ranked_state_handled);
-        if !handled {
-            candidates.insert(key, GapCandidate::ranked(date, hour));
-        }
-    }
-    for ((date, hour), row) in &states_by_key {
-        if !ranked_state_handled(row) {
-            candidates.insert(
-                (date.clone(), *hour),
-                GapCandidate::ranked(date.clone(), *hour),
-            );
-        }
-    }
-    candidates.into_values().collect()
-}
-
-async fn presence_gap_candidates(
-    database: &Database,
-    now: OffsetDateTime,
-    min_date: &str,
+    queue_ids: &[i32],
 ) -> Result<Vec<GapCandidate>, DatabaseError> {
     let Some((max_date, _)) = expected_elapsed_discovery_hours(now, min_date)
         .last()
@@ -916,16 +859,8 @@ async fn presence_gap_candidates(
     else {
         return Ok(Vec::new());
     };
-    let queue_ids = MATCH_COUNT_QUEUE_DEFINITIONS
-        .iter()
-        .filter(|queue| queue.track_presence && !queue.ranked)
-        .map(|queue| queue.queue_id)
-        .collect::<Vec<_>>();
     let rows = database
-        .query_json(
-            PRESENCE_GAP_STATES_SQL,
-            &[&queue_ids.as_slice(), &min_date, &max_date],
-        )
+        .query_json(QUEUE_HOUR_STATES_SQL, &[&queue_ids, &min_date, &max_date])
         .await?;
     let mut states = BTreeMap::new();
     for row in rows {
@@ -942,49 +877,31 @@ async fn presence_gap_candidates(
         states.insert((queue_id, date, hour), row);
     }
     let mut candidates = BTreeMap::new();
-    for queue_id in &queue_ids {
+    for queue_id in queue_ids {
         for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
             let key = (*queue_id, date.clone(), hour);
-            if states.get(&key).is_none_or(presence_state_needs_recovery) {
-                candidates.insert(key, GapCandidate::presence(*queue_id, date, hour));
+            if states.get(&key).is_none_or(queue_hour_needs_recovery) {
+                candidates.insert(key, GapCandidate::new(*queue_id, date, hour));
             }
         }
     }
     for ((queue_id, date, hour), row) in &states {
-        if presence_state_needs_recovery(row) {
+        if queue_hour_needs_recovery(row) {
             candidates.insert(
                 (*queue_id, date.clone(), *hour),
-                GapCandidate::presence(*queue_id, date.clone(), *hour),
+                GapCandidate::new(*queue_id, date.clone(), *hour),
             );
         }
-    }
-    for (queue_id, date, hour) in bracketed_missing_presence_hours(database, now, min_date).await? {
-        candidates.insert(
-            (queue_id, date.clone(), hour),
-            GapCandidate::presence(queue_id, date, hour),
-        );
     }
     Ok(candidates.into_values().collect())
 }
 
-fn ranked_state_handled(row: &Value) -> bool {
-    if row.get("status").and_then(Value::as_str) == Some("complete") {
-        return true;
-    }
-    match row.get("status").and_then(Value::as_str) {
-        Some("empty") => true,
-        Some("fetching") | Some("staged") => !row
-            .get("lease_due")
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
-        _ => false,
-    }
-}
-
-fn presence_state_needs_recovery(row: &Value) -> bool {
+/// Purpose: determine whether a queue-hour executes now. Input: state row.
+/// Output: false only for terminal facts or a live execution lease.
+fn queue_hour_needs_recovery(row: &Value) -> bool {
     match row.get("status").and_then(Value::as_str) {
         Some("complete") | Some("empty") => false,
-        Some("fetching") | Some("staged") => row
+        Some("fetching") => row
             .get("lease_due")
             .and_then(Value::as_bool)
             .unwrap_or(true),
@@ -1036,52 +953,6 @@ fn profile_enrichment_result_json(result: ProfileEnrichmentResult) -> Value {
         "skippedRecent":result.skipped_recent,
         "failed":result.failed
     })
-}
-
-const BRACKETED_MISSING_PRESENCE_HOURS_SQL: &str = "WITH hours AS(SELECT tick FROM generate_series($2::TEXT::DATE+INTERVAL '1 hour',$3::TEXT::DATE+($4::TEXT::INT*INTERVAL '1 hour')-INTERVAL '1 hour',INTERVAL '1 hour') tick) \
-             SELECT queue.queue_id,to_char(hours.tick,'YYYY-MM-DD') date,EXTRACT(HOUR FROM hours.tick)::INT AS \"hour\" \
-             FROM unnest($1::INT[]) queue(queue_id) CROSS JOIN hours \
-             JOIN hourly_ingest_state previous ON previous.queue_id=queue.queue_id AND previous.date=(hours.tick-INTERVAL '1 hour')::DATE AND previous.hour=EXTRACT(HOUR FROM hours.tick-INTERVAL '1 hour')::INT \
-             LEFT JOIN hourly_ingest_state missing ON missing.queue_id=queue.queue_id AND missing.date=hours.tick::DATE AND missing.hour=EXTRACT(HOUR FROM hours.tick)::INT \
-             JOIN hourly_ingest_state next ON next.queue_id=queue.queue_id AND next.date=(hours.tick+INTERVAL '1 hour')::DATE AND next.hour=EXTRACT(HOUR FROM hours.tick+INTERVAL '1 hour')::INT \
-             WHERE missing.queue_id IS NULL ORDER BY date,\"hour\",queue.queue_id";
-
-async fn bracketed_missing_presence_hours(
-    database: &Database,
-    now: OffsetDateTime,
-    min_date: &str,
-) -> Result<Vec<(i32, String, i32)>, DatabaseError> {
-    let queue_ids = MATCH_COUNT_QUEUE_DEFINITIONS
-        .iter()
-        .filter(|queue| queue.track_presence && !queue.ranked)
-        .map(|queue| queue.queue_id)
-        .collect::<Vec<_>>();
-    let Some((max_date, max_hour)) = expected_elapsed_discovery_hours(now, min_date)
-        .last()
-        .cloned()
-    else {
-        return Ok(Vec::new());
-    };
-    let max_hour = max_hour.to_string();
-    Ok(database
-        .query_json(
-            BRACKETED_MISSING_PRESENCE_HOURS_SQL,
-            &[&queue_ids.as_slice(), &min_date, &max_date, &max_hour],
-        )
-        .await?
-        .into_iter()
-        .filter_map(|row| {
-            Some((
-                row.get("queue_id")?
-                    .as_i64()
-                    .and_then(|value| i32::try_from(value).ok())?,
-                row.get("date")?.as_str()?.to_owned(),
-                row.get("hour")?
-                    .as_i64()
-                    .and_then(|value| i32::try_from(value).ok())?,
-            ))
-        })
-        .collect())
 }
 
 fn expected_elapsed_discovery_hours(now: OffsetDateTime, min_date: &str) -> Vec<(String, i32)> {
@@ -1158,6 +1029,7 @@ mod tests {
     use time::{Date, Month, Time, UtcOffset};
 
     use super::*;
+    use crate::workers::policy::RANKED_STATS_QUEUE_ID;
 
     fn at(hour: u8, minute: u8) -> OffsetDateTime {
         Date::from_calendar_date(2026, Month::August, 2)
@@ -1389,20 +1261,14 @@ mod tests {
     }
 
     #[test]
-    fn bracketed_gap_scan_binds_string_dates_as_text() {
-        assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$2::TEXT::DATE"));
-        assert!(BRACKETED_MISSING_PRESENCE_HOURS_SQL.contains("$3::TEXT::DATE"));
-    }
-
-    #[test]
     fn gap_candidate_queries_preserve_sql_token_boundaries() {
-        assert!(RANKED_GAP_STATES_SQL.contains("hourly_ingest_state"));
-        assert!(!RANKED_GAP_STATES_SQL.contains("hourly_ingest_match_debt"));
-        assert!(PRESENCE_GAP_STATES_SQL.contains("lease_due\n         FROM"));
+        assert!(QUEUE_HOUR_STATES_SQL.contains("hourly_ingest_state"));
+        assert!(!QUEUE_HOUR_STATES_SQL.contains("hourly_ingest_match_debt"));
+        assert!(QUEUE_HOUR_STATES_SQL.contains("lease_due\n         FROM"));
     }
 
     #[test]
-    fn ranked_gap_includes_failed_hour_without_retry_cooldown() {
+    fn every_failed_queue_hour_requires_immediate_recovery() {
         let failed = json!({
             "date":"2026-08-02",
             "hour":2,
@@ -1410,12 +1276,7 @@ mod tests {
             "raw_match_count":10,
             "lease_due":true
         });
-        let candidates = ranked_gap_candidates_from_rows(at(5, 15), "2026-08-02", vec![failed]);
-        let target = candidates
-            .iter()
-            .find(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
-            .expect("failed candidate");
-        assert_eq!(target.queue_id, RANKED_STATS_QUEUE_ID);
+        assert!(queue_hour_needs_recovery(&failed));
     }
 
     #[test]
@@ -1426,9 +1287,13 @@ mod tests {
             .flat_map(|hour| {
                 queues
                     .into_iter()
-                    .map(move |queue| GapCandidate::presence(queue, "2026-08-02".to_owned(), hour))
+                    .map(move |queue| GapCandidate::new(queue, "2026-08-02".to_owned(), hour))
             })
-            .chain([GapCandidate::ranked("2026-08-01".to_owned(), 23)])
+            .chain([GapCandidate::new(
+                RANKED_STATS_QUEUE_ID,
+                "2026-08-01".to_owned(),
+                23,
+            )])
             .collect::<Vec<_>>();
 
         candidates.sort_by(|left, right| {

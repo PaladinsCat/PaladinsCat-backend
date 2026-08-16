@@ -2149,16 +2149,16 @@ CREATE INDEX IF NOT EXISTS idx_hmc_date_queue ON hourly_match_counts (date, queu
 CREATE INDEX IF NOT EXISTS idx_hmc_queue_date ON hourly_match_counts (queue_id, date DESC);
 COMMENT ON TABLE hourly_match_counts IS 'Wide-format hourly match counts per queue - auto ingester. Regions match Hi-Rez API: NA, EU, SEA, JPN, RUS, BR, OCE, SA, Unknown; matches_asia is retained for legacy rollups.';
 
--- hourly_ingest_state - Scheduler control state for hourly ranked-match ingest.
+-- hourly_ingest_state - Immediate execution ownership for every queue-hour.
 -- This table is intentionally separate from hourly_match_counts. A zero count
--- can be a real empty hour, a temporary Hi-Rez outage, or a still-draining
--- buffer; status/lease/retry fields below carry that distinction.
+-- is terminal only after authoritative discovery; unfinished work is fetching
+-- or failed and is never deferred behind pending/staged/retry state.
 CREATE TABLE IF NOT EXISTS hourly_ingest_state (
     date                DATE NOT NULL,
     hour                INT NOT NULL CHECK (hour >= 0 AND hour <= 23),
     queue_id            INT NOT NULL,
-    status              VARCHAR(20) NOT NULL DEFAULT 'pending'
-      CHECK (status IN ('pending', 'fetching', 'staged', 'empty', 'complete', 'failed')),
+    status              VARCHAR(20) NOT NULL DEFAULT 'fetching'
+      CHECK (status IN ('fetching', 'empty', 'complete', 'failed')),
     attempts            INT NOT NULL DEFAULT 0,
     raw_match_count     INT NOT NULL DEFAULT 0,
     staged_match_count  INT NOT NULL DEFAULT 0,
@@ -2176,13 +2176,10 @@ CREATE TABLE IF NOT EXISTS hourly_ingest_state (
 );
 CREATE INDEX IF NOT EXISTS idx_his_status_retry ON hourly_ingest_state (status, next_retry_at, lease_until);
 CREATE INDEX IF NOT EXISTS idx_his_queue_window ON hourly_ingest_state (queue_id, date, hour);
-COMMENT ON TABLE hourly_ingest_state IS 'Scheduler control state for hourly match ingest. Keeps missing/empty/fetching/staged/complete distinct from hourly_match_counts analytics rows.';
+COMMENT ON TABLE hourly_ingest_state IS 'Immediate queue-hour execution ledger. Unfinished hours are fetching or failed; no pending, staged, retry, debt, or cooldown state is permitted.';
 
--- hourly_ingest_match_debt - Per-match recovery debt for hourly ranked ingest.
--- Hour-level counts are not enough when Hi-Rez returns a partial batch. This
--- ledger stores every discovered match ID until the buffer worker marks that
--- match complete, so a "28 discovered / 19 staged" hour cannot lose the 9
--- unresolved IDs after a restart, retention cleanup, or changed API response.
+-- Legacy bootstrap compatibility for tracked migration 048. Tracked migration
+-- 127 preserves these IDs in match_count_discoveries and drops this table.
 CREATE TABLE IF NOT EXISTS hourly_ingest_match_debt (
     match_id            BIGINT PRIMARY KEY,
     date                DATE NOT NULL,
@@ -2201,7 +2198,6 @@ CREATE TABLE IF NOT EXISTS hourly_ingest_match_debt (
 );
 CREATE INDEX IF NOT EXISTS idx_himd_queue_window_status ON hourly_ingest_match_debt (queue_id, date, hour, status);
 CREATE INDEX IF NOT EXISTS idx_himd_pending_retry ON hourly_ingest_match_debt (status, next_retry_at, updated_at) WHERE status = 'pending';
-COMMENT ON TABLE hourly_ingest_match_debt IS 'Per-match recovery debt for hourly ranked discovery. A discovered ID remains pending/staged until the buffer worker marks match_ingest_status complete.';
 
 -- ID-only global match counts. Ranked queue 486 mirrors the IDs fetched by the
 -- full ingest worker; other queues stop here and never enter ranked projections.

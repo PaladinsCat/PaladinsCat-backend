@@ -103,10 +103,12 @@ impl CanonicalIngestPipeline {
         })
     }
 
-    /// Purpose: process every configured non-ranked presence queue uniformly.
+    /// Purpose: process every configured discovery queue uniformly.
     /// Input: UTC date (`&str`), hour (`i32`), audit source (`&str`). Output:
     /// one result per queue after that queue's complete discovered set drains.
-    pub async fn discover_all_presence_queues(
+    /// Relationship: scheduler discovery calls only this collection method;
+    /// ranked and casual queues never have separate orchestration paths.
+    pub async fn discover_configured_queues(
         &self,
         date: &str,
         hour: i32,
@@ -115,7 +117,7 @@ impl CanonicalIngestPipeline {
         let mut results = Vec::new();
         for queue in MATCH_COUNT_QUEUE_DEFINITIONS
             .iter()
-            .filter(|queue| queue.track_presence && !queue.ranked)
+            .filter(|queue| queue.track_presence)
         {
             results.push(self.discover_hour(queue.queue_id, date, hour, source).await);
         }

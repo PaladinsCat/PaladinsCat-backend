@@ -544,7 +544,7 @@ pub async fn recovery_forecast(database: &Database) -> Result<Value> {
          COALESCE(sum(GREATEST(raw_match_count-staged_match_count,0)),0)::BIGINT unresolved,\
          COALESCE(max(raw_match_count),0)::INT peak_raw,\
          COALESCE(max(GREATEST(raw_match_count-staged_match_count,0)),0)::INT peak_unresolved \
-         FROM hourly_ingest_state WHERE queue_id=$1 AND status IN('pending','fetching','staged','failed','empty') \
+         FROM hourly_ingest_state WHERE queue_id=$1 AND status IN('fetching','failed') \
          AND GREATEST(raw_match_count-staged_match_count,0)>0",&[&queue_id]
     ).await?.unwrap_or_else(||json!({}));
     let unresolved = json_i64(&backlog, "unresolved");

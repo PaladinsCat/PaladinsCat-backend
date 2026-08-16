@@ -29,7 +29,7 @@ pub async fn ensure_hourly_ingest_tables(database: &Database) -> Result<(), Data
     database.query_json(
         "CREATE TABLE IF NOT EXISTS hourly_ingest_state(\
           date DATE NOT NULL,hour INT NOT NULL CHECK(hour>=0 AND hour<=23),queue_id INT NOT NULL,\
-          status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK(status IN('pending','fetching','staged','empty','complete','failed')),\
+          status VARCHAR(20) NOT NULL DEFAULT 'fetching' CHECK(status IN('fetching','empty','complete','failed')),\
           attempts INT NOT NULL DEFAULT 0,raw_match_count INT NOT NULL DEFAULT 0,staged_match_count INT NOT NULL DEFAULT 0,\
           fetched BOOLEAN NOT NULL DEFAULT FALSE,fetch_succeeded BOOLEAN NOT NULL DEFAULT FALSE,source VARCHAR(50),\
           error_message TEXT,last_attempt_at TIMESTAMPTZ,next_retry_at TIMESTAMPTZ,lease_until TIMESTAMPTZ,\
@@ -59,8 +59,8 @@ pub async fn claim_hourly_ingest_hour(
          ON CONFLICT(date,hour,queue_id) DO UPDATE SET status='fetching',attempts=hourly_ingest_state.attempts+1,\
          fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
          lease_until=now()+($5::INT*INTERVAL '1 minute'),updated_at=now() WHERE \
-         hourly_ingest_state.status IN('pending','failed') OR \
-         (hourly_ingest_state.status IN('fetching','staged') AND (hourly_ingest_state.lease_until IS NULL OR hourly_ingest_state.lease_until<=now())) RETURNING date",
+         hourly_ingest_state.status='failed' OR \
+         (hourly_ingest_state.status='fetching' AND (hourly_ingest_state.lease_until IS NULL OR hourly_ingest_state.lease_until<=now())) RETURNING date",
         &[&date, &hour, &queue_id, &source, &FETCH_LEASE_MINUTES],
     ).await?;
     Ok(!rows.is_empty())
@@ -219,7 +219,9 @@ mod tests {
             .split_once("#[cfg(test)]")
             .expect("worker source has tests")
             .0;
-        assert!(source.contains("hourly_ingest_state.status IN('pending','failed')"));
+        assert!(source.contains("hourly_ingest_state.status='failed'"));
+        assert!(!source.contains("status='pending'"));
+        assert!(!source.contains("status='staged'"));
         assert!(!source.contains("hourly_ingest_match_debt"));
         assert!(!source.contains("HOURLY_INGEST_MATCH_DEBT_RETRY_MINUTES"));
         assert!(!source.contains("HOURLY_INGEST_BUDGET_RETRY_MINUTES"));
