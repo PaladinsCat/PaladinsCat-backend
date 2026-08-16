@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use futures::{StreamExt, future::join_all, stream};
+use paladinscat_core::queue::has_variable_human_roster;
 use serde_json::Value;
 
 use crate::{
@@ -585,15 +586,11 @@ fn usable_roster(roster: Vec<Value>) -> Vec<Value> {
 
 fn needs_recovery(r#match: &MatchDetails) -> bool {
     let count = usable_player_count(&r#match.players);
-    if is_variable_human_roster_queue(r#match.queue_id) {
+    if i32::try_from(r#match.queue_id).is_ok_and(has_variable_human_roster) {
         count == 0
     } else {
         count != 10
     }
-}
-
-fn is_variable_human_roster_queue(queue_id: u32) -> bool {
-    matches!(queue_id, 425 | 453 | 10297 | 10348 | 10362)
 }
 
 fn is_recoverable_match_detail_error(error: &RelayError) -> bool {

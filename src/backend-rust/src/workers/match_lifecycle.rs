@@ -1,7 +1,10 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-use paladinscat_core::database::{Database, DatabaseError};
+use paladinscat_core::{
+    database::{Database, DatabaseError},
+    queue::roster_evidence_is_complete,
+};
 use serde::Serialize;
 use tokio_postgres::Row;
 
@@ -35,7 +38,6 @@ WHERE match_ingest_status.status NOT IN ('complete', 'limited')
 RETURNING
   match_id, status, completed_stages, queue_id, population,
   acquisition_state, detail_attempted_at IS NOT NULL AS detail_attempted,
-  roster_resolved_at IS NOT NULL AS roster_resolved,
   demo_resolved_at IS NOT NULL AS demo_resolved,
   direct_player_count, roster_player_count, unresolved_player_ids
 "#;
@@ -369,6 +371,20 @@ pub fn plan_match_lifecycle(evidence: &MatchEvidence) -> Vec<MatchLifecycleActio
         actions.push(MatchLifecycleAction::FinalizeFacts);
     }
     actions
+}
+
+/// Purpose: derive roster completion from persisted cardinality rather than a
+/// stale timestamp. Input: optional queue ID, recorded count, and locally
+/// observed public participant count. Output: shared policy decision used by
+/// `load_evidence_from_claim` before the lifecycle plan is constructed.
+fn persisted_roster_is_complete(
+    queue_id: Option<i32>,
+    recorded_count: i16,
+    observed_public_count: usize,
+) -> bool {
+    let recorded_count = usize::try_from(recorded_count.max(0)).unwrap_or_default();
+    let player_count = recorded_count.max(observed_public_count);
+    queue_id.is_some_and(|queue_id| roster_evidence_is_complete(queue_id, player_count))
 }
 
 #[derive(Clone)]
@@ -1023,7 +1039,12 @@ impl MatchLifecycleRepository {
             .map(|history| history.get::<_, i64>("player_id"))
             .collect();
 
-        let has_stored_roster = !roster_player_ids.is_empty();
+        let queue_id = row.get::<_, Option<i32>>("queue_id");
+        let roster_resolved = persisted_roster_is_complete(
+            queue_id,
+            row.get("roster_player_count"),
+            roster_player_ids.len(),
+        );
         Ok(MatchEvidence {
             match_id,
             status: row.get("status"),
@@ -1031,14 +1052,14 @@ impl MatchLifecycleRepository {
                 .get::<_, Vec<String>>("completed_stages")
                 .into_iter()
                 .collect(),
-            queue_id: row.get("queue_id"),
+            queue_id,
             population: MatchPopulation::from_database(row.get::<_, String>("population").as_str()),
             acquisition_state: row.get("acquisition_state"),
             detail_attempted: row.get("detail_attempted"),
-            // Durable participant facts are the roster authority. An older
-            // match that predates lifecycle checkpoints must not trigger
-            // getPlayerBatchFromMatch merely because the timestamp is absent.
-            roster_resolved: row.get::<_, bool>("roster_resolved") || has_stored_roster,
+            // The shared cardinality policy is the authority. A timestamp or
+            // one partial participant must not suppress the missing roster
+            // fetch for fixed 5v5 queues; variable bot/PvE rosters remain valid.
+            roster_resolved,
             demo_resolved: row.get("demo_resolved"),
             direct_player_ids,
             roster_player_ids,
@@ -1104,6 +1125,13 @@ mod tests {
             plan_match_lifecycle(&value),
             vec![MatchLifecycleAction::FetchRoster]
         );
+    }
+
+    #[test]
+    fn partial_fixed_roster_never_suppresses_roster_fetch() {
+        assert!(!persisted_roster_is_complete(Some(424), 1, 1));
+        assert!(persisted_roster_is_complete(Some(424), 10, 8));
+        assert!(persisted_roster_is_complete(Some(425), 1, 1));
     }
 
     #[test]

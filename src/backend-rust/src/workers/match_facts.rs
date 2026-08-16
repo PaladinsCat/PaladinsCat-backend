@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use paladinscat_core::{
     database::{Database, DatabaseError},
+    queue::has_variable_human_roster,
     region::canonical_region,
 };
 use serde::Deserialize;
@@ -261,7 +262,7 @@ impl CanonicalMatchPayload {
     fn normalized_players(&self) -> Result<Value, MatchFactError> {
         let mut players = self.players.clone();
         assign_private_slots(&mut players);
-        validate_authoritative_players(&players, self.limited == Some(true))?;
+        validate_authoritative_players(&players, self.limited == Some(true), self.queue_id)?;
         Ok(Value::Array(players))
     }
 
@@ -1662,28 +1663,38 @@ fn valid_completed_score(team1: Option<i32>, team2: Option<i32>, winner: Option<
     }
 }
 
-fn validate_authoritative_players(players: &[Value], limited: bool) -> Result<(), MatchFactError> {
+/// Purpose: validate canonical participants with the shared queue cardinality
+/// policy. Input: normalized players, limited flag, and queue ID. Output:
+/// authoritative detailed facts; fixed PvP queues require 5v5 while bot/PvE
+/// queues preserve their variable human roster.
+fn validate_authoritative_players(
+    players: &[Value],
+    limited: bool,
+    queue_id: i32,
+) -> Result<(), MatchFactError> {
     if limited {
         return Ok(());
     }
-    if players.len() != 10 {
+    if !has_variable_human_roster(queue_id) && players.len() != 10 {
         return Err(MatchFactError::InvalidPayload(format!(
             "complete match requires 10 logical players; received {}",
             players.len()
         )));
     }
-    let team_one = players
-        .iter()
-        .filter(|player| player_i64(player, "task_force") == 1)
-        .count();
-    let team_two = players
-        .iter()
-        .filter(|player| player_i64(player, "task_force") == 2)
-        .count();
-    if team_one != 5 || team_two != 5 {
-        return Err(MatchFactError::InvalidPayload(format!(
-            "complete match requires a 5v5 roster; received {team_one}v{team_two}"
-        )));
+    if !has_variable_human_roster(queue_id) {
+        let team_one = players
+            .iter()
+            .filter(|player| player_i64(player, "task_force") == 1)
+            .count();
+        let team_two = players
+            .iter()
+            .filter(|player| player_i64(player, "task_force") == 2)
+            .count();
+        if team_one != 5 || team_two != 5 {
+            return Err(MatchFactError::InvalidPayload(format!(
+                "complete match requires a 5v5 roster; received {team_one}v{team_two}"
+            )));
+        }
     }
     if players
         .iter()
@@ -1959,6 +1970,15 @@ mod tests {
         let mut bad_score = complete_match();
         bad_score["winning_task_force"] = json!(2);
         assert!(CanonicalMatchPayload::from_relay_value(bad_score).is_err());
+    }
+
+    #[test]
+    fn variable_human_roster_uses_shared_queue_policy() {
+        let mut training = complete_match();
+        training["queue_id"] = json!(425);
+        training["players"] = json!([player(1, 1, "direct")]);
+        let payload = CanonicalMatchPayload::from_relay_value(training).expect("training shell");
+        assert!(payload.normalized_players().is_ok());
     }
 
     #[test]
