@@ -18,7 +18,7 @@ use super::{
         mark_hourly_ingest_failed, refresh_hourly_ingest_lease,
     },
     discovery_store::{MatchIdObservation, record_match_count_discovery_result},
-    match_facts::{CanonicalMatchPayload, MatchFactRepository},
+    match_facts::{CanonicalMatchPayload, MatchFactError, MatchFactRepository},
     match_lifecycle::{MatchDiscoverySource, MatchPopulation},
     outage::{
         MATCH_DETAIL_SERVICE_OUTAGE_KEY, classify_hirez_service_outage_message,
@@ -38,6 +38,8 @@ pub enum PipelineError {
     Relay(#[from] WorkerRelayError),
     #[error("match fact finalization failed: {0}")]
     Facts(String),
+    #[error("match {match_id} is terminally unavailable: {reason}")]
+    TerminalFacts { match_id: i64, reason: String },
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -270,7 +272,9 @@ impl CanonicalIngestPipeline {
                    OR (EXISTS(SELECT 1 FROM casual_matches WHERE match_id=requested.match_id) \
                      AND EXISTS(SELECT 1 FROM casual_match_players WHERE match_id=requested.match_id)) \
                    OR (EXISTS(SELECT 1 FROM special_matches WHERE match_id=requested.match_id) \
-                     AND EXISTS(SELECT 1 FROM special_match_players WHERE match_id=requested.match_id))\
+                     AND EXISTS(SELECT 1 FROM special_match_players WHERE match_id=requested.match_id)) \
+                   OR EXISTS(SELECT 1 FROM match_ingest_status \
+                     WHERE match_id=requested.match_id AND status='limited')\
                  ) ORDER BY requested.ordinality",
                 &[&match_ids],
             )
@@ -348,6 +352,7 @@ impl CanonicalIngestPipeline {
             .collect::<VecDeque<_>>();
         let mut emitted = BTreeSet::new();
         let mut completed = 0;
+        let mut failures = Vec::new();
         let mut batch_windows = VecDeque::<Vec<i64>>::new();
         while !remaining.is_empty() {
             refresh_hourly_ingest_lease(&self.database, date, hour, queue_id).await?;
@@ -398,9 +403,23 @@ impl CanonicalIngestPipeline {
                         "canonical relay returned duplicate outcome for match {match_id}"
                     )));
                 }
-                self.checkpoint_canonical_outcome(outcome, queue_id, source, progress)
-                    .await?;
-                completed += 1;
+                match self
+                    .checkpoint_canonical_outcome(outcome, queue_id, source, progress)
+                    .await
+                {
+                    Ok(()) => completed += 1,
+                    Err(error) => {
+                        let message = error.to_string();
+                        if self
+                            .record_terminal_outcome(error, queue_id, source, progress)
+                            .await?
+                        {
+                            completed += 1;
+                        } else {
+                            failures.push(format!("match {match_id}: {message}"));
+                        }
+                    }
+                }
             }
             for id in batch.iter().filter(|id| returned_ids.contains(id)) {
                 if let Some(position) = remaining.iter().position(|candidate| candidate == id) {
@@ -438,20 +457,80 @@ impl CanonicalIngestPipeline {
                     )));
                 }
                 resolved = true;
-                self.checkpoint_canonical_outcome(outcome, queue_id, source, progress)
-                    .await?;
-                completed += 1;
+                match self
+                    .checkpoint_canonical_outcome(outcome, queue_id, source, progress)
+                    .await
+                {
+                    Ok(()) => completed += 1,
+                    Err(error) => {
+                        let message = error.to_string();
+                        if self
+                            .record_terminal_outcome(error, queue_id, source, progress)
+                            .await?
+                        {
+                            completed += 1;
+                        } else {
+                            failures.push(format!("match {match_id}: {message}"));
+                        }
+                    }
+                }
             }
             if !resolved {
-                self.recover_discovered_match(blocker, queue_id, source)
-                    .await?;
-                completed += 1;
+                match self
+                    .recover_discovered_match(blocker, queue_id, source)
+                    .await
+                {
+                    Ok(()) => {
+                        progress.checkpointed_ids.insert(blocker);
+                        completed += 1;
+                    }
+                    Err(error) => {
+                        let message = error.to_string();
+                        if self
+                            .record_terminal_outcome(error, queue_id, source, progress)
+                            .await?
+                        {
+                            completed += 1;
+                        } else {
+                            failures.push(format!("match {blocker}: {message}"));
+                        }
+                    }
+                }
             }
             if let Some(position) = remaining.iter().position(|candidate| *candidate == blocker) {
                 remaining.remove(position);
             }
         }
-        Ok(completed)
+        if failures.is_empty() {
+            Ok(completed)
+        } else {
+            Err(PipelineError::Facts(format!(
+                "{} match(es) failed after the full queue-hour drain; first: {}",
+                failures.len(),
+                failures[0]
+            )))
+        }
+    }
+
+    /// Purpose: isolate a terminal provider payload from the remaining batch.
+    /// Input: typed per-match pipeline error plus queue/source. Output: `true`
+    /// only when the match was durably marked unavailable; transient database,
+    /// projection, transport, and ownership errors remain retryable.
+    async fn record_terminal_outcome(
+        &self,
+        error: PipelineError,
+        queue_id: i32,
+        source: MatchDiscoverySource,
+        progress: &mut MatchDrainProgress,
+    ) -> Result<bool, PipelineError> {
+        let PipelineError::TerminalFacts { match_id, reason } = error else {
+            return Ok(false);
+        };
+        self.lifecycle
+            .mark_terminal_unavailable(match_id, queue_id, source, &reason)
+            .await?;
+        progress.checkpointed_ids.insert(match_id);
+        Ok(true)
     }
 
     /// Purpose: persist a confirmed provider match-detail outage as telemetry.
@@ -515,11 +594,16 @@ impl CanonicalIngestPipeline {
                 canonical.match_id, canonical.queue_id
             )));
         }
-        let finalized = self
-            .facts
-            .finalize(&canonical, source.as_database())
-            .await
-            .map_err(|error| PipelineError::Facts(error.to_string()))?;
+        let finalized = match self.facts.finalize(&canonical, source.as_database()).await {
+            Ok(finalized) => finalized,
+            Err(MatchFactError::InvalidPayload(reason)) => {
+                return Err(PipelineError::TerminalFacts {
+                    match_id: canonical.match_id,
+                    reason,
+                });
+            }
+            Err(error) => return Err(PipelineError::Facts(error.to_string())),
+        };
         match finalized.population {
             MatchPopulation::Ranked => self
                 .ranked
@@ -564,11 +648,31 @@ impl CanonicalIngestPipeline {
             .await;
         match result.status {
             RequestedMatchStatus::Ready => Ok(()),
-            _ => Err(PipelineError::Facts(result.error.unwrap_or_else(|| {
-                format!("match {match_id} did not reach the durable fact boundary")
-            }))),
+            RequestedMatchStatus::NotFound => Err(PipelineError::TerminalFacts {
+                match_id,
+                reason: "provider returned no completed match".to_owned(),
+            }),
+            _ => {
+                let reason = result.error.unwrap_or_else(|| {
+                    format!("match {match_id} did not reach the durable fact boundary")
+                });
+                if terminal_recovery_reason(&reason) {
+                    Err(PipelineError::TerminalFacts { match_id, reason })
+                } else {
+                    Err(PipelineError::Facts(reason))
+                }
+            }
         }
     }
+}
+
+/// Purpose: classify only provider evidence that cannot become canonical in
+/// this invocation. Input: lifecycle error text. Output: terminal boolean;
+/// database, transport, projection, timeout, and ownership errors stay false.
+fn terminal_recovery_reason(reason: &str) -> bool {
+    let reason = reason.to_ascii_lowercase();
+    reason.contains("invalid canonical match payload")
+        || reason.contains("relay response did not contain a completed match")
 }
 
 /// Purpose: convert raw discovery rows to typed unique observations. Input:
@@ -788,6 +892,20 @@ mod tests {
             valid.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
             vec![2, 1]
         );
+    }
+
+    #[test]
+    fn terminal_match_payloads_are_isolated_but_transient_failures_retry() {
+        assert!(terminal_recovery_reason(
+            "invalid canonical match payload: complete match requires 10 logical players"
+        ));
+        assert!(terminal_recovery_reason(
+            "relay response did not contain a completed match"
+        ));
+        assert!(!terminal_recovery_reason("db error"));
+        assert!(!terminal_recovery_reason(
+            "canceling statement due to statement timeout"
+        ));
     }
 
     #[test]

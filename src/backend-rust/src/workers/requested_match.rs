@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use paladinscat_core::database::Database;
+use paladinscat_core::database::{Database, DatabaseError};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -92,6 +92,22 @@ impl RequestedMatchIngestor {
             source: MatchDiscoverySource::DirectLookup,
         })
         .await
+    }
+
+    /// Purpose: expose the shared lifecycle terminal boundary to canonical
+    /// discovery owners. Input: typed match/queue/source plus stable reason.
+    /// Output: durable lifecycle completion; relationship:
+    /// delegates exclusively to `MatchLifecycleRepository` persistence.
+    pub async fn mark_terminal_unavailable(
+        &self,
+        match_id: i64,
+        queue_id: i32,
+        source: MatchDiscoverySource,
+        reason: &str,
+    ) -> Result<(), DatabaseError> {
+        self.lifecycle
+            .mark_terminal_unavailable(match_id, queue_id, source, reason)
+            .await
     }
 
     /// Purpose: execute the one canonical DB-first recovery/finalization path.

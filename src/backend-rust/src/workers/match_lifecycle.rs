@@ -115,6 +115,29 @@ WHERE match_id = $1
   )
 "#;
 
+const MARK_TERMINAL_UNAVAILABLE_SQL: &str = r#"
+INSERT INTO match_ingest_status (
+  match_id, status, source, attempts, error_message, queue_id, population,
+  acquisition_state, completed_at, updated_at, lease_owner, lease_until
+)
+VALUES (
+  $1, 'limited', $3, 1, $4, $2, 'unknown',
+  'unavailable', now(), now(), NULL, NULL
+)
+ON CONFLICT (match_id) DO UPDATE SET
+  status = 'limited',
+  source = EXCLUDED.source,
+  attempts = match_ingest_status.attempts + 1,
+  error_message = EXCLUDED.error_message,
+  queue_id = COALESCE(match_ingest_status.queue_id, EXCLUDED.queue_id),
+  acquisition_state = 'unavailable',
+  completed_at = COALESCE(match_ingest_status.completed_at, now()),
+  updated_at = now(),
+  lease_owner = NULL,
+  lease_until = NULL
+WHERE match_ingest_status.status <> 'complete'
+"#;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MatchDiscoverySource {
     HourlyDiscovery,
@@ -909,6 +932,29 @@ impl MatchLifecycleRepository {
     ) -> Result<bool, DatabaseError> {
         let client = self.database.connection().await?;
         Ok(client.execute(COMPLETE_SQL, &[&match_id, &owner]).await? == 1)
+    }
+
+    /// Purpose: close one immutable provider-unavailable match without
+    /// blocking sibling matches in the shared queue-hour drain.
+    /// Input: positive match/queue IDs, typed discovery source, stable reason.
+    /// Output: durable terminal ledger completion, including an existing
+    /// concurrent `complete` row;
+    /// relationship: every discovery caller reuses this lifecycle boundary.
+    pub async fn mark_terminal_unavailable(
+        &self,
+        match_id: i64,
+        queue_id: i32,
+        source: MatchDiscoverySource,
+        reason: &str,
+    ) -> Result<(), DatabaseError> {
+        let client = self.database.connection().await?;
+        client
+            .execute(
+                MARK_TERMINAL_UNAVAILABLE_SQL,
+                &[&match_id, &queue_id, &source.as_database(), &reason],
+            )
+            .await?;
+        Ok(())
     }
 
     async fn load_evidence_from_claim(
