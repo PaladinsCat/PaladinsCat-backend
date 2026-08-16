@@ -51,7 +51,7 @@ const CASUAL_HOURLY_SQL: &str = "WITH rows AS ( \
     ELSE COALESCE(NULLIF(BTRIM(region),''),'Unknown') END AS region, \
   SUM(total_matches)::int AS total_matches FROM rows \
 GROUP BY 1,2,3,4 ORDER BY 1,2,3,4";
-const MATCH_DETAIL_CACHE_VERSION: i32 = 17;
+const MATCH_DETAIL_CACHE_VERSION: i32 = 18;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
 
