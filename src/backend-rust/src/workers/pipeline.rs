@@ -19,7 +19,7 @@ use super::{
     },
     discovery_store::{MatchIdObservation, record_match_count_discovery_result},
     match_facts::{CanonicalMatchPayload, MatchFactError, MatchFactRepository},
-    match_lifecycle::{MatchDiscoverySource, MatchPopulation},
+    match_lifecycle::{MatchDiscoverySource, MatchPopulation, TERMINAL_NO_COMPLETED_MATCH_REASON},
     outage::{
         MATCH_DETAIL_SERVICE_OUTAGE_KEY, classify_hirez_service_outage_message,
         mark_hirez_service_recovered, record_hirez_service_outage,
@@ -274,9 +274,10 @@ impl CanonicalIngestPipeline {
                    OR (EXISTS(SELECT 1 FROM special_matches WHERE match_id=requested.match_id) \
                      AND EXISTS(SELECT 1 FROM special_match_players WHERE match_id=requested.match_id)) \
                    OR EXISTS(SELECT 1 FROM match_ingest_status \
-                     WHERE match_id=requested.match_id AND status='limited')\
+                     WHERE match_id=requested.match_id AND status='limited' \
+                       AND (acquisition_state<>'unavailable' OR error_message IS NOT DISTINCT FROM $2))\
                  ) ORDER BY requested.ordinality",
-                &[&match_ids],
+                &[&match_ids, &TERMINAL_NO_COMPLETED_MATCH_REASON],
             )
             .await?;
         let fetch_ids = rows
@@ -596,11 +597,10 @@ impl CanonicalIngestPipeline {
         }
         let finalized = match self.facts.finalize(&canonical, source.as_database()).await {
             Ok(finalized) => finalized,
-            Err(MatchFactError::InvalidPayload(reason)) => {
-                return Err(PipelineError::TerminalFacts {
-                    match_id: canonical.match_id,
-                    reason,
-                });
+            Err(MatchFactError::InvalidPayload(_)) => {
+                return self
+                    .recover_discovered_match(canonical.match_id, queue_id, source)
+                    .await;
             }
             Err(error) => return Err(PipelineError::Facts(error.to_string())),
         };
@@ -650,29 +650,16 @@ impl CanonicalIngestPipeline {
             RequestedMatchStatus::Ready => Ok(()),
             RequestedMatchStatus::NotFound => Err(PipelineError::TerminalFacts {
                 match_id,
-                reason: "provider returned no completed match".to_owned(),
+                reason: TERMINAL_NO_COMPLETED_MATCH_REASON.to_owned(),
             }),
             _ => {
                 let reason = result.error.unwrap_or_else(|| {
                     format!("match {match_id} did not reach the durable fact boundary")
                 });
-                if terminal_recovery_reason(&reason) {
-                    Err(PipelineError::TerminalFacts { match_id, reason })
-                } else {
-                    Err(PipelineError::Facts(reason))
-                }
+                Err(PipelineError::Facts(reason))
             }
         }
     }
-}
-
-/// Purpose: classify only provider evidence that cannot become canonical in
-/// this invocation. Input: lifecycle error text. Output: terminal boolean;
-/// database, transport, projection, timeout, and ownership errors stay false.
-fn terminal_recovery_reason(reason: &str) -> bool {
-    let reason = reason.to_ascii_lowercase();
-    reason.contains("invalid canonical match payload")
-        || reason.contains("relay response did not contain a completed match")
 }
 
 /// Purpose: convert raw discovery rows to typed unique observations. Input:
@@ -895,17 +882,15 @@ mod tests {
     }
 
     #[test]
-    fn terminal_match_payloads_are_isolated_but_transient_failures_retry() {
-        assert!(terminal_recovery_reason(
-            "invalid canonical match payload: complete match requires 10 logical players"
-        ));
-        assert!(terminal_recovery_reason(
-            "relay response did not contain a completed match"
-        ));
-        assert!(!terminal_recovery_reason("db error"));
-        assert!(!terminal_recovery_reason(
-            "canceling statement due to statement timeout"
-        ));
+    fn only_explicit_provider_no_data_is_terminal() {
+        assert_eq!(
+            TERMINAL_NO_COMPLETED_MATCH_REASON,
+            "provider returned no completed match"
+        );
+        assert_ne!(
+            TERMINAL_NO_COMPLETED_MATCH_REASON,
+            "invalid canonical match payload"
+        );
     }
 
     #[test]

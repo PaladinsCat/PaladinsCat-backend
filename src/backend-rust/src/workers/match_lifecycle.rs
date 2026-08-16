@@ -5,6 +5,8 @@ use paladinscat_core::database::{Database, DatabaseError};
 use serde::Serialize;
 use tokio_postgres::Row;
 
+pub(crate) const TERMINAL_NO_COMPLETED_MATCH_REASON: &str = "provider returned no completed match";
+
 const CLAIM_SQL: &str = r#"
 INSERT INTO match_ingest_status (
   match_id, status, source, attempts, acquisition_state,
@@ -462,6 +464,13 @@ impl MatchLifecycleRepository {
                 )
                 VALUES ($1, 'processing', $2, $3, $4, 'discovered', now())
                 ON CONFLICT (match_id) DO UPDATE SET
+                  status = CASE
+                    WHEN match_ingest_status.status = 'limited'
+                      AND match_ingest_status.acquisition_state = 'unavailable'
+                      AND match_ingest_status.error_message IS DISTINCT FROM $5
+                    THEN 'processing'
+                    ELSE match_ingest_status.status
+                  END,
                   source = COALESCE(match_ingest_status.source, EXCLUDED.source),
                   queue_id = COALESCE(match_ingest_status.queue_id, EXCLUDED.queue_id),
                   population = CASE
@@ -469,8 +478,36 @@ impl MatchLifecycleRepository {
                       THEN EXCLUDED.population
                     ELSE match_ingest_status.population
                   END,
+                  acquisition_state = CASE
+                    WHEN match_ingest_status.status = 'limited'
+                      AND match_ingest_status.acquisition_state = 'unavailable'
+                      AND match_ingest_status.error_message IS DISTINCT FROM $5
+                    THEN 'discovered'
+                    ELSE match_ingest_status.acquisition_state
+                  END,
+                  error_message = CASE
+                    WHEN match_ingest_status.status = 'limited'
+                      AND match_ingest_status.acquisition_state = 'unavailable'
+                      AND match_ingest_status.error_message IS DISTINCT FROM $5
+                    THEN NULL
+                    ELSE match_ingest_status.error_message
+                  END,
+                  completed_at = CASE
+                    WHEN match_ingest_status.status = 'limited'
+                      AND match_ingest_status.acquisition_state = 'unavailable'
+                      AND match_ingest_status.error_message IS DISTINCT FROM $5
+                    THEN NULL
+                    ELSE match_ingest_status.completed_at
+                  END,
                   updated_at = CASE
-                    WHEN match_ingest_status.status IN ('complete', 'limited')
+                    WHEN match_ingest_status.status = 'complete'
+                      OR (
+                        match_ingest_status.status = 'limited'
+                        AND NOT (
+                          match_ingest_status.acquisition_state = 'unavailable'
+                          AND match_ingest_status.error_message IS DISTINCT FROM $5
+                        )
+                      )
                       THEN match_ingest_status.updated_at
                     ELSE now()
                   END
@@ -481,6 +518,7 @@ impl MatchLifecycleRepository {
                     &discovery.source.as_database(),
                     &discovery.queue_id,
                     &incoming_population.as_database(),
+                    &TERMINAL_NO_COMPLETED_MATCH_REASON,
                 ],
             )
             .await?;
