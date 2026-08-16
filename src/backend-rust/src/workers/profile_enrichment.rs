@@ -115,6 +115,36 @@ WHERE refresh.player_id = due.player_id
 RETURNING refresh.player_id, false AS needs_platform, false AS needs_region
 "#;
 
+const AUDITED_PROFILE_REPLAY_SQL: &str = r#"
+WITH retryable AS MATERIALIZED (
+  SELECT player_id,last_attempt_at
+  FROM player_activity_profile_refresh
+  WHERE status IN ('failed','unavailable')
+    AND last_attempt_at>=now()-($1::int*interval '1 hour')
+), audited AS MATERIALIZED (
+  SELECT audit.created_at,profile
+  FROM hirez_raw_api_responses audit
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_typeof(audit.raw_response)='array'
+      THEN audit.raw_response ELSE '[]'::jsonb END
+  ) profile
+  WHERE audit.endpoint='getplayerbatch'
+    AND audit.entity_type='player_activity_profile_enrichment'
+    AND audit.source='player-activity-profile-enrichment'
+    AND audit.created_at>=now()-($1::int*interval '1 hour')-($2::int*interval '1 second')
+    AND COALESCE(profile->>'ret_msg','')=''
+)
+SELECT DISTINCT ON(retryable.player_id) retryable.player_id,audited.profile
+FROM retryable JOIN audited
+  ON audited.created_at BETWEEN retryable.last_attempt_at-($2::int*interval '1 second')
+                            AND retryable.last_attempt_at+($2::int*interval '1 second')
+ AND retryable.player_id IN(
+   CASE WHEN audited.profile->>'Id'~'^[0-9]+$' THEN (audited.profile->>'Id')::BIGINT END,
+   CASE WHEN audited.profile->>'ActivePlayerId'~'^[0-9]+$' THEN (audited.profile->>'ActivePlayerId')::BIGINT END
+ )
+ORDER BY retryable.player_id,audited.created_at DESC
+"#;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimedPlayerIdentity {
     pub player_id: i64,
@@ -129,6 +159,8 @@ pub struct ProfileEnrichmentRepository {
 
 const PROFILE_CLAIM_LEASE: Duration = Duration::from_secs(30 * 60);
 const FAILED_RETRY_MINUTES: i32 = 60;
+const AUDITED_PROFILE_REPLAY_HOURS: i32 = 24;
+const AUDITED_PROFILE_CORRELATION_SECONDS: i32 = 5 * 60;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProfileEnrichmentResult {
@@ -203,11 +235,12 @@ impl ProfileEnrichmentRepository {
         self.database
             .query_json(RECONCILE_PRESENCE_SQL, &[])
             .await?;
+        let mut result = ProfileEnrichmentResult::default();
+        result.refreshed += self.replay_audited_profiles().await?;
         let batches = self
             .claim_unknown_batches(max_calls, PROFILE_CLAIM_LEASE)
             .await?;
         let relay = WorkerRelayClient::new(config)?;
-        let mut result = ProfileEnrichmentResult::default();
         for (index, batch) in batches.iter().enumerate() {
             result.claimed += batch.len();
             let claimed_ids = batch.iter().map(|row| row.player_id).collect::<Vec<_>>();
@@ -283,6 +316,7 @@ impl ProfileEnrichmentRepository {
                 break;
             }
             let mut rows = Vec::new();
+            let mut persistence_failures = BTreeSet::new();
             for profile in payload.as_array().into_iter().flatten() {
                 if !value_text(profile, &["ret_msg"])
                     .unwrap_or_default()
@@ -292,7 +326,10 @@ impl ProfileEnrichmentRepository {
                 }
                 match persist_player_profile(&self.database, profile).await {
                     Ok(_) => rows.push(profile.clone()),
-                    Err(error) => tracing::error!(%error, "profile enrichment persistence failed"),
+                    Err(error) => {
+                        persistence_failures.extend(profile_identity_ids(profile));
+                        tracing::error!(?error, "profile enrichment persistence failed");
+                    }
                 }
             }
             let requested = ids.iter().copied().collect::<BTreeSet<_>>();
@@ -306,6 +343,15 @@ impl ProfileEnrichmentRepository {
             }
             for claim in batch {
                 if !ids.contains(&claim.player_id) {
+                    continue;
+                }
+                if persistence_failures.contains(&claim.player_id) {
+                    self.finish_persistence_failed(
+                        claim.player_id,
+                        "A locally audited profile could not be persisted.",
+                    )
+                    .await?;
+                    result.failed += 1;
                     continue;
                 }
                 let Some(_) = returned.get(&claim.player_id) else {
@@ -330,6 +376,66 @@ impl ProfileEnrichmentRepository {
         }
         self.cleanup_old_state().await?;
         Ok(result)
+    }
+
+    /// Purpose: replay valid saved profile responses before any vendor call.
+    /// Input: audited JSON profiles tied to failed/unavailable refresh rows by
+    /// typed player ID and attempt time. Output: count durably persisted and
+    /// marked successful; unrelated or genuinely unavailable rows are ignored.
+    async fn replay_audited_profiles(&self) -> Result<usize, ProfileEnrichmentError> {
+        let rows = self
+            .database
+            .query_json(
+                AUDITED_PROFILE_REPLAY_SQL,
+                &[
+                    &AUDITED_PROFILE_REPLAY_HOURS,
+                    &AUDITED_PROFILE_CORRELATION_SECONDS,
+                ],
+            )
+            .await?;
+        let mut completed = 0;
+        for row in rows {
+            let Some(player_id) = value_i64(&row, &["player_id"]) else {
+                continue;
+            };
+            let Some(profile) = row.get("profile") else {
+                continue;
+            };
+            match persist_player_profile(&self.database, profile).await {
+                Ok(_) => {
+                    self.database
+                        .query_json(
+                            "UPDATE player_activity_profile_refresh SET status='success',last_success_at=now(),lease_until=NULL,error_message=NULL,next_retry_at=NULL,updated_at=now() WHERE player_id=$1 AND status IN('failed','unavailable')",
+                            &[&player_id],
+                        )
+                        .await?;
+                    completed += 1;
+                }
+                Err(error) => tracing::error!(
+                    ?error,
+                    player_id,
+                    "audited profile replay persistence failed"
+                ),
+            }
+        }
+        Ok(completed)
+    }
+
+    /// Purpose: keep a returned profile retryable when only local persistence
+    /// failed. Input: typed player ID and bounded diagnostic. Output: durable
+    /// failed state that the local audit replay consumes before another call.
+    async fn finish_persistence_failed(
+        &self,
+        player_id: i64,
+        reason: &str,
+    ) -> Result<(), DatabaseError> {
+        self.database
+            .query_json(
+                "UPDATE player_activity_profile_refresh SET status='failed',attempts=attempts+1,last_attempt_at=now(),error_message=$2,lease_until=NULL,next_retry_at=now()+($3::int*INTERVAL '1 minute'),updated_at=now() WHERE player_id=$1",
+                &[&player_id, &reason, &FAILED_RETRY_MINUTES],
+            )
+            .await?;
+        Ok(())
     }
 
     async fn finish_unavailable(&self, player_id: i64, reason: &str) -> Result<(), DatabaseError> {
@@ -651,12 +757,21 @@ pub(super) async fn persist_player_profile_in_transaction(
             if merged_id <= 0 {
                 continue;
             }
-            let portal_id = value_i64(row, &["portalId", "portal_id"]).filter(|value| *value > 0);
+            let portal_id = profile_merged_portal_id(row);
             let merged_at = value_text(row, &["mergeDatetime", "merge_datetime"]);
             transaction.execute("INSERT INTO player_profile_merged_players(player_id,merged_player_id,portal_id,merge_datetime,profile_refreshed_at) VALUES($1,$2,$3,$4::TEXT::TIMESTAMPTZ,now()) ON CONFLICT(player_id,merged_player_id) DO UPDATE SET portal_id=EXCLUDED.portal_id,merge_datetime=EXCLUDED.merge_datetime,profile_refreshed_at=now()", &[&player_id,&merged_id,&portal_id,&merged_at]).await?;
         }
     }
     Ok(player_id)
+}
+
+/// Purpose: bind the provider portal ID to PostgreSQL `INT` uniformly across
+/// scheduled and request-driven profile writers. Input: one merged-profile
+/// JSON row. Output: positive checked `i32`, or `None` when absent/out of range.
+pub(crate) fn profile_merged_portal_id(row: &Value) -> Option<i32> {
+    value_i64(row, &["portalId", "portal_id"])
+        .filter(|value| *value > 0)
+        .and_then(|value| i32::try_from(value).ok())
 }
 
 #[cfg(test)]
@@ -720,6 +835,13 @@ mod tests {
         assert_eq!(calculated_level(0, 999), 999);
         assert!(synthetic_name("DummyPlayer1234"));
         assert!(!synthetic_name("Real Player"));
+        assert_eq!(profile_merged_portal_id(&json!({"portalId": 5})), Some(5));
+        assert_eq!(
+            profile_merged_portal_id(&json!({"portalId": i64::from(i32::MAX) + 1})),
+            None
+        );
+        assert!(AUDITED_PROFILE_REPLAY_SQL.contains("player_activity_profile_enrichment"));
+        assert!(AUDITED_PROFILE_REPLAY_SQL.contains("last_attempt_at-($2::int"));
     }
 
     #[tokio::test]

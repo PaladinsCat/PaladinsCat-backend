@@ -14,6 +14,7 @@ use crate::{
     raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response},
     request::RequestId,
     routes::live::{request_identity, vendor_guard},
+    workers::profile_enrichment::profile_merged_portal_id,
 };
 
 use super::{DISPLAY_NAME_SQL, PlayersState, json_response, loadout_rows, map_database, player_id};
@@ -371,7 +372,7 @@ async fn upsert_profile(
             if merged_id <= 0 {
                 continue;
             }
-            let portal_id = optional_positive(value_i64(row, &["portalId", "portal_id"]));
+            let portal_id = profile_merged_portal_id(row);
             let merged_at = optional_text(row, &["mergeDatetime", "merge_datetime"]);
             transaction
                 .execute(
