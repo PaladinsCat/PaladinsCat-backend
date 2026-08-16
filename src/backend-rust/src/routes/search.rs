@@ -36,17 +36,17 @@ WITH candidates AS (
     (SELECT COUNT(DISTINCT mp.player_id)::INT FROM match_players mp
       WHERE mp.match_id=m.match_id AND mp.entry_datetime=m.entry_datetime) AS player_count,
     0 AS source_order
-  FROM matches m WHERE m.match_id=$1
+  FROM matches m WHERE m.match_id=$1::BIGINT
   UNION ALL
   SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
     (SELECT COUNT(DISTINCT mp.player_id)::INT FROM casual_match_players mp
       WHERE mp.match_id=m.match_id),1
-  FROM casual_matches m WHERE m.match_id=$1
+  FROM casual_matches m WHERE m.match_id=$1::BIGINT
   UNION ALL
   SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
     (SELECT COUNT(DISTINCT mp.player_id)::INT FROM special_match_players mp
       WHERE mp.match_id=m.match_id),2
-  FROM special_matches m WHERE m.match_id=$1
+  FROM special_matches m WHERE m.match_id=$1::BIGINT
 )
 SELECT match_id,entry_datetime,map,queue_id,region,duration_seconds,player_count
 FROM candidates ORDER BY source_order,entry_datetime DESC LIMIT 1
@@ -521,6 +521,7 @@ async fn run_remote_lookup(
             )
         }
         Err(error) => {
+            tracing::warn!(target, %error, "universal search remote lookup failed");
             if let Err(cache_error) = write_remote_cache(
                 &state.database,
                 &cache_key,
@@ -755,8 +756,13 @@ async fn ensure_remote_cache(
                status VARCHAR(20) NOT NULL CHECK (status IN ('hit', 'miss', 'error')), \
                result JSONB NOT NULL DEFAULT '[]'::jsonb, error_message TEXT, \
                fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL\
-             ); \
-             CREATE INDEX IF NOT EXISTS idx_search_remote_lookup_cache_expires \
+             )",
+            &[],
+        )
+        .await?;
+    database
+        .query_json(
+            "CREATE INDEX IF NOT EXISTS idx_search_remote_lookup_cache_expires \
                ON search_remote_lookup_cache (expires_at)",
             &[],
         )
@@ -1300,6 +1306,7 @@ mod tests {
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_matches"));
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM casual_match_players"));
         assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_match_players"));
+        assert_eq!(MATCH_SEARCH_BY_ID_SQL.matches("match_id=$1::BIGINT").count(), 3);
     }
 
     #[test]
