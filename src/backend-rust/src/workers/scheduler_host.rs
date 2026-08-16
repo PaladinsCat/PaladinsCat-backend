@@ -21,6 +21,7 @@ use url::{Host, Url};
 
 use super::{
     coordination::WorkerCoordinationRepository,
+    discovery_control::reopenable_hour_predicate,
     history_retention::cleanup_player_history_retention,
     live_tracker::detect_dropped_matches,
     maintenance::{
@@ -943,18 +944,16 @@ async fn queue_hour_claim_versions(
         .collect())
 }
 
-const QUEUE_HOUR_STATES_SQL: &str = r#"SELECT state.date::TEXT,state.hour,state.queue_id,state.status,
-         state.lease_until<=now() lease_due,
-         CASE WHEN state.status='complete' THEN EXISTS(
-           SELECT 1 FROM match_count_discoveries discovery
-           JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id
-           WHERE discovery.source_date=state.date AND discovery.source_hour=state.hour
-             AND discovery.queue_id=state.queue_id AND ingest.status='limited'
-             AND ingest.acquisition_state='unavailable'
-             AND ingest.error_message IS DISTINCT FROM $4
-         ) ELSE FALSE END reopenable
-         FROM hourly_ingest_state state WHERE state.queue_id=ANY($1::INT[])
-         AND state.date>=$2::TEXT::DATE AND state.date<=$3::TEXT::DATE"#;
+fn queue_hour_states_sql() -> String {
+    let reopenable = reopenable_hour_predicate("$4");
+    format!(
+        "SELECT state.date::TEXT,state.hour,state.queue_id,state.status, \
+         state.lease_until<=now() lease_due, \
+         CASE WHEN state.status='complete' THEN {reopenable} ELSE FALSE END reopenable \
+         FROM hourly_ingest_state state WHERE state.queue_id=ANY($1::INT[]) \
+         AND state.date>=$2::TEXT::DATE AND state.date<=$3::TEXT::DATE"
+    )
+}
 
 /// Purpose: calculate all missing/unfinished queue-hours through one DB query
 /// and one state predicate. Input: database, UTC clock, governed lower date,
@@ -972,9 +971,10 @@ async fn queue_hour_gap_candidates(
     else {
         return Ok(Vec::new());
     };
+    let states_sql = queue_hour_states_sql();
     let rows = database
         .query_json(
-            QUEUE_HOUR_STATES_SQL,
+            &states_sql,
             &[
                 &queue_ids,
                 &min_date,
@@ -1387,10 +1387,12 @@ mod tests {
 
     #[test]
     fn gap_candidate_queries_preserve_sql_token_boundaries() {
-        assert!(QUEUE_HOUR_STATES_SQL.contains("hourly_ingest_state"));
-        assert!(!QUEUE_HOUR_STATES_SQL.contains("hourly_ingest_match_debt"));
-        assert!(QUEUE_HOUR_STATES_SQL.contains("reopenable"));
-        assert!(QUEUE_HOUR_STATES_SQL.contains("error_message IS DISTINCT FROM $4"));
+        let sql = queue_hour_states_sql();
+        assert!(sql.contains("hourly_ingest_state"));
+        assert!(!sql.contains("hourly_ingest_match_debt"));
+        assert!(sql.contains("reopenable"));
+        assert!(sql.contains("ingest.match_id IS NULL"));
+        assert!(sql.contains("error_message IS DISTINCT FROM $4"));
     }
 
     #[test]

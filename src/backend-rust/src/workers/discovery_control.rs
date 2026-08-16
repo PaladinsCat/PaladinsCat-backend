@@ -6,6 +6,23 @@ use super::match_lifecycle::TERMINAL_NO_COMPLETED_MATCH_REASON;
 
 const FETCH_LEASE_MINUTES: i32 = 5;
 
+/// Purpose: define the single database-first rule for reopening a queue-hour.
+/// Input: the PostgreSQL parameter containing the explicit terminal reason.
+/// Output: an `EXISTS` predicate against the caller's `state` alias; both gap
+/// selection and atomic claim reuse it so missing lifecycle rows cannot be
+/// classified differently at the two boundaries.
+pub fn reopenable_hour_predicate(terminal_reason_parameter: &str) -> String {
+    format!(
+        "EXISTS(SELECT 1 FROM match_count_discoveries discovery \
+         LEFT JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id \
+         WHERE discovery.source_date=state.date AND discovery.source_hour=state.hour \
+           AND discovery.queue_id=state.queue_id AND (ingest.match_id IS NULL \
+             OR ingest.status NOT IN('complete','limited') \
+             OR (ingest.status='limited' AND (ingest.acquisition_state IS DISTINCT FROM 'unavailable' \
+               OR ingest.error_message IS DISTINCT FROM {terminal_reason_parameter}))))"
+    )
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct HourlyIngestState {
     pub date: String,
@@ -55,31 +72,29 @@ pub async fn claim_hourly_ingest_hour(
     source: &str,
 ) -> Result<bool, DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
-    let rows = database.query_json(
-        "INSERT INTO hourly_ingest_state(date,hour,queue_id,status,attempts,fetched,fetch_succeeded,source,error_message,last_attempt_at,next_retry_at,lease_until,updated_at)\
+    let reopenable = reopenable_hour_predicate("$6");
+    let claim_sql = format!(
+        "INSERT INTO hourly_ingest_state AS state(date,hour,queue_id,status,attempts,fetched,fetch_succeeded,source,error_message,last_attempt_at,next_retry_at,lease_until,updated_at)\
          VALUES($1::TEXT::DATE,$2,$3,'fetching',1,FALSE,FALSE,$4,NULL,now(),NULL,now()+($5::INT*INTERVAL '1 minute'),now())\
-         ON CONFLICT(date,hour,queue_id) DO UPDATE SET status='fetching',attempts=hourly_ingest_state.attempts+1,\
+         ON CONFLICT(date,hour,queue_id) DO UPDATE SET status='fetching',attempts=state.attempts+1,\
          fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
          lease_until=now()+($5::INT*INTERVAL '1 minute'),updated_at=now() WHERE \
-         hourly_ingest_state.status='failed' OR \
-         (hourly_ingest_state.status='complete' AND EXISTS(\
-           SELECT 1 FROM match_count_discoveries discovery \
-           JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id \
-           WHERE discovery.source_date=hourly_ingest_state.date \
-             AND discovery.source_hour=hourly_ingest_state.hour \
-             AND discovery.queue_id=hourly_ingest_state.queue_id \
-             AND ingest.status='limited' AND ingest.acquisition_state='unavailable' \
-             AND ingest.error_message IS DISTINCT FROM $6)) OR \
-         (hourly_ingest_state.status='fetching' AND (hourly_ingest_state.lease_until IS NULL OR hourly_ingest_state.lease_until<=now())) RETURNING date",
-        &[
-            &date,
-            &hour,
-            &queue_id,
-            &source,
-            &FETCH_LEASE_MINUTES,
-            &TERMINAL_NO_COMPLETED_MATCH_REASON,
-        ],
-    ).await?;
+         state.status='failed' OR (state.status='complete' AND {reopenable}) OR \
+         (state.status='fetching' AND (state.lease_until IS NULL OR state.lease_until<=now())) RETURNING date"
+    );
+    let rows = database
+        .query_json(
+            &claim_sql,
+            &[
+                &date,
+                &hour,
+                &queue_id,
+                &source,
+                &FETCH_LEASE_MINUTES,
+                &TERMINAL_NO_COMPLETED_MATCH_REASON,
+            ],
+        )
+        .await?;
     Ok(!rows.is_empty())
 }
 
@@ -230,15 +245,20 @@ fn integer(row: &Value, key: &str) -> Option<i64> {
 }
 #[cfg(test)]
 mod tests {
+    use super::reopenable_hour_predicate;
+
     #[test]
     fn failed_hours_have_no_cooldown_or_match_debt_gate() {
         let source = include_str!("discovery_control.rs")
             .split_once("#[cfg(test)]")
             .expect("worker source has tests")
             .0;
-        assert!(source.contains("hourly_ingest_state.status='failed'"));
-        assert!(source.contains("hourly_ingest_state.status='complete' AND EXISTS"));
-        assert!(source.contains("ingest.error_message IS DISTINCT FROM $6"));
+        let reopenable = reopenable_hour_predicate("$6");
+        assert!(source.contains("state.status='failed'"));
+        assert!(source.contains("state.status='complete' AND {reopenable}"));
+        assert!(reopenable.contains("ingest.match_id IS NULL"));
+        assert!(reopenable.contains("ingest.status NOT IN('complete','limited')"));
+        assert!(reopenable.contains("ingest.error_message IS DISTINCT FROM $6"));
         assert!(!source.contains("status='pending'"));
         assert!(!source.contains("status='staged'"));
         assert!(!source.contains("hourly_ingest_match_debt"));
