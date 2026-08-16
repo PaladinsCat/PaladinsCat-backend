@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use paladinscat_core::{
     database::{Database, DatabaseError},
-    queue::has_variable_human_roster,
+    queue::{has_variable_human_roster, roster_evidence_is_complete, score_evidence_is_complete},
     region::canonical_region,
 };
 use serde::Deserialize;
@@ -241,7 +241,12 @@ impl CanonicalMatchPayload {
         // vendor timestamp spelling and are parsed authoritatively by
         // PostgreSQL at the write boundary.
         let _ = OffsetDateTime::parse(&self.entry_datetime, &Rfc3339);
-        if !valid_completed_score(self.team1_score, self.team2_score, self.winning_task_force) {
+        if !score_evidence_is_complete(
+            self.queue_id,
+            self.team1_score,
+            self.team2_score,
+            self.winning_task_force,
+        ) {
             return Err(MatchFactError::InvalidPayload(
                 "completed match score is missing or contradictory".to_owned(),
             ));
@@ -891,13 +896,7 @@ async fn persist_nonranked_match(
     let winning_task_force = payload
         .winning_task_force
         .and_then(|value| i16::try_from(value).ok());
-    let quality_name = if quality.limited {
-        "limited"
-    } else if player_count >= 10 && (!quality.broken || quality.recovered) {
-        "complete"
-    } else {
-        "partial"
-    };
+    let quality_name = nonranked_quality_name(payload, quality);
     let stats_eligible = quality_name == "complete";
     match population {
         MatchPopulation::Casual => {
@@ -984,6 +983,24 @@ async fn persist_nonranked_match(
         }
     }
     Ok(())
+}
+
+/// Purpose: classify durable non-ranked facts with the shared queue roster
+/// policy. Input: canonical payload and typed quality flags. Output: database
+/// quality label consumed by both casual and special persistence branches.
+fn nonranked_quality_name(
+    payload: &CanonicalMatchPayload,
+    quality: MatchQualityFlags,
+) -> &'static str {
+    if quality.limited {
+        "limited"
+    } else if roster_evidence_is_complete(payload.queue_id, payload.players.len())
+        && (!quality.broken || quality.recovered)
+    {
+        "complete"
+    } else {
+        "partial"
+    }
 }
 
 async fn persist_player_facts(
@@ -1655,14 +1672,6 @@ fn unwrap_relay_match(value: Value) -> Option<Value> {
     }
 }
 
-fn valid_completed_score(team1: Option<i32>, team2: Option<i32>, winner: Option<i32>) -> bool {
-    match (team1, team2, winner) {
-        (Some(team1), Some(team2), Some(1)) => team1 >= 0 && team2 >= 0 && team1 > team2,
-        (Some(team1), Some(team2), Some(2)) => team1 >= 0 && team2 >= 0 && team2 > team1,
-        _ => false,
-    }
-}
-
 /// Purpose: validate canonical participants with the shared queue cardinality
 /// policy. Input: normalized players, limited flag, and queue ID. Output:
 /// authoritative detailed facts; fixed PvP queues require 5v5 while bot/PvE
@@ -1977,8 +1986,27 @@ mod tests {
         let mut training = complete_match();
         training["queue_id"] = json!(425);
         training["players"] = json!([player(1, 1, "direct")]);
+        training.as_object_mut().unwrap().remove("team1_score");
+        training.as_object_mut().unwrap().remove("team2_score");
+        training
+            .as_object_mut()
+            .unwrap()
+            .remove("winning_task_force");
         let payload = CanonicalMatchPayload::from_relay_value(training).expect("training shell");
         assert!(payload.normalized_players().is_ok());
+        assert_eq!(
+            nonranked_quality_name(
+                &payload,
+                MatchQualityFlags {
+                    broken: false,
+                    recovered: false,
+                    private: false,
+                    limited: false,
+                    source: "direct",
+                },
+            ),
+            "complete"
+        );
     }
 
     #[test]
