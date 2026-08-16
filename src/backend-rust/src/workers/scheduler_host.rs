@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use futures::future::join_all;
 use paladinscat_core::{
     cache::RedisCache,
     config::BackendConfig,
@@ -27,9 +28,7 @@ use super::{
         refresh_baselines_with_job, refresh_derived_projections_with_job,
     },
     pipeline::CanonicalIngestPipeline,
-    policy::{
-        ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot,
-    },
+    policy::{ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot},
     profile_enrichment::{ProfileEnrichmentRepository, ProfileEnrichmentResult},
     projections,
     ranked_tracker::RankedTracker,
@@ -797,27 +796,32 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     if candidates.is_empty() {
         return Ok(json!({"candidates":0,"attempted":0,"completed":0}));
     }
-    // Drain the complete newest-first recovery set. The input is every missing
-    // or unfinished queue-hour; no per-run cap, reserve lane, or outage wait
-    // may push a discovered match closer to the 50-match loss boundary.
-    let selected = candidates.clone();
+    // Drain newest hour first, with every configured queue in that hour
+    // executing together. The hour boundary is the recovery priority; there
+    // is no arbitrary concurrency cap or population-specific lane.
+    let mut candidates_by_hour = BTreeMap::<(String, i32), Vec<GapCandidate>>::new();
+    for candidate in candidates.iter().cloned() {
+        candidates_by_hour
+            .entry((candidate.date.clone(), candidate.hour))
+            .or_default()
+            .push(candidate);
+    }
     let pipeline = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
         .map_err(|error| error.to_string())?;
     let mut completed = 0;
-    for candidate in &selected {
-        let result = pipeline
-            .discover_hour(
+    for (_, hour_candidates) in candidates_by_hour.into_iter().rev() {
+        let outcomes = join_all(hour_candidates.iter().map(|candidate| {
+            pipeline.discover_hour(
                 candidate.queue_id,
                 &candidate.date,
                 candidate.hour,
                 "gap-checker",
             )
-            .await;
-        if result.is_ok() {
-            completed += 1;
-        }
+        }))
+        .await;
+        completed += outcomes.iter().filter(|result| result.is_ok()).count();
     }
-    Ok(json!({"candidates":candidates.len(),"attempted":selected.len(),"completed":completed}))
+    Ok(json!({"candidates":candidates.len(),"attempted":candidates.len(),"completed":completed}))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1310,6 +1314,22 @@ mod tests {
             candidates.last().map(|candidate| candidate.queue_id),
             Some(RANKED_STATS_QUEUE_ID)
         );
+    }
+
+    #[test]
+    fn gap_recovery_groups_all_queues_by_hour_without_a_work_cap() {
+        let source = include_str!("scheduler_host.rs");
+        let recovery = source
+            .split_once("async fn run_gap_check")
+            .expect("gap recovery")
+            .1
+            .split_once("struct GapCandidate")
+            .expect("candidate model")
+            .0;
+        assert!(recovery.contains("candidates_by_hour"));
+        assert!(recovery.contains("join_all"));
+        assert!(!recovery.contains("take("));
+        assert!(!recovery.contains("truncate("));
     }
 
     #[test]
