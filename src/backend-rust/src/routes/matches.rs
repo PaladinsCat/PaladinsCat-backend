@@ -376,9 +376,10 @@ async fn format_match(
              SELECT m.match_id,m.entry_datetime,m.queue_id,false,m.duration_seconds,m.region,m.map,team1_score,team2_score, \
              winning_task_force,false,quality<>'complete',false,quality<>'complete', \
              CASE WHEN quality='complete' THEN NULL ELSE quality END,source,ingested_at,quality,stats_eligible, \
-             CASE WHEN m.stats_scope='custom' OR m.participant_model='custom' THEN 'Custom Match' ELSE q.queue_name END, \
-             m.stats_scope,m.participant_model, \
-             (m.stats_scope='custom' OR m.participant_model='custom') \
+             CASE WHEN m.stats_scope='custom' OR m.participant_model='custom' OR q.stats_scope='custom' OR q.participant_model='custom' THEN 'Custom Match' ELSE q.queue_name END, \
+             CASE WHEN q.stats_scope='custom' OR q.participant_model='custom' THEN 'custom' ELSE m.stats_scope END, \
+             CASE WHEN q.stats_scope='custom' OR q.participant_model='custom' THEN 'custom' ELSE m.participant_model END, \
+             (m.stats_scope='custom' OR m.participant_model='custom' OR q.stats_scope='custom' OR q.participant_model='custom') \
              FROM special_matches m LEFT JOIN queue_types q ON q.queue_id=m.queue_id WHERE m.match_id=$1 LIMIT 1",
             &[&match_id],
         ).await.map_err(|error| ApiError::database(error,request_id))? else {
