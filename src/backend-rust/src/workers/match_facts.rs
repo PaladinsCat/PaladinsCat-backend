@@ -23,7 +23,7 @@ INSERT INTO queue_types (
   queue_id, queue_name, is_ranked, stats_scope, participant_model,
   stats_enabled, track_presence
 )
-VALUES ($1, 'Unclassified Queue ' || $1::text, false, 'other', 'unknown', false, false)
+VALUES ($1::INTEGER, 'Unclassified Queue ' || $1::INTEGER::text, false, 'other', 'unknown', false, false)
 ON CONFLICT (queue_id) DO NOTHING
 "#;
 
@@ -1969,6 +1969,7 @@ mod tests {
         );
         assert!(ENSURE_QUEUE_TAXONOMY_SQL.contains("ON CONFLICT (queue_id) DO NOTHING"));
         assert!(ENSURE_QUEUE_TAXONOMY_SQL.contains("'other', 'unknown', false, false"));
+        assert_eq!(ENSURE_QUEUE_TAXONOMY_SQL.matches("$1::INTEGER").count(), 2);
     }
 
     #[test]
