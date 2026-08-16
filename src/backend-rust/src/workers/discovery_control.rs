@@ -2,6 +2,8 @@ use paladinscat_core::database::{Database, DatabaseError};
 use serde::Serialize;
 use serde_json::Value;
 
+use super::match_lifecycle::TERMINAL_NO_COMPLETED_MATCH_REASON;
+
 const FETCH_LEASE_MINUTES: i32 = 5;
 
 #[derive(Clone, Debug, Serialize)]
@@ -60,8 +62,23 @@ pub async fn claim_hourly_ingest_hour(
          fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
          lease_until=now()+($5::INT*INTERVAL '1 minute'),updated_at=now() WHERE \
          hourly_ingest_state.status='failed' OR \
+         (hourly_ingest_state.status='complete' AND EXISTS(\
+           SELECT 1 FROM match_count_discoveries discovery \
+           JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id \
+           WHERE discovery.source_date=hourly_ingest_state.date \
+             AND discovery.source_hour=hourly_ingest_state.hour \
+             AND discovery.queue_id=hourly_ingest_state.queue_id \
+             AND ingest.status='limited' AND ingest.acquisition_state='unavailable' \
+             AND ingest.error_message IS DISTINCT FROM $6)) OR \
          (hourly_ingest_state.status='fetching' AND (hourly_ingest_state.lease_until IS NULL OR hourly_ingest_state.lease_until<=now())) RETURNING date",
-        &[&date, &hour, &queue_id, &source, &FETCH_LEASE_MINUTES],
+        &[
+            &date,
+            &hour,
+            &queue_id,
+            &source,
+            &FETCH_LEASE_MINUTES,
+            &TERMINAL_NO_COMPLETED_MATCH_REASON,
+        ],
     ).await?;
     Ok(!rows.is_empty())
 }
@@ -220,6 +237,8 @@ mod tests {
             .expect("worker source has tests")
             .0;
         assert!(source.contains("hourly_ingest_state.status='failed'"));
+        assert!(source.contains("hourly_ingest_state.status='complete' AND EXISTS"));
+        assert!(source.contains("ingest.error_message IS DISTINCT FROM $6"));
         assert!(!source.contains("status='pending'"));
         assert!(!source.contains("status='staged'"));
         assert!(!source.contains("hourly_ingest_match_debt"));

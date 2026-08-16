@@ -27,6 +27,7 @@ use super::{
         BufferBatchResult, cleanup_raw_ingest_buffer_retention, process_buffer_batch_until,
         refresh_baselines_with_job, refresh_derived_projections_with_job,
     },
+    match_lifecycle::TERMINAL_NO_COMPLETED_MATCH_REASON,
     pipeline::CanonicalIngestPipeline,
     policy::{ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot},
     profile_enrichment::{ProfileEnrichmentRepository, ProfileEnrichmentResult},
@@ -843,9 +844,18 @@ impl GapCandidate {
     }
 }
 
-const QUEUE_HOUR_STATES_SQL: &str = r#"SELECT date::TEXT,hour,queue_id,status,lease_until<=now() lease_due
-         FROM hourly_ingest_state WHERE queue_id=ANY($1::INT[])
-         AND date>=$2::TEXT::DATE AND date<=$3::TEXT::DATE"#;
+const QUEUE_HOUR_STATES_SQL: &str = r#"SELECT state.date::TEXT,state.hour,state.queue_id,state.status,
+         state.lease_until<=now() lease_due,
+         CASE WHEN state.status='complete' THEN EXISTS(
+           SELECT 1 FROM match_count_discoveries discovery
+           JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id
+           WHERE discovery.source_date=state.date AND discovery.source_hour=state.hour
+             AND discovery.queue_id=state.queue_id AND ingest.status='limited'
+             AND ingest.acquisition_state='unavailable'
+             AND ingest.error_message IS DISTINCT FROM $4
+         ) ELSE FALSE END reopenable
+         FROM hourly_ingest_state state WHERE state.queue_id=ANY($1::INT[])
+         AND state.date>=$2::TEXT::DATE AND state.date<=$3::TEXT::DATE"#;
 
 /// Purpose: calculate all missing/unfinished queue-hours through one DB query
 /// and one state predicate. Input: database, UTC clock, governed lower date,
@@ -864,7 +874,15 @@ async fn queue_hour_gap_candidates(
         return Ok(Vec::new());
     };
     let rows = database
-        .query_json(QUEUE_HOUR_STATES_SQL, &[&queue_ids, &min_date, &max_date])
+        .query_json(
+            QUEUE_HOUR_STATES_SQL,
+            &[
+                &queue_ids,
+                &min_date,
+                &max_date,
+                &TERMINAL_NO_COMPLETED_MATCH_REASON,
+            ],
+        )
         .await?;
     let mut states = BTreeMap::new();
     for row in rows {
@@ -904,7 +922,11 @@ async fn queue_hour_gap_candidates(
 /// Output: false only for terminal facts or a live execution lease.
 fn queue_hour_needs_recovery(row: &Value) -> bool {
     match row.get("status").and_then(Value::as_str) {
-        Some("complete") | Some("empty") => false,
+        Some("complete") => row
+            .get("reopenable")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        Some("empty") => false,
         Some("fetching") => row
             .get("lease_due")
             .and_then(Value::as_bool)
@@ -1268,7 +1290,8 @@ mod tests {
     fn gap_candidate_queries_preserve_sql_token_boundaries() {
         assert!(QUEUE_HOUR_STATES_SQL.contains("hourly_ingest_state"));
         assert!(!QUEUE_HOUR_STATES_SQL.contains("hourly_ingest_match_debt"));
-        assert!(QUEUE_HOUR_STATES_SQL.contains("lease_due\n         FROM"));
+        assert!(QUEUE_HOUR_STATES_SQL.contains("reopenable"));
+        assert!(QUEUE_HOUR_STATES_SQL.contains("error_message IS DISTINCT FROM $4"));
     }
 
     #[test]
@@ -1281,6 +1304,18 @@ mod tests {
             "lease_due":true
         });
         assert!(queue_hour_needs_recovery(&failed));
+    }
+
+    #[test]
+    fn complete_hour_with_reopenable_invalid_match_requires_recovery() {
+        assert!(queue_hour_needs_recovery(&json!({
+            "status":"complete",
+            "reopenable":true
+        })));
+        assert!(!queue_hour_needs_recovery(&json!({
+            "status":"complete",
+            "reopenable":false
+        })));
     }
 
     #[test]
