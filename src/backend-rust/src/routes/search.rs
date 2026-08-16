@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
@@ -23,16 +23,41 @@ use crate::{
     raw_hirez_audit::{RawHirezAudit, record_raw_hirez_response},
     request::RequestId,
     security::client_rate_limit_identity,
-    workers::relay::WorkerRelayClient,
+    workers::{
+        relay::WorkerRelayClient,
+        requested_match::{RequestedMatchIngestor, RequestedMatchStatus},
+    },
 };
 
 pub const ROUTE_COUNT: usize = 3;
+const MATCH_SEARCH_BY_ID_SQL: &str = r#"
+WITH candidates AS (
+  SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
+    (SELECT COUNT(DISTINCT mp.player_id)::INT FROM match_players mp
+      WHERE mp.match_id=m.match_id AND mp.entry_datetime=m.entry_datetime) AS player_count,
+    0 AS source_order
+  FROM matches m WHERE m.match_id=$1
+  UNION ALL
+  SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
+    (SELECT COUNT(DISTINCT mp.player_id)::INT FROM casual_match_players mp
+      WHERE mp.match_id=m.match_id),1
+  FROM casual_matches m WHERE m.match_id=$1
+  UNION ALL
+  SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.region,m.duration_seconds,
+    (SELECT COUNT(DISTINCT mp.player_id)::INT FROM special_match_players mp
+      WHERE mp.match_id=m.match_id),2
+  FROM special_matches m WHERE m.match_id=$1
+)
+SELECT match_id,entry_datetime,map,queue_id,region,duration_seconds,player_count
+FROM candidates ORDER BY source_order,entry_datetime DESC LIMIT 1
+"#;
 
 #[derive(Clone)]
 struct SearchState {
     database: Database,
     search: SearchIndex,
     relay: Option<WorkerRelayClient>,
+    requested_match: Option<RequestedMatchIngestor>,
     redis: paladinscat_core::cache::RedisCache,
 }
 
@@ -49,6 +74,13 @@ struct SearchQuery {
 
 pub fn router(database: Database, search: SearchIndex, config: Arc<BackendConfig>) -> Router {
     let relay = WorkerRelayClient::new(&config).ok();
+    let requested_match = relay.clone().map(|relay| {
+        RequestedMatchIngestor::new(
+            database.clone(),
+            relay,
+            Duration::from_millis(config.hirez_relay_timeout_ms),
+        )
+    });
     let redis = paladinscat_core::cache::RedisCache::new(&config.redis_url)
         .expect("validated Redis configuration");
     Router::new()
@@ -59,6 +91,7 @@ pub fn router(database: Database, search: SearchIndex, config: Arc<BackendConfig
             database,
             search,
             relay,
+            requested_match,
             redis,
         })
 }
@@ -185,12 +218,7 @@ async fn universal_search(
         safe_query(
             &state.database,
             "matches",
-            "SELECT m.match_id, MAX(m.entry_datetime) AS entry_datetime, \
-             MAX(m.map) AS map, MAX(m.queue_id) AS queue_id, MAX(m.region) AS region, \
-             MAX(m.duration_seconds) AS duration_seconds, \
-             COUNT(DISTINCT mp.player_id)::INT AS player_count \
-             FROM matches m LEFT JOIN match_players mp ON mp.match_id = m.match_id \
-             WHERE m.match_id = $1::BIGINT GROUP BY m.match_id LIMIT 5",
+            MATCH_SEARCH_BY_ID_SQL,
             &[QueryParam::Int64(match_id)],
         )
         .await
@@ -404,25 +432,23 @@ async fn run_remote_lookup(
         vendor_guard(&state.redis, identity, &format!("search-{target}"), q).await?;
         if target == "match-id" {
             let match_id = q.parse::<i64>().map_err(|error| error.to_string())?;
-            relay
-                .call_value(
-                    "getMatchDetailsBatch",
-                    vec![json!([{ "matchId": match_id }])],
-                    "rust_universal_search",
-                )
-                .await
-                .map_err(|error| error.to_string())?;
+            let ingestor = state
+                .requested_match
+                .as_ref()
+                .ok_or_else(|| "requested-match ingestion is unavailable".to_owned())?;
+            let result = ingestor.ingest(match_id).await;
+            match result.status {
+                RequestedMatchStatus::Ready => {}
+                RequestedMatchStatus::NotFound => return Ok(Vec::new()),
+                RequestedMatchStatus::RecoveryFailed | RequestedMatchStatus::ProcessingTimeout => {
+                    return Err(result.error.unwrap_or_else(|| {
+                        format!("requested match {match_id} did not reach durable facts")
+                    }));
+                }
+            }
             let rows = state
                 .database
-                .query_json(
-                    "SELECT m.match_id, MAX(m.entry_datetime) AS entry_datetime, \
-                     MAX(m.map) AS map, MAX(m.queue_id) AS queue_id, MAX(m.region) AS region, \
-                     MAX(m.duration_seconds) AS duration_seconds, \
-                     COUNT(DISTINCT mp.player_id)::INT AS player_count \
-                     FROM matches m LEFT JOIN match_players mp ON mp.match_id = m.match_id \
-                     WHERE m.match_id = $1 GROUP BY m.match_id",
-                    &[&match_id],
-                )
+                .query_json(MATCH_SEARCH_BY_ID_SQL, &[&match_id])
                 .await
                 .map_err(|error| error.to_string())?;
             return Ok::<Vec<Value>, String>(rows.iter().map(match_result).collect());
@@ -1265,6 +1291,15 @@ mod tests {
         assert!(is_safe_exact_player_name("NabiCook"));
         assert!(!is_safe_exact_player_name("12"));
         assert_eq!(champion_slug("Bomb King"), "bombking");
+    }
+
+    #[test]
+    fn universal_match_search_reads_every_population_table() {
+        assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM matches"));
+        assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM casual_matches"));
+        assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_matches"));
+        assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM casual_match_players"));
+        assert!(MATCH_SEARCH_BY_ID_SQL.contains("FROM special_match_players"));
     }
 
     #[test]
