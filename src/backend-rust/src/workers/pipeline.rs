@@ -349,7 +349,20 @@ impl CanonicalIngestPipeline {
         source: MatchDiscoverySource,
         progress: &mut MatchDrainProgress,
     ) -> Result<usize, PipelineError> {
-        let mut completed = 0;
+        // Ranked cumulative aggregates operate on the same input set. Complete
+        // all locally eligible IDs through the shared set-based projector before
+        // individual lifecycle resume; the selector below then removes them.
+        let mut completed = self
+            .ranked
+            .complete_cumulative_stages_for_matches(match_ids)
+            .await
+            .map_err(|error| PipelineError::Facts(error.to_string()))?;
+        let remaining = self.match_ids_requiring_canonical_work(match_ids).await?;
+        let match_ids = remaining
+            .batch_ids
+            .into_iter()
+            .chain(remaining.resume_ids)
+            .collect::<Vec<_>>();
         let mut failures = Vec::new();
         for window in match_ids.chunks(MATCH_DETAIL_PROTOCOL_BATCH_SIZE) {
             refresh_hourly_ingest_lease(&self.database, date, hour, queue_id).await?;

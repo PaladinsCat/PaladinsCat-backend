@@ -47,6 +47,69 @@ impl RankedProjectionRepository {
             .await
     }
 
+    /// Purpose: complete cumulative projections for every ranked match whose
+    /// base ranked facts are already durable. Input: discovered match IDs.
+    /// Output: count made fully complete without vendor calls. Relationship:
+    /// the canonical recovery pipeline calls this before individual lifecycle
+    /// resume so identical aggregate work shares the existing set-based SQL.
+    pub async fn complete_cumulative_stages_for_matches(
+        &self,
+        match_ids: &[i64],
+    ) -> Result<usize, RankedProjectionError> {
+        if match_ids.is_empty() {
+            return Ok(0);
+        }
+        let ids = match_ids.to_vec();
+        let performance = self
+            .cumulative_stage_candidates(&ids, "performance_projections")
+            .await?;
+        for chunk in performance.chunks(25) {
+            self.project_performance_batch(chunk).await?;
+        }
+        let scalable = self
+            .cumulative_stage_candidates(&ids, "scalable_stats")
+            .await?;
+        for chunk in scalable.chunks(25) {
+            self.project_scalable_batch(chunk).await?;
+        }
+        let completed = self
+            .database
+            .query_json(
+                "UPDATE match_ingest_status SET status='complete',acquisition_state='complete',\
+                 completed_at=COALESCE(completed_at,now()),lease_owner=NULL,lease_until=NULL,updated_at=now() \
+                 WHERE match_id=ANY($1::BIGINT[]) AND population='ranked' \
+                 AND completed_stages@>ARRAY['ranked_stats','performance_projections','scalable_stats']::TEXT[] \
+                 AND status<>'complete' RETURNING match_id::TEXT",
+                &[&ids],
+            )
+            .await?;
+        Ok(completed.len())
+    }
+
+    /// Purpose: select one missing cumulative stage from local lifecycle facts.
+    /// Input: ranked match IDs and fixed stage name. Output: ordered typed IDs;
+    /// no provider operation or new work ledger is created.
+    async fn cumulative_stage_candidates(
+        &self,
+        match_ids: &[i64],
+        stage: &str,
+    ) -> Result<Vec<i64>, RankedProjectionError> {
+        let rows = self
+            .database
+            .query_json(
+                "SELECT mis.match_id::TEXT FROM match_ingest_status mis JOIN matches m ON m.match_id=mis.match_id \
+                 WHERE mis.match_id=ANY($1::BIGINT[]) AND mis.population='ranked' AND m.queue_id=486 \
+                 AND COALESCE(m.limited,FALSE)=FALSE AND mis.completed_stages@>ARRAY['ranked_stats']::TEXT[] \
+                 AND NOT mis.completed_stages@>ARRAY[$2]::TEXT[] ORDER BY mis.match_id",
+                &[&match_ids, &stage],
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| row.get("match_id")?.as_str()?.parse().ok())
+            .collect())
+    }
+
     async fn project_cumulative_batch(
         &self,
         match_ids: &[i64],
