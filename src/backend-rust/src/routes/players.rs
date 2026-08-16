@@ -10,14 +10,17 @@ use axum::{
 use paladinscat_core::{
     cache::RedisCache,
     config::BackendConfig,
-    database::{Database, QueryParam},
+    database::{Database, DatabaseError, QueryParam},
     web_compat::parse_js_integer,
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::{
-    error::ApiError, request::RequestId, route_cache::RouteCache, workers::relay::WorkerRelayClient,
+    error::ApiError,
+    request::RequestId,
+    route_cache::{RouteCache, cached_database_json},
+    workers::relay::WorkerRelayClient,
 };
 
 mod moderation;
@@ -26,6 +29,9 @@ mod provider;
 pub const ROUTE_COUNT: usize = 28;
 
 const RANKED_QUEUE_ID: i32 = 486;
+const PLAYERS_OVERVIEW_CACHE_KEY: &str = "route:players:v1:/players/overview";
+const PLAYERS_OVERVIEW_FRESH_SECONDS: u64 = 300;
+const PLAYERS_OVERVIEW_STALE_SECONDS: u64 = 1_800;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -49,13 +55,14 @@ const DISPLAY_NAME_SQL: &str = r#"COALESCE(
 pub(super) struct PlayersState {
     pub(super) database: Database,
     pub(super) redis: RedisCache,
+    pub(super) cache: RouteCache,
     pub(super) relay: Option<WorkerRelayClient>,
 }
 
 pub fn router(
     database: Database,
     redis: RedisCache,
-    _cache: RouteCache,
+    cache: RouteCache,
     config: Arc<BackendConfig>,
 ) -> Router {
     let relay = WorkerRelayClient::new(&config).ok();
@@ -123,6 +130,7 @@ pub fn router(
         .with_state(PlayersState {
             database,
             redis,
+            cache,
             relay,
         })
 }
@@ -266,8 +274,27 @@ async fn overview(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
 ) -> Result<Response, ApiError> {
-    let counts = state
-        .database
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        PLAYERS_OVERVIEW_CACHE_KEY.to_owned(),
+        PLAYERS_OVERVIEW_FRESH_SECONDS,
+        PLAYERS_OVERVIEW_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            async move { load_players_overview(database).await }
+        },
+    )
+    .await
+}
+
+/// Purpose: build the public player-directory summary from PostgreSQL.
+/// Input: typed database handle. Output: complete JSON payload cached only by
+/// `overview`; relationship: cache misses, refreshes, and the warmer reuse this
+/// one loader and never duplicate the aggregate query.
+async fn load_players_overview(database: Database) -> Result<Value, DatabaseError> {
+    let counts = database
         .one_json(
             "SELECT \
                COUNT(*) FILTER(WHERE cheater)::BIGINT AS cheaters, \
@@ -283,10 +310,9 @@ async fn overview(
              FROM players",
             &[],
         )
-        .await
-        .map_err(|error| map_database(error, &request_id))?
+        .await?
         .unwrap_or_else(|| json!({}));
-    let mut response = json_response(json!({
+    Ok(json!({
         "champion_elo":{"data":[]},
         "performance":{},
         "ranked":[],
@@ -315,12 +341,7 @@ async fn overview(
           "private_accounts":value_i64(counts.get("private_accounts")),
           "parties":value_i64(counts.get("parties"))
         }
-    }));
-    cache(
-        &mut response,
-        "public, max-age=60, s-maxage=300, stale-while-revalidate=1800",
-    );
-    Ok(response)
+    }))
 }
 
 async fn search(
@@ -1592,6 +1613,18 @@ async fn bulk(
 
 #[cfg(test)]
 mod visibility_tests {
+    #[test]
+    fn players_overview_uses_the_shared_stale_while_refreshing_cache() {
+        let source = include_str!("players.rs");
+        let overview = source
+            .split_once("async fn overview(")
+            .and_then(|(_, rest)| rest.split_once("async fn search(").map(|(route, _)| route))
+            .expect("players overview route");
+        assert!(overview.contains("cached_database_json("));
+        assert!(overview.contains("PLAYERS_OVERVIEW_CACHE_KEY"));
+        assert!(overview.contains("load_players_overview"));
+    }
+
     #[test]
     fn player_history_keeps_special_matches_discoverable() {
         let source = include_str!("players.rs");
