@@ -2462,6 +2462,17 @@ async fn overview(
     Extension(request_id): Extension<RequestId>,
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, ApiError> {
+    overview_with_cache(state, request_id, query).await
+}
+
+/// Purpose: serve the shared match overview cache and refresh stale values in
+/// the background. Input: typed route state/query. Output: the public overview
+/// response; stale readers never wait for the database under recovery load.
+async fn overview_with_cache(
+    state: MatchesState,
+    request_id: RequestId,
+    query: HashMap<String, String>,
+) -> Result<Response, ApiError> {
     let Ok((tier_min, tier_max)) = tier_bounds(&query) else {
         return Ok(plain_error(
             StatusCode::BAD_REQUEST,
@@ -2478,7 +2489,7 @@ async fn overview(
     let overview_stale_ttl = if is_activity_view {
         ACTIVITY_OVERVIEW_STALE_TTL_SECONDS
     } else {
-        180
+        900
     };
     let now = now_millis();
     let cache_key = format!(
@@ -2486,110 +2497,57 @@ async fn overview(
         tier_min.map_or_else(|| "all".to_owned(), |value| value.to_string()),
         tier_max.map_or_else(|| "all".to_owned(), |value| value.to_string())
     );
-    if let Some(cached) = state.route_cache.get(&cache_key).await
-        && (!is_activity_view || cached.fresh_until > now)
-    {
+    if let Some(cached) = state.route_cache.get(&cache_key).await {
+        let stale = cached.fresh_until <= now;
+        if stale && state.route_cache.begin_refresh(&cache_key).await {
+            let refresh_state = state.clone();
+            let refresh_request_id = request_id.clone();
+            let refresh_query = query.clone();
+            let refresh_cache = state.route_cache.clone();
+            let refresh_key = cache_key.clone();
+            let refresh_view = view.to_owned();
+            tokio::spawn(async move {
+                if let Ok(payload) = overview_payload(
+                    &refresh_state,
+                    &refresh_request_id,
+                    &refresh_query,
+                    tier_min,
+                    tier_max,
+                    &refresh_view,
+                    overview_fresh_ttl,
+                    overview_stale_ttl,
+                )
+                .await
+                {
+                    refresh_cache
+                        .store(
+                            &refresh_key,
+                            payload,
+                            overview_fresh_ttl,
+                            overview_stale_ttl,
+                        )
+                        .await;
+                }
+                refresh_cache.finish_refresh(&refresh_key).await;
+            });
+        }
         return Ok(crate::route_cache::json_cache_response(
             cached.payload,
-            "HIT",
+            if stale { "STALE" } else { "HIT" },
             cached.fresh_until,
         ));
     }
-    let mut hourly_query = HashMap::new();
-    for name in ["tierMin", "tierMax"] {
-        if let Some(value) = query.get(name) {
-            hourly_query.insert(name.to_owned(), value.clone());
-        }
-    }
-    if view == "activity-v3" {
-        hourly_query.insert("includePlayers".to_owned(), "true".to_owned());
-    }
-    let hourly_cache_key = matches_query_cache_key("/matches/hourly-stats", &hourly_query);
-    let hourly = if let Some(cached) = state.route_cache.get(&hourly_cache_key).await
-        && (!is_activity_view || cached.fresh_until > now)
-    {
-        cached.payload
-    } else {
-        let payload =
-            hourly_stats_payload(&state, &request_id, &hourly_query, tier_min, tier_max).await?;
-        state
-            .route_cache
-            .store(
-                &hourly_cache_key,
-                payload.clone(),
-                overview_fresh_ttl,
-                overview_stale_ttl,
-            )
-            .await;
-        payload
-    };
-    let recent = state
-        .database
-        .query_json(
-            "SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.duration_seconds,m.region, \
-             m.winning_task_force,(SELECT c.name FROM match_players mp JOIN champions c \
-               ON c.id=mp.champion_id WHERE mp.match_id=m.match_id LIMIT 1) AS sample_champion \
-             FROM matches m WHERE m.queue_id=$1 AND m.entry_datetime>=now()-interval '7 days' \
-             ORDER BY m.entry_datetime DESC,m.match_id DESC LIMIT 20",
-            &[&RANKED_QUEUE_ID],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
-    let mut dropped_by_hour = Map::new();
-    let mut dropped_ids_by_hour: HashMap<String, Vec<String>> = HashMap::new();
-    if tier_min.is_none() && tier_max.is_none() {
-        let mut dates = hourly
-            .get("hourly")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| entry.get("date").and_then(Value::as_str))
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-        dates.sort();
-        dates.dedup();
-        for date in dates {
-            let summary = dropped_summary_rows(&state, &request_id, &date, RANKED_QUEUE_ID).await?;
-            for entry in summary {
-                let hour = entry.get("hour").and_then(json_i64).unwrap_or_default();
-                let dropped = entry.get("dropped").and_then(json_i64).unwrap_or_default();
-                dropped_by_hour.insert(format!("{date}|{hour}"), json!(dropped));
-            }
-            let matches = state
-                .database
-                .query_json_params(
-                    "SELECT match_id,hour FROM dropped_matches WHERE date=$1::text::date AND queue_id=$2 \
-                 AND drop_category='api_no_data' AND status<>'complete' \
-                 ORDER BY hour ASC,attempts DESC,match_id ASC LIMIT 500",
-                    &[
-                        QueryParam::Text(date.clone()),
-                        QueryParam::Int32(RANKED_QUEUE_ID),
-                    ],
-                )
-                .await
-                .map_err(|error| ApiError::database(error, &request_id))?;
-            for dropped_match in matches {
-                let hour = dropped_match
-                    .get("hour")
-                    .and_then(json_i64)
-                    .unwrap_or_default();
-                let match_id = dropped_match
-                    .get("match_id")
-                    .map(json_text)
-                    .unwrap_or_default();
-                dropped_ids_by_hour
-                    .entry(format!("{date}|{hour}"))
-                    .or_default()
-                    .push(match_id);
-            }
-        }
-    }
-    let payload = json!({
-        "hourly":hourly,
-        "recent":recent,
-        "dropped_by_hour":dropped_by_hour,
-        "dropped_ids_by_hour":dropped_ids_by_hour
-    });
+    let payload = overview_payload(
+        &state,
+        &request_id,
+        &query,
+        tier_min,
+        tier_max,
+        view,
+        overview_fresh_ttl,
+        overview_stale_ttl,
+    )
+    .await?;
     state
         .route_cache
         .store(
@@ -2612,6 +2570,118 @@ async fn overview(
         .expect("static activity cache policy"),
     );
     Ok(response)
+}
+
+/// Purpose: build one match-overview payload for both foreground cold misses
+/// and the shared background refresh path. Input: route dependencies, typed
+/// query bounds/view, and cache lifetimes. Output: the complete JSON payload;
+/// no caller owns a second implementation of overview assembly.
+async fn overview_payload(
+    state: &MatchesState,
+    request_id: &RequestId,
+    query: &HashMap<String, String>,
+    tier_min: Option<i32>,
+    tier_max: Option<i32>,
+    view: &str,
+    overview_fresh_ttl: u64,
+    overview_stale_ttl: u64,
+) -> Result<Value, ApiError> {
+    let is_activity_view = view == "activity-v3";
+    let mut hourly_query = HashMap::new();
+    for name in ["tierMin", "tierMax"] {
+        if let Some(value) = query.get(name) {
+            hourly_query.insert(name.to_owned(), value.clone());
+        }
+    }
+    if is_activity_view {
+        hourly_query.insert("includePlayers".to_owned(), "true".to_owned());
+    }
+    let hourly_cache_key = matches_query_cache_key("/matches/hourly-stats", &hourly_query);
+    let hourly = if let Some(cached) = state.route_cache.get(&hourly_cache_key).await
+        && (!is_activity_view || cached.fresh_until > now_millis())
+    {
+        cached.payload
+    } else {
+        let payload =
+            hourly_stats_payload(state, request_id, &hourly_query, tier_min, tier_max).await?;
+        state
+            .route_cache
+            .store(
+                &hourly_cache_key,
+                payload.clone(),
+                overview_fresh_ttl,
+                overview_stale_ttl,
+            )
+            .await;
+        payload
+    };
+    let recent = state
+        .database
+        .query_json(
+            "SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.duration_seconds,m.region, \
+             m.winning_task_force,(SELECT c.name FROM match_players mp JOIN champions c \
+               ON c.id=mp.champion_id WHERE mp.match_id=m.match_id LIMIT 1) AS sample_champion \
+             FROM matches m WHERE m.queue_id=$1 AND m.entry_datetime>=now()-interval '7 days' \
+             ORDER BY m.entry_datetime DESC,m.match_id DESC LIMIT 20",
+            &[&RANKED_QUEUE_ID],
+        )
+        .await
+        .map_err(|error| ApiError::database(error, request_id))?;
+    let mut dropped_by_hour = Map::new();
+    let mut dropped_ids_by_hour: HashMap<String, Vec<String>> = HashMap::new();
+    if tier_min.is_none() && tier_max.is_none() {
+        let mut dates = hourly
+            .get("hourly")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|entry| entry.get("date").and_then(Value::as_str))
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        dates.sort();
+        dates.dedup();
+        for date in dates {
+            let summary = dropped_summary_rows(state, request_id, &date, RANKED_QUEUE_ID).await?;
+            for entry in summary {
+                let hour = entry.get("hour").and_then(json_i64).unwrap_or_default();
+                let dropped = entry.get("dropped").and_then(json_i64).unwrap_or_default();
+                dropped_by_hour.insert(format!("{date}|{hour}"), json!(dropped));
+            }
+            let matches = state
+                .database
+                .query_json_params(
+                    "SELECT match_id,hour FROM dropped_matches WHERE date=$1::text::date AND queue_id=$2 \
+                 AND drop_category='api_no_data' AND status<>'complete' \
+                 ORDER BY hour ASC,attempts DESC,match_id ASC LIMIT 500",
+                    &[
+                        QueryParam::Text(date.clone()),
+                        QueryParam::Int32(RANKED_QUEUE_ID),
+                    ],
+                )
+                .await
+                .map_err(|error| ApiError::database(error, request_id))?;
+            for dropped_match in matches {
+                let hour = dropped_match
+                    .get("hour")
+                    .and_then(json_i64)
+                    .unwrap_or_default();
+                let match_id = dropped_match
+                    .get("match_id")
+                    .map(json_text)
+                    .unwrap_or_default();
+                dropped_ids_by_hour
+                    .entry(format!("{date}|{hour}"))
+                    .or_default()
+                    .push(match_id);
+            }
+        }
+    }
+    Ok(json!({
+        "hourly":hourly,
+        "recent":recent,
+        "dropped_by_hour":dropped_by_hour,
+        "dropped_ids_by_hour":dropped_ids_by_hour
+    }))
 }
 
 fn positive_i64(value: Option<&str>) -> Option<i64> {
@@ -2776,6 +2846,23 @@ mod tests {
             paged_matches_cache_key(486, 20, Some(&cursor)),
             "route:matches:/matches/paged:queue:486:limit:20:at:2026-08-16T20:00:00Z:id:128000001"
         );
+    }
+
+    #[test]
+    fn match_overview_serves_stale_while_one_refresh_runs() {
+        let source = include_str!("matches.rs");
+        let route = source
+            .split("async fn overview_with_cache")
+            .nth(1)
+            .expect("overview cache implementation")
+            .split("fn positive_i64")
+            .next()
+            .expect("overview cache boundary");
+        assert!(route.contains("begin_refresh(&cache_key)"));
+        assert!(route.contains("if stale { \"STALE\" } else { \"HIT\" }"));
+        assert!(route.contains("overview_payload("));
+        assert!(route.contains("finish_refresh(&refresh_key)"));
+        assert!(route.contains("900"));
     }
 
     #[test]
