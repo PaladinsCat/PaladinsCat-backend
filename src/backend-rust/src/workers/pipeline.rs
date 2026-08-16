@@ -246,7 +246,10 @@ impl CanonicalIngestPipeline {
             .await?;
         Ok(rows
             .into_iter()
-            .filter_map(|row| row.get("match_id").and_then(Value::as_i64))
+            // PostgreSQL BIGINT values intentionally use node-postgres-compatible
+            // JSON strings. Reuse the canonical ID decoder so a known hour is
+            // drained from PostgreSQL instead of being rediscovered from Hi-Rez.
+            .filter_map(|row| extract_match_id(&row))
             .collect())
     }
 
@@ -274,7 +277,10 @@ impl CanonicalIngestPipeline {
             .await?;
         let fetch_ids = rows
             .into_iter()
-            .filter_map(|row| row.get("match_id").and_then(Value::as_i64))
+            // This is the same BIGINT boundary as `discovered_match_ids` above.
+            // Missing facts must remain in the shared fetch drain; dropping the
+            // string form falsely classifies every match as already durable.
+            .filter_map(|row| extract_match_id(&row))
             .collect::<Vec<_>>();
         let fetch_set = fetch_ids.iter().copied().collect::<HashSet<_>>();
         for match_id in match_ids
@@ -752,6 +758,18 @@ mod tests {
                 .map(|row| row.match_id)
                 .collect::<Vec<_>>(),
             vec![30, 10, 20]
+        );
+    }
+
+    #[test]
+    fn postgres_bigint_match_ids_use_the_shared_decoder() {
+        assert_eq!(
+            extract_match_id(&json!({"match_id":"1281512949"})),
+            Some(1_281_512_949)
+        );
+        assert_eq!(
+            extract_match_id(&json!({"match_id":1281512949_i64})),
+            Some(1_281_512_949)
         );
     }
 
