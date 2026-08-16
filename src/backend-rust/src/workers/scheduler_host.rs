@@ -819,7 +819,16 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let pipeline = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
         .map_err(|error| error.to_string())?;
     let mut completed = 0;
-    for (_, hour_candidates) in candidates_by_hour.into_iter().rev() {
+    let mut infrastructure_retried = 0;
+    for ((date, hour), hour_candidates) in candidates_by_hour.into_iter().rev() {
+        let hour_queue_ids = hour_candidates
+            .iter()
+            .map(|candidate| candidate.queue_id)
+            .collect::<Vec<_>>();
+        let claim_versions_before =
+            queue_hour_claim_versions(&services.database, &date, hour, &hour_queue_ids)
+                .await
+                .map_err(|error| error.to_string())?;
         let outcomes = join_all(hour_candidates.iter().map(|candidate| {
             pipeline.discover_hour(
                 candidate.queue_id,
@@ -830,8 +839,52 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         }))
         .await;
         completed += outcomes.iter().filter(|result| result.is_ok()).count();
+        // Purpose: distinguish a recorded pipeline failure from infrastructure
+        // contention before the queue-hour claim. Input: this hour's candidates
+        // and outcomes. Output: only unclaimed queues are retried; recorded
+        // provider/fact failures never replay the same vendor work in this run.
+        let failed_queue_ids = hour_candidates
+            .iter()
+            .zip(&outcomes)
+            .filter(|(_, outcome)| outcome.is_err())
+            .map(|(candidate, _)| candidate.queue_id)
+            .collect::<Vec<_>>();
+        let claim_versions_after =
+            queue_hour_claim_versions(&services.database, &date, hour, &failed_queue_ids)
+                .await
+                .map_err(|error| error.to_string())?;
+        for candidate in hour_candidates.iter().filter(|candidate| {
+            failed_queue_ids.contains(&candidate.queue_id)
+                && claim_versions_after
+                    .get(&candidate.queue_id)
+                    .copied()
+                    .unwrap_or_default()
+                    <= claim_versions_before
+                        .get(&candidate.queue_id)
+                        .copied()
+                        .unwrap_or_default()
+        }) {
+            infrastructure_retried += 1;
+            pipeline
+                .discover_hour(
+                    candidate.queue_id,
+                    &candidate.date,
+                    candidate.hour,
+                    "gap-checker",
+                )
+                .await
+                .map_err(|error| {
+                    format!(
+                        "queue-hour claim failed twice for {} {} {:02}: {error}",
+                        candidate.queue_id, candidate.date, candidate.hour
+                    )
+                })?;
+            completed += 1;
+        }
     }
-    Ok(json!({"candidates":candidates.len(),"attempted":candidates.len(),"completed":completed}))
+    Ok(
+        json!({"candidates":candidates.len(),"attempted":candidates.len(),"completed":completed,"infrastructureRetried":infrastructure_retried}),
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -851,6 +904,43 @@ impl GapCandidate {
             hour,
         }
     }
+}
+
+/// Purpose: identify whether this pass advanced the durable queue-hour claim.
+/// Input: UTC date/hour and configured queue IDs. Output: queue-to-attempt
+/// versions; `run_gap_check` retries only unchanged claims and never mistakes
+/// an older failed row for work recorded by the current scan.
+async fn queue_hour_claim_versions(
+    database: &Database,
+    date: &str,
+    hour: i32,
+    queue_ids: &[i32],
+) -> Result<BTreeMap<i32, i32>, DatabaseError> {
+    if queue_ids.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let queue_ids = queue_ids.to_vec();
+    let rows = database
+        .query_json(
+            "SELECT queue_id,attempts FROM hourly_ingest_state \
+             WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=ANY($3::INT[])",
+            &[&date, &hour, &queue_ids],
+        )
+        .await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            let queue_id = row
+                .get("queue_id")
+                .and_then(Value::as_i64)
+                .and_then(|value| i32::try_from(value).ok())?;
+            let attempts = row
+                .get("attempts")
+                .and_then(Value::as_i64)
+                .and_then(|value| i32::try_from(value).ok())?;
+            Some((queue_id, attempts))
+        })
+        .collect())
 }
 
 const QUEUE_HOUR_STATES_SQL: &str = r#"SELECT state.date::TEXT,state.hour,state.queue_id,state.status,
@@ -1372,6 +1462,8 @@ mod tests {
             .0;
         assert!(recovery.contains("candidates_by_hour"));
         assert!(recovery.contains("join_all"));
+        assert!(recovery.contains("queue_hour_claim_versions"));
+        assert!(recovery.contains("queue-hour claim failed twice"));
         assert!(!recovery.contains("take("));
         assert!(!recovery.contains("truncate("));
     }
