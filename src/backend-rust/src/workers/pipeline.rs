@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use futures::future::join_all;
 use paladinscat_core::{
     config::BackendConfig,
     database::{Database, DatabaseError},
@@ -30,7 +31,7 @@ use super::{
     requested_match::{MatchIngestRequest, RequestedMatchIngestor, RequestedMatchStatus},
 };
 
-const MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL: &str = "SELECT requested.match_id FROM unnest($1::BIGINT[]) WITH ORDINALITY requested(match_id,ordinality) \
+const MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL: &str = "SELECT requested.match_id, lifecycle.match_id IS NOT NULL AS resume_locally FROM unnest($1::BIGINT[]) WITH ORDINALITY requested(match_id,ordinality) \
      LEFT JOIN match_ingest_status lifecycle ON lifecycle.match_id=requested.match_id \
      WHERE requested.match_id>0 AND NOT COALESCE((\
        lifecycle.status='complete' OR (lifecycle.status='limited' AND (\
@@ -38,6 +39,7 @@ const MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL: &str = "SELECT requested.match_id 
          OR lifecycle.error_message IS NOT DISTINCT FROM $2\
        ))\
      ),FALSE) ORDER BY requested.ordinality";
+const MATCH_DETAIL_PROTOCOL_BATCH_SIZE: usize = 10;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PipelineError {
@@ -67,6 +69,12 @@ pub struct DiscoveryResult {
 struct MatchDrainProgress {
     claimed_raw_match_count: Option<i32>,
     checkpointed_ids: HashSet<i64>,
+}
+
+#[derive(Debug, Default)]
+struct CanonicalWorkSelection {
+    batch_ids: Vec<i64>,
+    resume_ids: Vec<i64>,
 }
 
 impl MatchDrainProgress {
@@ -212,20 +220,44 @@ impl CanonicalIngestPipeline {
             mark_hourly_ingest_empty(&self.database, date, hour, queue_id).await?;
             return Ok(result);
         }
-        let fetch_ids = self.match_ids_requiring_canonical_work(&ids).await?;
-        result.skipped = ids.len().saturating_sub(fetch_ids.len());
+        let work = self.match_ids_requiring_canonical_work(&ids).await?;
+        result.skipped = ids
+            .len()
+            .saturating_sub(work.batch_ids.len() + work.resume_ids.len());
         progress.claimed_raw_match_count = Some(i32::try_from(ids.len()).unwrap_or(i32::MAX));
-        let completed = self
+        let batch_result = self
             .fetch_discovered_completed_continuously(
-                &fetch_ids,
+                &work.batch_ids,
                 queue_id,
                 date,
                 hour,
                 MatchDiscoverySource::HourlyDiscovery,
                 progress,
             )
-            .await?;
+            .await;
+        let resume_result = self
+            .resume_discovered_continuously(
+                &work.resume_ids,
+                queue_id,
+                date,
+                hour,
+                MatchDiscoverySource::HourlyDiscovery,
+                progress,
+            )
+            .await;
+        let completed = batch_result.as_ref().copied().unwrap_or_default()
+            + resume_result.as_ref().copied().unwrap_or_default();
         result.completed = result.skipped + completed;
+        match (batch_result, resume_result) {
+            (Ok(_), Ok(_)) => {}
+            (Err(error), Ok(_)) => return Err(error),
+            (Ok(_), Err(error)) => return Err(error),
+            (Err(error), Err(resume_error)) => {
+                return Err(PipelineError::Facts(format!(
+                    "new acquisition failed: {error}; lifecycle resume failed: {resume_error}"
+                )));
+            }
+        }
         mark_hourly_ingest_complete(
             &self.database,
             date,
@@ -266,14 +298,15 @@ impl CanonicalIngestPipeline {
 
     /// Purpose: select canonical work from the indexed lifecycle authority.
     /// Input: discovered `i64` match IDs. Output: only IDs that are neither
-    /// complete nor explicitly terminal; completed work is never replayed and
-    /// retryable limited rows remain in the shared vendor-protocol drain.
+    /// complete nor explicitly terminal, partitioned by lifecycle presence.
+    /// New IDs use batch acquisition; existing IDs resume their saved evidence
+    /// without replaying detail calls or projections.
     async fn match_ids_requiring_canonical_work(
         &self,
         match_ids: &[i64],
-    ) -> Result<Vec<i64>, PipelineError> {
+    ) -> Result<CanonicalWorkSelection, PipelineError> {
         if match_ids.is_empty() {
-            return Ok(Vec::new());
+            return Ok(CanonicalWorkSelection::default());
         }
         let rows = self
             .database
@@ -282,14 +315,80 @@ impl CanonicalIngestPipeline {
                 &[&match_ids, &TERMINAL_NO_COMPLETED_MATCH_REASON],
             )
             .await?;
-        let fetch_ids = rows
-            .into_iter()
+        let mut selection = CanonicalWorkSelection::default();
+        for row in rows {
             // This is the same BIGINT boundary as `discovered_match_ids` above.
-            // Missing facts must remain in the shared fetch drain; dropping the
-            // string form falsely classifies every match as already durable.
-            .filter_map(|row| extract_match_id(&row))
-            .collect::<Vec<_>>();
-        Ok(fetch_ids)
+            // Missing facts must remain in one of the shared drains; dropping
+            // the string form falsely classifies every match as durable.
+            let Some(match_id) = extract_match_id(&row) else {
+                continue;
+            };
+            if row
+                .get("resume_locally")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                selection.resume_ids.push(match_id);
+            } else {
+                selection.batch_ids.push(match_id);
+            }
+        }
+        Ok(selection)
+    }
+
+    /// Purpose: resume every existing lifecycle row without replaying batch
+    /// detail acquisition. Input: typed match/queue/hour/source and progress.
+    /// Output: durable count after all IDs are attempted in protocol-sized
+    /// concurrent windows; no per-run cap, retry ledger, or deferred work.
+    async fn resume_discovered_continuously(
+        &self,
+        match_ids: &[i64],
+        queue_id: i32,
+        date: &str,
+        hour: i32,
+        source: MatchDiscoverySource,
+        progress: &mut MatchDrainProgress,
+    ) -> Result<usize, PipelineError> {
+        let mut completed = 0;
+        let mut failures = Vec::new();
+        for window in match_ids.chunks(MATCH_DETAIL_PROTOCOL_BATCH_SIZE) {
+            refresh_hourly_ingest_lease(&self.database, date, hour, queue_id).await?;
+            let outcomes = join_all(
+                window
+                    .iter()
+                    .copied()
+                    .map(|match_id| self.recover_discovered_match(match_id, queue_id, source)),
+            )
+            .await;
+            for (match_id, outcome) in window.iter().copied().zip(outcomes) {
+                match outcome {
+                    Ok(()) => {
+                        progress.checkpointed_ids.insert(match_id);
+                        completed += 1;
+                    }
+                    Err(error) => {
+                        let message = error.to_string();
+                        if self
+                            .record_terminal_outcome(error, queue_id, source, progress)
+                            .await?
+                        {
+                            completed += 1;
+                        } else {
+                            failures.push(format!("match {match_id}: {message}"));
+                        }
+                    }
+                }
+            }
+        }
+        if failures.is_empty() {
+            Ok(completed)
+        } else {
+            Err(PipelineError::Facts(format!(
+                "{} lifecycle match(es) failed after the full queue-hour drain; first: {}",
+                failures.len(),
+                failures[0]
+            )))
+        }
     }
 
     /// Purpose: drain every discovered match through one shared batch pipeline.
@@ -317,9 +416,13 @@ impl CanonicalIngestPipeline {
         let mut batch_windows = VecDeque::<Vec<i64>>::new();
         while !remaining.is_empty() {
             refresh_hourly_ingest_lease(&self.database, date, hour, queue_id).await?;
-            let batch = batch_windows
-                .pop_front()
-                .unwrap_or_else(|| remaining.iter().take(10).copied().collect::<Vec<_>>());
+            let batch = batch_windows.pop_front().unwrap_or_else(|| {
+                remaining
+                    .iter()
+                    .take(MATCH_DETAIL_PROTOCOL_BATCH_SIZE)
+                    .copied()
+                    .collect::<Vec<_>>()
+            });
             let response = match self
                 .relay
                 .call_value(
@@ -904,13 +1007,14 @@ mod tests {
             .next()
             .expect("drain body");
         assert!(drain.contains("while !remaining.is_empty()"));
-        assert!(drain.contains("remaining.iter().take(10)"));
+        assert!(drain.contains(".take(MATCH_DETAIL_PROTOCOL_BATCH_SIZE)"));
         assert!(!drain.contains("LIMIT"));
     }
 
     #[test]
     fn canonical_work_selection_uses_only_the_indexed_lifecycle_authority() {
         assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("LEFT JOIN match_ingest_status"));
+        assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("AS resume_locally"));
         assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("NOT COALESCE"));
         assert!(MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("status='complete'"));
         assert!(!MATCH_IDS_REQUIRING_CANONICAL_WORK_SQL.contains("FROM matches"));
