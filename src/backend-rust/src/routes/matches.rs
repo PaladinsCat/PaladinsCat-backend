@@ -2468,7 +2468,7 @@ async fn overview(
             "SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.duration_seconds,m.region, \
              m.winning_task_force,(SELECT c.name FROM match_players mp JOIN champions c \
                ON c.id=mp.champion_id WHERE mp.match_id=m.match_id LIMIT 1) AS sample_champion \
-             FROM matches m WHERE m.queue_id=$1 \
+             FROM matches m WHERE m.queue_id=$1 AND m.entry_datetime>=now()-interval '7 days' \
              ORDER BY m.entry_datetime DESC,m.match_id DESC LIMIT 20",
             &[&RANKED_QUEUE_ID],
         )
@@ -2770,6 +2770,12 @@ mod tests {
         let source = include_str!("matches.rs");
         assert!(source.contains("average_tier>=${}::int"));
         assert!(source.contains("average_tier<${}::int"));
+    }
+
+    #[test]
+    fn activity_recent_matches_are_bounded_to_recent_hypertable_chunks() {
+        let source = include_str!("matches.rs");
+        assert!(source.contains("m.entry_datetime>=now()-interval '7 days'"));
     }
 
     #[test]

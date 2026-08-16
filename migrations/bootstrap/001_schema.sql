@@ -439,8 +439,6 @@ $$;
 
 CREATE INDEX IF NOT EXISTS idx_matches_entry_datetime ON matches (entry_datetime DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_queue_id ON matches (queue_id);
-CREATE INDEX IF NOT EXISTS idx_matches_queue_recent
-  ON matches (queue_id, entry_datetime DESC, match_id DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_region ON matches (region);
 CREATE INDEX IF NOT EXISTS idx_matches_map ON matches (map);
 CREATE INDEX IF NOT EXISTS idx_matches_is_ranked ON matches (is_ranked);
