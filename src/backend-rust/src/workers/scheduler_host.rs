@@ -50,6 +50,7 @@ const OWNERSHIP_HEARTBEAT: Duration = Duration::from_secs(15);
 const OWNERSHIP_HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const JOB_LEASE: Duration = Duration::from_secs(60 * 60);
 const GAP_CHECKER_MIN_DATE: &str = "2026-05-31";
+const GAP_CHECKER_MAX_BACKFILL_LIMIT: usize = 8;
 
 #[derive(Clone)]
 struct SchedulerServices {
@@ -250,6 +251,12 @@ fn auto_ingester_presence_source(trigger: &str) -> &'static str {
 
 fn bounded_gap_retry_lookback_days(value: Option<i64>) -> i64 {
     value.unwrap_or(2).max(1)
+}
+
+fn bounded_gap_backfill_limit(value: Option<usize>) -> usize {
+    value
+        .unwrap_or(GAP_CHECKER_MAX_BACKFILL_LIMIT)
+        .clamp(1, GAP_CHECKER_MAX_BACKFILL_LIMIT)
 }
 
 fn configured_gap_min_date(now: OffsetDateTime) -> String {
@@ -833,11 +840,11 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let due = due_debt_hours(&services.database, 486, &min_date, &max_date)
         .await
         .map_err(|error| error.to_string())?;
-    let limit = std::env::var("GAP_CHECKER_MAX_BACKFILL_PER_RUN")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(8_usize)
-        .max(1);
+    let limit = bounded_gap_backfill_limit(
+        std::env::var("GAP_CHECKER_MAX_BACKFILL_PER_RUN")
+            .ok()
+            .and_then(|value| value.parse().ok()),
+    );
     let mut ranked = ranked_gap_candidates(&services.database, now, &min_date, due)
         .await
         .map_err(|error| error.to_string())?;
@@ -993,6 +1000,18 @@ async fn ranked_gap_candidates(
     let counts = database
         .query_json(RANKED_GAP_COUNTS_SQL, &[&min_date, &max_date])
         .await?;
+    Ok(ranked_gap_candidates_from_rows(
+        now, min_date, states, counts, due_debt,
+    ))
+}
+
+fn ranked_gap_candidates_from_rows(
+    now: OffsetDateTime,
+    min_date: &str,
+    states: Vec<Value>,
+    counts: Vec<Value>,
+    due_debt: Vec<(String, i32)>,
+) -> Vec<GapCandidate> {
     let mut states_by_key = BTreeMap::new();
     for row in states {
         let Some((date, hour)) = row_key(&row) else {
@@ -1014,12 +1033,15 @@ async fn ranked_gap_candidates(
             || counts_by_key.get(&key).copied().unwrap_or_default() > 0,
             ranked_state_handled,
         );
-        if !handled {
+        let has_open_debt = states_by_key
+            .get(&key)
+            .is_some_and(ranked_state_has_open_debt);
+        if !handled && !has_open_debt {
             candidates.insert(key, GapCandidate::ranked(date, hour, false));
         }
     }
     for ((date, hour), row) in &states_by_key {
-        if !ranked_state_handled(row) {
+        if !ranked_state_handled(row) && !ranked_state_has_open_debt(row) {
             candidates.insert(
                 (date.clone(), *hour),
                 GapCandidate::ranked(date.clone(), *hour, false),
@@ -1029,7 +1051,11 @@ async fn ranked_gap_candidates(
     for (date, hour) in due_debt {
         candidates.insert((date.clone(), hour), GapCandidate::ranked(date, hour, true));
     }
-    Ok(candidates.into_values().collect())
+    candidates.into_values().collect()
+}
+
+fn ranked_state_has_open_debt(row: &Value) -> bool {
+    row_i32(row, "open_count") > 0
 }
 
 async fn presence_gap_candidates(
@@ -1440,6 +1466,13 @@ mod tests {
     }
 
     #[test]
+    fn gap_backfill_limit_cannot_exceed_pipeline_bound() {
+        assert_eq!(bounded_gap_backfill_limit(None), 8);
+        assert_eq!(bounded_gap_backfill_limit(Some(0)), 1);
+        assert_eq!(bounded_gap_backfill_limit(Some(500)), 8);
+    }
+
+    #[test]
     fn capture_urls_must_be_parseable_loopback_hosts() {
         assert!(url_is_loopback(
             "postgres://user:pass@127.0.0.1:5432/fixture"
@@ -1567,6 +1600,72 @@ mod tests {
         assert!(RANKED_GAP_STATES_SQL.contains(") debt\n          ON"));
         assert!(RANKED_GAP_COUNTS_SQL.contains("hourly_match_counts\n         WHERE"));
         assert!(PRESENCE_GAP_STATES_SQL.contains("lease_due\n         FROM"));
+    }
+
+    #[test]
+    fn ranked_gap_prefers_known_debt_without_rediscovery() {
+        let cooling_debt = json!({
+            "date":"2026-08-02",
+            "hour":2,
+            "status":"failed",
+            "raw_match_count":10,
+            "retry_due":true,
+            "lease_due":true,
+            "total_matches":9,
+            "open_count":1,
+            "terminal_count":0
+        });
+        let candidates = ranked_gap_candidates_from_rows(
+            at(5, 15),
+            "2026-08-02",
+            vec![cooling_debt.clone()],
+            Vec::new(),
+            Vec::new(),
+        );
+        assert!(
+            !candidates
+                .iter()
+                .any(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
+        );
+
+        let due = ranked_gap_candidates_from_rows(
+            at(5, 15),
+            "2026-08-02",
+            vec![cooling_debt],
+            Vec::new(),
+            vec![("2026-08-02".to_owned(), 2)],
+        );
+        let target = due
+            .iter()
+            .find(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
+            .expect("due exact-ID debt candidate");
+        assert!(target.debt_only);
+    }
+
+    #[test]
+    fn ranked_gap_discovers_failed_hour_without_known_debt() {
+        let candidates = ranked_gap_candidates_from_rows(
+            at(5, 15),
+            "2026-08-02",
+            vec![json!({
+                "date":"2026-08-02",
+                "hour":2,
+                "status":"failed",
+                "raw_match_count":0,
+                "retry_due":true,
+                "lease_due":true,
+                "total_matches":0,
+                "open_count":0,
+                "terminal_count":0
+            })],
+            Vec::new(),
+            Vec::new(),
+        );
+        let target = candidates
+            .iter()
+            .find(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
+            .expect("failed undiscovered hour candidate");
+        assert!(!target.debt_only);
     }
 
     #[test]

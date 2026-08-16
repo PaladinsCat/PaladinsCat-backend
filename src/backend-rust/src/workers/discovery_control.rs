@@ -231,17 +231,11 @@ pub async fn record_discovered_matches(
         return Ok(());
     }
     ensure_hourly_ingest_tables(database).await?;
-    let retry = env_i32("HOURLY_INGEST_MATCH_DEBT_RETRY_MINUTES", 10).max(5);
     database.query_json(
         "INSERT INTO hourly_ingest_match_debt(match_id,date,hour,queue_id,status,reason,attempts,first_seen_at,last_attempt_at,next_retry_at,updated_at)\
-         SELECT id,$1::TEXT::DATE,$2,$3,'pending',$5,1,now(),now(),now()+($6::INT*INTERVAL '1 minute'),now() FROM unnest($4::BIGINT[]) ids(id)\
-         ON CONFLICT(match_id) DO UPDATE SET date=EXCLUDED.date,hour=EXCLUDED.hour,queue_id=EXCLUDED.queue_id,\
-         status=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.status ELSE 'pending' END,\
-         reason=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.reason ELSE EXCLUDED.reason END,\
-         attempts=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.attempts ELSE hourly_ingest_match_debt.attempts+1 END,\
-         last_attempt_at=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.last_attempt_at ELSE now() END,\
-         next_retry_at=CASE WHEN hourly_ingest_match_debt.status IN('complete','unrecoverable') THEN hourly_ingest_match_debt.next_retry_at ELSE now()+($6::INT*INTERVAL '1 minute') END,updated_at=now()",
-        &[&date, &hour, &queue_id, &ids, &reason, &retry],
+         SELECT id,$1::TEXT::DATE,$2,$3,'pending',$5,0,now(),NULL,NULL,now() FROM unnest($4::BIGINT[]) ids(id)\
+         ON CONFLICT(match_id) DO NOTHING",
+        &[&date, &hour, &queue_id, &ids, &reason],
     ).await?;
     Ok(())
 }
@@ -631,5 +625,19 @@ mod tests {
         assert!(debt_completion.contains("mis.acquisition_state='facts_ready'"));
         assert!(!debt_completion.contains("match_players"));
         assert!(!debt_completion.contains("GROUP BY"));
+    }
+
+    #[test]
+    fn discovery_is_insert_only_and_does_not_count_as_an_attempt() {
+        let source = include_str!("discovery_control.rs")
+            .split_once("pub async fn record_discovered_matches")
+            .expect("discovery recorder")
+            .1
+            .split_once("pub async fn mark_match_debt_staged_or_complete")
+            .expect("next function")
+            .0;
+        assert!(source.contains("'pending',$5,0,now(),NULL,NULL,now()"));
+        assert!(source.contains("ON CONFLICT(match_id) DO NOTHING"));
+        assert!(!source.contains("DO UPDATE"));
     }
 }
