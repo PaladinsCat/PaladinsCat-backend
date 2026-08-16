@@ -56,7 +56,7 @@ const MATCH_DETAIL_CACHE_VERSION: i32 = 18;
 const ACTIVITY_OVERVIEW_FRESH_TTL_SECONDS: u64 = 600;
 const ACTIVITY_OVERVIEW_STALE_TTL_SECONDS: u64 = 900;
 const RECENT_MATCHES_FRESH_TTL_SECONDS: u64 = 60;
-const RECENT_MATCHES_STALE_TTL_SECONDS: u64 = 180;
+const RECENT_MATCHES_STALE_TTL_SECONDS: u64 = 15 * 60;
 
 pub const ROUTE_COUNT: usize = 21;
 
@@ -498,15 +498,6 @@ async fn paged_matches(
         None => None,
     };
     let cache_key = paged_matches_cache_key(queue_id, limit, cursor.as_ref());
-    if let Some(cached) = state.route_cache.get(&cache_key).await {
-        let rows = cached.payload.as_array().cloned().unwrap_or_default();
-        return Ok(paged_matches_response(
-            rows,
-            limit,
-            query.contains_key("_queue_shape"),
-            Some(cached.fresh_until),
-        ));
-    }
     let (sql, params) = if let Some(cursor) = cursor {
         (
             "SELECT m.match_id,m.entry_datetime,m.map,m.queue_id,m.duration_seconds,m.region, \
@@ -530,25 +521,41 @@ async fn paged_matches(
             vec![QueryParam::Int32(queue_id), QueryParam::Int64(limit + 1)],
         )
     };
-    let rows = state
-        .database
-        .query_json_params(sql, &params)
-        .await
-        .map_err(|error| ApiError::database(error, request_id))?;
-    state
+    // Purpose: reuse the shared cold-miss lease and stale-while-revalidate
+    // path used by every major cached route. Input: the canonical page key,
+    // SQL, and typed parameters. Output: raw look-ahead rows for the common
+    // response renderer below; refreshes never block a reader with stale data.
+    let database = state.database.clone();
+    let loader_params = params.clone();
+    let payload = cached_database_value(
+        state.route_cache.clone(),
+        cache_key.clone(),
+        RECENT_MATCHES_FRESH_TTL_SECONDS,
+        RECENT_MATCHES_STALE_TTL_SECONDS,
+        move || {
+            let database = database.clone();
+            let params = loader_params.clone();
+            async move {
+                database
+                    .query_json_params(sql, &params)
+                    .await
+                    .map(Value::Array)
+            }
+        },
+    )
+    .await
+    .map_err(|error| ApiError::database(error, request_id))?;
+    let rows = payload.as_array().cloned().unwrap_or_default();
+    let fresh_until = state
         .route_cache
-        .store(
-            &cache_key,
-            Value::Array(rows.clone()),
-            RECENT_MATCHES_FRESH_TTL_SECONDS,
-            RECENT_MATCHES_STALE_TTL_SECONDS,
-        )
-        .await;
+        .get(&cache_key)
+        .await
+        .map(|cached| cached.fresh_until);
     Ok(paged_matches_response(
         rows,
         limit,
         query.contains_key("_queue_shape"),
-        None,
+        fresh_until,
     ))
 }
 
