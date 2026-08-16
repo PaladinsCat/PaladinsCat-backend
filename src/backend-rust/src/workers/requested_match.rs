@@ -1,8 +1,7 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use paladinscat_core::database::Database;
 use serde_json::Value;
-use tokio::time::sleep;
 use uuid::Uuid;
 
 use super::{
@@ -16,7 +15,6 @@ use super::{
     relay::{MatchLifecycleRelay, WorkerRelayClient, execute_match_lifecycle_fetches},
 };
 
-const COMPLETION_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const FACTS_DURABLE_SQL: &str = r#"
 SELECT
   (
@@ -47,6 +45,17 @@ pub struct RequestedMatchResult {
     pub error: Option<String>,
 }
 
+/// Purpose: carry one discovered match through the shared canonical lifecycle.
+/// Input fields: positive `i64` match ID, optional `i32` queue ID, typed source.
+/// Output: consumed by `RequestedMatchIngestor::ingest_discovery` and converted
+/// to `RequestedMatchResult`; hourly and direct callers share this exact type.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MatchIngestRequest {
+    pub match_id: i64,
+    pub queue_id: Option<i32>,
+    pub source: MatchDiscoverySource,
+}
+
 #[derive(Clone)]
 pub struct RequestedMatchIngestor {
     database: Database,
@@ -59,6 +68,8 @@ pub struct RequestedMatchIngestor {
 }
 
 impl RequestedMatchIngestor {
+    /// Purpose: construct the shared lifecycle object. Input: database, relay,
+    /// and ownership timeout. Output: reusable typed ingestor; performs no I/O.
     pub fn new(database: Database, relay: WorkerRelayClient, completion_timeout: Duration) -> Self {
         Self {
             lifecycle: MatchLifecycleRepository::new(database.clone()),
@@ -71,7 +82,28 @@ impl RequestedMatchIngestor {
         }
     }
 
+    /// Purpose: adapt a manual exact-ID lookup to the shared typed lifecycle.
+    /// Input: positive `i64` match ID. Output: canonical result after durable
+    /// facts/projection; relationship delegates only to `ingest_discovery`.
     pub async fn ingest(&self, match_id: i64) -> RequestedMatchResult {
+        self.ingest_discovery(MatchIngestRequest {
+            match_id,
+            queue_id: None,
+            source: MatchDiscoverySource::DirectLookup,
+        })
+        .await
+    }
+
+    /// Purpose: execute the one canonical DB-first recovery/finalization path.
+    /// Input: `MatchIngestRequest` from hourly discovery, profile history, or a
+    /// direct lookup. Output: `RequestedMatchResult` only after facts and the
+    /// population-specific projection are durable, or a terminal error.
+    pub async fn ingest_discovery(&self, request: MatchIngestRequest) -> RequestedMatchResult {
+        let MatchIngestRequest {
+            match_id,
+            queue_id,
+            source,
+        } = request;
         if match_id <= 0 {
             return failed(match_id, "match ID must be positive");
         }
@@ -90,8 +122,8 @@ impl RequestedMatchIngestor {
             .lifecycle
             .register_discovery(&MatchDiscovery {
                 match_id,
-                queue_id: None,
-                source: MatchDiscoverySource::DirectLookup,
+                queue_id,
+                source,
             })
             .await
         {
@@ -105,14 +137,31 @@ impl RequestedMatchIngestor {
             };
         }
 
-        let owner = format!("requested-match-{}", Uuid::new_v4());
+        let owner = format!("canonical-match-{}", Uuid::new_v4());
         let evidence = match self
             .lifecycle
-            .claim(match_id, "direct_lookup", &owner, self.completion_timeout)
+            .claim(
+                match_id,
+                source.as_database(),
+                &owner,
+                self.completion_timeout,
+            )
             .await
         {
             Ok(Some(evidence)) => evidence,
-            Ok(None) => return self.wait_for_existing_owner(match_id).await,
+            Ok(None) => {
+                return match self.facts_are_durable(match_id).await {
+                    Ok(true) => match self.ensure_projected(match_id).await {
+                        Ok(()) => ready(match_id),
+                        Err(error) => failed(match_id, error),
+                    },
+                    Ok(false) => failed(
+                        match_id,
+                        "canonical lifecycle is already owned but has not reached durable facts",
+                    ),
+                    Err(error) => failed(match_id, error),
+                };
+            }
             Err(error) => return failed(match_id, error),
         };
         if evidence.facts_durable() {
@@ -173,7 +222,7 @@ impl RequestedMatchIngestor {
             let _ = self.lifecycle.release(match_id, &owner).await;
             return failed(
                 match_id,
-                "HirezRelay recovery remains pending for the requested match",
+                "HirezRelay did not produce a complete recoverable payload in this invocation",
             );
         }
         let payload = match CanonicalMatchPayload::from_relay_value(relay_value) {
@@ -201,7 +250,7 @@ impl RequestedMatchIngestor {
                 ),
             );
         }
-        let finalized = match self.facts.finalize(&payload, "direct_lookup").await {
+        let finalized = match self.facts.finalize(&payload, source.as_database()).await {
             Ok(finalized) => finalized,
             Err(error) => {
                 let _ = self.lifecycle.release(match_id, &owner).await;
@@ -241,6 +290,8 @@ impl RequestedMatchIngestor {
         }
     }
 
+    /// Purpose: project facts already durable in PostgreSQL. Input: match ID.
+    /// Output: population-specific projection completion without vendor calls.
     async fn ensure_projected(&self, match_id: i64) -> Result<(), String> {
         let row = self
             .database
@@ -289,27 +340,8 @@ impl RequestedMatchIngestor {
         }
     }
 
-    async fn wait_for_existing_owner(&self, match_id: i64) -> RequestedMatchResult {
-        let deadline = Instant::now() + self.completion_timeout;
-        while Instant::now() < deadline {
-            match self.facts_are_durable(match_id).await {
-                Ok(true) => {
-                    return match self.ensure_projected(match_id).await {
-                        Ok(()) => ready(match_id),
-                        Err(error) => failed(match_id, error),
-                    };
-                }
-                Ok(false) => sleep(COMPLETION_POLL_INTERVAL).await,
-                Err(error) => return failed(match_id, error),
-            }
-        }
-        RequestedMatchResult {
-            match_id,
-            status: RequestedMatchStatus::ProcessingTimeout,
-            error: None,
-        }
-    }
-
+    /// Purpose: test the canonical fact boundary from PostgreSQL. Input: match
+    /// ID. Output: true only when match and participant fact stages are durable.
     async fn facts_are_durable(&self, match_id: i64) -> Result<bool, String> {
         self.database
             .one_json(FACTS_DURABLE_SQL, &[&match_id])
@@ -324,6 +356,8 @@ impl RequestedMatchIngestor {
     }
 }
 
+/// Purpose: decide whether saved evidence can skip detail and roster fetches.
+/// Input: planned typed actions. Output: boolean consumed by `ingest_discovery`.
 fn can_resume_without_detail_or_roster(actions: &[MatchLifecycleAction]) -> bool {
     !actions.is_empty()
         && !actions.iter().any(|action| {
@@ -334,6 +368,8 @@ fn can_resume_without_detail_or_roster(actions: &[MatchLifecycleAction]) -> bool
         })
 }
 
+/// Purpose: normalize relay terminal status across object/array envelopes.
+/// Input: relay JSON. Output: first optional owned status string.
 fn terminal_status(value: &Value) -> Option<String> {
     match value {
         Value::Array(values) => values.iter().find_map(terminal_status),
@@ -345,6 +381,8 @@ fn terminal_status(value: &Value) -> Option<String> {
     }
 }
 
+/// Purpose: build a successful canonical result. Input: match ID. Output:
+/// `RequestedMatchResult::Ready` with no error.
 fn ready(match_id: i64) -> RequestedMatchResult {
     RequestedMatchResult {
         match_id,
@@ -353,6 +391,8 @@ fn ready(match_id: i64) -> RequestedMatchResult {
     }
 }
 
+/// Purpose: build an explicit failure without scheduling hidden work. Input:
+/// match ID and error. Output: `RecoveryFailed` result for the current caller.
 fn failed(match_id: i64, error: impl ToString) -> RequestedMatchResult {
     RequestedMatchResult {
         match_id,

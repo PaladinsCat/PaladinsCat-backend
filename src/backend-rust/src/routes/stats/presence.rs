@@ -92,13 +92,9 @@ roster_summary AS MATERIALIZED (
   FROM roster_evidence GROUP BY match_id
 ),
 durable_fact_candidates AS MATERIALIZED (
-  SELECT discovery.match_id,COALESCE(status.status='complete',false) AS facts_complete
+  SELECT discovery.match_id,
+    COALESCE(status.completed_stages @> ARRAY['player_facts','match_bans']::text[],false) AS facts_complete
   FROM recent_discoveries discovery LEFT JOIN match_ingest_status status ON status.match_id=discovery.match_id
-  WHERE discovery.queue_id=486
-  UNION ALL
-  SELECT discovery.match_id,acquisition.status='complete_direct'
-  FROM recent_discoveries discovery JOIN nonranked_match_acquisition acquisition
-    ON acquisition.match_id=discovery.match_id WHERE discovery.queue_id<>486
 ),
 fact_completeness AS MATERIALIZED (
   SELECT match_id,BOOL_OR(facts_complete) AS facts_complete FROM durable_fact_candidates GROUP BY match_id
@@ -496,16 +492,18 @@ async fn details(
              page.source_date+page.source_hour*interval '1 hour')::text AS entry_datetime, \
            COALESCE(NULLIF(ranked.region,''),NULLIF(casual.region,''),NULLIF(special.region,''),page.region,'Unknown') AS region, \
            COALESCE(NULLIF(ranked.map,''),NULLIF(casual.map,''),NULLIF(special.map,''),'Unknown') AS map, \
-           CASE WHEN page.queue_id=486 AND ranked.match_id IS NULL THEN 'discovered' \
+           CASE WHEN ingest_status.status='limited' THEN 'limited' \
+             WHEN page.queue_id=486 AND ranked.match_id IS NULL THEN 'discovered' \
              WHEN page.queue_id=486 AND ranked.limited THEN 'limited' WHEN page.queue_id=486 AND ranked.recovered THEN 'recovered' \
              WHEN page.queue_id=486 AND ranked.broken THEN 'broken' WHEN page.queue_id=486 THEN 'complete' \
-             ELSE COALESCE(acquisition.status,'discovered') END AS status, \
+             WHEN casual.match_id IS NOT NULL OR special.match_id IS NOT NULL THEN 'complete' \
+             ELSE 'discovered' END AS status, \
            CASE WHEN page.queue_id=486 AND ranked.limited THEN 'limited' \
              WHEN page.queue_id=486 AND ranked.broken AND NOT ranked.recovered THEN 'partial' \
              WHEN page.queue_id=486 AND ranked.match_id IS NOT NULL THEN 'complete' \
-             ELSE COALESCE(acquisition.quality,casual.quality,special.quality,'unknown') END AS quality, \
-           COALESCE(acquisition.terminal_reason,ranked.limited_reason) AS terminal_reason \
-         FROM page LEFT JOIN nonranked_match_acquisition acquisition ON acquisition.match_id=page.match_id \
+             ELSE COALESCE(casual.quality,special.quality,'unknown') END AS quality, \
+           ranked.limited_reason AS terminal_reason \
+         FROM page LEFT JOIN match_ingest_status ingest_status ON ingest_status.match_id=page.match_id \
          LEFT JOIN casual_matches casual ON casual.match_id=page.match_id \
          LEFT JOIN special_matches special ON special.match_id=page.match_id \
          LEFT JOIN LATERAL (SELECT m.* FROM matches m WHERE m.match_id=page.match_id \
@@ -783,6 +781,12 @@ mod tests {
         assert!(include_str!("presence.rs").contains("'hourly_by_platform'"));
         assert!(include_str!("presence.rs").contains("player_hour_dimensions AS MATERIALIZED"));
         assert!(include_str!("presence.rs").contains("ctes(selected_queue_id, &mut params)"));
+    }
+
+    #[test]
+    fn presence_completeness_uses_the_shared_fact_boundary_for_every_population() {
+        assert!(EVIDENCE_CTES.contains("ARRAY['player_facts','match_bans']"));
+        assert!(!EVIDENCE_CTES.contains("nonranked_match_acquisition"));
     }
 
     #[test]

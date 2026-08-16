@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::{Deserialize, Serialize};
@@ -14,24 +14,8 @@ pub struct MatchIdObservation {
     pub active_flag: bool,
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MatchIngestGuardResult {
-    pub fetch_ids: Vec<i64>,
-    pub skipped_ids: Vec<i64>,
-    pub skipped: MatchIngestGuardCounts,
-}
-
-#[derive(Clone, Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MatchIngestGuardCounts {
-    pub matches: usize,
-    pub match_players: usize,
-    pub raw_buffer: usize,
-    pub pull_list: usize,
-    pub total_unique: usize,
-}
-
+/// Purpose: ensure the local discovery-ID authority exists. Input: database.
+/// Output: schema is ready or a typed database error; no match work is queued.
 pub async fn ensure_match_count_discovery_tables(database: &Database) -> Result<(), DatabaseError> {
     for statement in [
         "CREATE TABLE IF NOT EXISTS match_count_discoveries(\
@@ -51,6 +35,9 @@ pub async fn ensure_match_count_discovery_tables(database: &Database) -> Result<
     Ok(())
 }
 
+/// Purpose: persist the complete local ID authority for one discovered hour.
+/// Input: database, UTC date/hour, queue ID, typed observations, audit source.
+/// Output: unique positive match count; it never creates acquisition/debt work.
 pub async fn record_match_count_discovery_result(
     database: &Database,
     date: &str,
@@ -87,27 +74,6 @@ pub async fn record_match_count_discovery_result(
          entry_datetime=COALESCE(match_count_discoveries.entry_datetime,EXCLUDED.entry_datetime),active_flag=EXCLUDED.active_flag,last_seen_at=now()",
         &[&observations, &queue_id, &false, &date, &hour],
     ).await?;
-    if queue_id != 486 && count > 0 {
-        transaction.execute(
-            "INSERT INTO nonranked_match_acquisition(match_id,queue_id,stats_scope,source_date,source_hour,region,\
-             discovered_entry_datetime,active_flag,status,first_discovered_at,last_observed_at)\
-             SELECT discovery.match_id,discovery.queue_id,COALESCE(queue.stats_scope,'other'),discovery.source_date,\
-             discovery.source_hour,discovery.region,discovery.entry_datetime,discovery.active_flag,\
-             CASE WHEN discovery.active_flag THEN 'waiting_for_completion' ELSE 'discovered' END,\
-             discovery.first_seen_at,discovery.last_seen_at FROM match_count_discoveries discovery \
-             JOIN queue_types queue ON queue.queue_id=discovery.queue_id WHERE discovery.queue_id=$3 \
-             AND discovery.source_date=$1::TEXT::DATE AND discovery.source_hour=$2 ON CONFLICT(match_id) DO UPDATE SET \
-             queue_id=EXCLUDED.queue_id,stats_scope=EXCLUDED.stats_scope,\
-             last_observed_at=GREATEST(nonranked_match_acquisition.last_observed_at,EXCLUDED.last_observed_at),\
-             region=CASE WHEN EXCLUDED.region<>'Unknown' THEN EXCLUDED.region ELSE nonranked_match_acquisition.region END,\
-             discovered_entry_datetime=COALESCE(nonranked_match_acquisition.discovered_entry_datetime,EXCLUDED.discovered_entry_datetime),\
-             active_flag=EXCLUDED.active_flag,status=CASE \
-               WHEN nonranked_match_acquisition.status IN('discovered','waiting_for_completion') AND EXCLUDED.active_flag THEN 'waiting_for_completion' \
-               WHEN nonranked_match_acquisition.status='waiting_for_completion' AND NOT EXCLUDED.active_flag THEN 'discovered' \
-               ELSE nonranked_match_acquisition.status END,updated_at=now()",
-            &[&date, &hour, &queue_id],
-        ).await?;
-    }
     transaction.execute(
         "DELETE FROM match_count_discovery_region_hours WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id],
@@ -122,103 +88,8 @@ pub async fn record_match_count_discovery_result(
     Ok(count)
 }
 
-pub async fn filter_already_handled_match_ids(
-    database: &Database,
-    match_ids: &[i64],
-    _queue_id: i32,
-    include_raw_buffer: bool,
-    include_pull_list: bool,
-) -> Result<MatchIngestGuardResult, DatabaseError> {
-    let ids = match_ids
-        .iter()
-        .copied()
-        .filter(|id| *id > 0)
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    if ids.is_empty() {
-        return Ok(MatchIngestGuardResult::default());
-    }
-    let status_rows = database
-        .query_json(
-            "SELECT match_id,status,acquisition_state FROM match_ingest_status WHERE match_id=ANY($1)",
-            &[&ids],
-        )
-        .await
-        .unwrap_or_default();
-    let statuses = status_rows
-        .into_iter()
-        .filter_map(|row| {
-            Some((
-                integer(&row, "match_id")?,
-                (
-                    row.get("status")?.as_str()?.to_owned(),
-                    row.get("acquisition_state")?.as_str()?.to_owned(),
-                ),
-            ))
-        })
-        .collect::<HashMap<_, _>>();
-    let terminal = |id: i64| {
-        // The durable ledger is authoritative. Facts-ready rows are safe to
-        // skip because their fact transaction has completed; legacy rows are
-        // still handled by the bounded matches lookup below.
-        match statuses.get(&id) {
-            Some((status, acquisition_state)) => {
-                matches!(status.as_str(), "complete" | "limited")
-                    || acquisition_state == "facts_ready"
-            }
-            None => true,
-        }
-    };
-    let matches = database
-        .query_json(
-            "SELECT match_id FROM matches WHERE match_id=ANY($1)",
-            &[&ids],
-        )
-        .await?
-        .into_iter()
-        .filter_map(|row| integer(&row, "match_id"))
-        .filter(|id| terminal(*id))
-        .collect::<HashSet<_>>();
-    let raw = if include_raw_buffer {
-        let text_ids = ids.iter().map(i64::to_string).collect::<Vec<_>>();
-        database.query_json(
-            "SELECT DISTINCT entity_id FROM raw_ingest_buffer WHERE entity_type='match' AND entity_id=ANY($1) AND status IN('pending','processing')",
-            &[&text_ids],
-        ).await?.into_iter().filter_map(|row| row.get("entity_id")?.as_str()?.parse::<i64>().ok()).collect::<HashSet<_>>()
-    } else {
-        HashSet::new()
-    };
-    let pull = if include_pull_list {
-        database.query_json(
-            "SELECT match_id FROM match_pull_list WHERE match_id=ANY($1) AND status IN('pending','pulling','completed')",
-            &[&ids],
-        ).await?.into_iter().filter_map(|row| integer(&row, "match_id")).collect::<HashSet<_>>()
-    } else {
-        HashSet::new()
-    };
-    let skipped = ids
-        .iter()
-        .copied()
-        .filter(|id| matches.contains(id) || raw.contains(id) || pull.contains(id))
-        .collect::<Vec<_>>();
-    let skipped_set = skipped.iter().copied().collect::<HashSet<_>>();
-    Ok(MatchIngestGuardResult {
-        fetch_ids: ids
-            .into_iter()
-            .filter(|id| !skipped_set.contains(id))
-            .collect(),
-        skipped_ids: skipped,
-        skipped: MatchIngestGuardCounts {
-            matches: matches.len(),
-            match_players: 0,
-            raw_buffer: raw.len(),
-            pull_list: pull.len(),
-            total_unique: skipped_set.len(),
-        },
-    })
-}
-
+/// Purpose: normalize vendor region aliases before durable aggregation.
+/// Input: optional text. Output: one stable static region code.
 fn normalize_region(value: Option<&str>) -> &'static str {
     match value
         .unwrap_or_default()
@@ -236,32 +107,5 @@ fn normalize_region(value: Option<&str>) -> &'static str {
         "OCE" | "OCEANIA" => "OCE",
         "SA" | "SOUTH AMERICA" => "SA",
         _ => "Unknown",
-    }
-}
-
-fn integer(row: &Value, key: &str) -> Option<i64> {
-    row.get(key)
-        .and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn ingest_guard_uses_the_ledger_not_player_fact_counts() {
-        let source = include_str!("discovery_store.rs")
-            .split_once("#[cfg(test)]")
-            .expect("worker source has tests")
-            .0;
-        let guard = source
-            .split_once("pub async fn filter_already_handled_match_ids")
-            .expect("ingest guard")
-            .1
-            .split_once("fn normalize_region")
-            .expect("next function")
-            .0;
-        assert!(guard.contains("acquisition_state"));
-        assert!(guard.contains("acquisition_state == \"facts_ready\""));
-        assert!(!guard.contains("FROM match_players"));
-        assert!(!guard.contains("GROUP BY"));
     }
 }

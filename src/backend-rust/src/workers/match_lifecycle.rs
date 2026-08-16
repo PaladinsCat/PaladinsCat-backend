@@ -39,11 +39,17 @@ RETURNING
 "#;
 
 const PARTICIPANT_IDS_SQL: &str = r#"
-SELECT player_id, source
-FROM match_ingest_participants
-WHERE match_id = $1
-  AND player_id > 0
-ORDER BY roster_slot
+SELECT player_id,source FROM (
+  SELECT player_id,source,roster_slot FROM match_ingest_participants WHERE match_id=$1
+  UNION
+  SELECT player_id,COALESCE(source,'direct'),0 FROM match_players WHERE match_id=$1
+  UNION
+  SELECT player_id,COALESCE(source,'direct'),0 FROM casual_match_players WHERE match_id=$1
+  UNION
+  SELECT player_id,COALESCE(source,'direct'),0 FROM special_match_players WHERE match_id=$1
+) participants
+WHERE player_id>0
+ORDER BY roster_slot,player_id
 "#;
 
 const HISTORY_IDS_SQL: &str = r#"
@@ -111,18 +117,19 @@ WHERE match_id = $1
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MatchDiscoverySource {
-    RankedHourly,
-    NonrankedHourly,
+    HourlyDiscovery,
     ProfileHistory,
     DirectLookup,
     Recovery,
 }
 
 impl MatchDiscoverySource {
-    fn as_database(self) -> &'static str {
+    /// Purpose: provide the single canonical database/audit spelling shared by
+    /// discovery, lifecycle claims, finalization, and projections.
+    /// Input: the typed discovery source. Output: a static database string.
+    pub(crate) fn as_database(self) -> &'static str {
         match self {
-            Self::RankedHourly => "ranked_hourly",
-            Self::NonrankedHourly => "nonranked_hourly",
+            Self::HourlyDiscovery => "hourly_discovery",
             Self::ProfileHistory => "profile_history",
             Self::DirectLookup => "direct_lookup",
             Self::Recovery => "recovery",
@@ -932,6 +939,7 @@ impl MatchLifecycleRepository {
             .map(|history| history.get::<_, i64>("player_id"))
             .collect();
 
+        let has_stored_roster = !roster_player_ids.is_empty();
         Ok(MatchEvidence {
             match_id,
             status: row.get("status"),
@@ -943,7 +951,10 @@ impl MatchLifecycleRepository {
             population: MatchPopulation::from_database(row.get::<_, String>("population").as_str()),
             acquisition_state: row.get("acquisition_state"),
             detail_attempted: row.get("detail_attempted"),
-            roster_resolved: row.get("roster_resolved"),
+            // Durable participant facts are the roster authority. An older
+            // match that predates lifecycle checkpoints must not trigger
+            // getPlayerBatchFromMatch merely because the timestamp is absent.
+            roster_resolved: row.get::<_, bool>("roster_resolved") || has_stored_roster,
             demo_resolved: row.get("demo_resolved"),
             direct_player_ids,
             roster_player_ids,
@@ -976,6 +987,17 @@ mod tests {
             roster_player_ids: (1..=10).collect(),
             history_player_ids: BTreeSet::from([3, 4, 5, 6, 7, 8]),
             unresolved_player_ids: BTreeSet::from([9, 10]),
+        }
+    }
+
+    #[test]
+    fn every_stored_population_is_authoritative_roster_evidence() {
+        for table in [
+            "FROM match_players",
+            "FROM casual_match_players",
+            "FROM special_match_players",
+        ] {
+            assert!(PARTICIPANT_IDS_SQL.contains(table));
         }
     }
 
@@ -1120,7 +1142,7 @@ mod tests {
             .register_discovery(&MatchDiscovery {
                 match_id: ranked_lookup_id,
                 queue_id: Some(486),
-                source: MatchDiscoverySource::RankedHourly,
+                source: MatchDiscoverySource::HourlyDiscovery,
             })
             .await
             .expect("ranked hourly rediscovery");
@@ -1183,7 +1205,7 @@ mod tests {
             .register_discovery(&MatchDiscovery {
                 match_id: casual_lookup_id,
                 queue_id: Some(424),
-                source: MatchDiscoverySource::NonrankedHourly,
+                source: MatchDiscoverySource::HourlyDiscovery,
             })
             .await
             .expect("casual hourly rediscovery");

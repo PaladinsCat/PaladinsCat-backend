@@ -1,7 +1,6 @@
 use time::OffsetDateTime;
 
 const GAP_CHECK_MINUTES: &[u8] = &[5, 15, 25, 40, 50];
-const NONRANKED_ACQUISITION_MINUTES: &[u8] = &[0, 10, 20, 40, 50];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MinuteSchedule {
@@ -60,7 +59,7 @@ impl ScheduledJob {
     }
 }
 
-pub const SCHEDULED_JOBS: [ScheduledJob; 15] = [
+pub const SCHEDULED_JOBS: [ScheduledJob; 14] = [
     ScheduledJob {
         job_key: "ranked-tracker:leaderboard",
         scheduler_key: "ranked_tracker",
@@ -84,14 +83,6 @@ pub const SCHEDULED_JOBS: [ScheduledJob; 15] = [
         minute: MinuteSchedule::Every(5),
         hour: HourSchedule::Any,
         startup: StartupPolicy::Always { delay_seconds: 15 },
-    },
-    ScheduledJob {
-        job_key: "auto-ingester:nonranked-acquisition",
-        scheduler_key: "auto_ingester",
-        cron_expression: "0,10,20,40,50 * * * *",
-        minute: MinuteSchedule::OneOf(NONRANKED_ACQUISITION_MINUTES),
-        hour: HourSchedule::Any,
-        startup: StartupPolicy::None,
     },
     ScheduledJob {
         job_key: "auto-ingester:raw-buffer-retention",
@@ -217,7 +208,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(domains, SCHEDULER_KEYS.into_iter().collect());
         assert_eq!(jobs.len(), SCHEDULED_JOBS.len());
-        assert_eq!(scheduled_jobs_for("auto_ingester").count(), 9);
+        assert_eq!(scheduled_jobs_for("auto_ingester").count(), 8);
     }
 
     #[test]
@@ -237,8 +228,6 @@ mod tests {
         assert!(due(12, 17).contains("auto-ingester:raw-buffer-retention"));
         assert!(due(12, 23).contains("auto-ingester:player-history-retention"));
         assert!(due(12, 25).contains("auto-ingester:buffer-drain"));
-        assert!(due(12, 20).contains("auto-ingester:nonranked-acquisition"));
-        assert!(!due(12, 30).contains("auto-ingester:nonranked-acquisition"));
         assert!(due(12, 50).contains("auto-ingester:profile-enrichment"));
         assert!(due(12, 40).contains("hourly-gap-checker:scan"));
         assert!(due(12, 15).contains("tier-stats:refresh"));

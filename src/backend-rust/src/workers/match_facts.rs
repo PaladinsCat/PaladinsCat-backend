@@ -431,7 +431,6 @@ impl MatchFactRepository {
                 ],
             )
             .await?;
-        close_hourly_match_debt(&transaction, payload.match_id).await?;
         transaction.commit().await?;
 
         Ok(MatchFactFinalization {
@@ -1633,28 +1632,6 @@ async fn add_stage(
             WHERE match_id=$1
             "#,
             &[&match_id, &stage],
-        )
-        .await?;
-    Ok(())
-}
-
-async fn close_hourly_match_debt(
-    transaction: &Transaction<'_>,
-    match_id: i64,
-) -> Result<(), MatchFactError> {
-    transaction
-        .execute(
-            r#"
-            UPDATE hourly_ingest_match_debt
-            SET status='complete',
-                reason='canonical match facts durable',
-                completed_at=COALESCE(completed_at,now()),
-                next_retry_at=NULL,
-                updated_at=now()
-            WHERE match_id=$1
-              AND status<>'unrecoverable'
-            "#,
-            &[&match_id],
         )
         .await?;
     Ok(())

@@ -99,10 +99,6 @@ async fn process_raw_buffer_batch_inner(
         .and_then(|value| value.parse().ok())
         .unwrap_or(100);
     let headroom = api_headroom_snapshot(database, reserve).await?;
-    requeue_recent_hourly_count_failures(database).await?;
-    if !headroom.has_usable_keys {
-        requeue_recent_quota_paused_rows(database).await?;
-    }
     if let Some(relay) = relay {
         if let Err(error) = relay
             .call_value(
@@ -1076,22 +1072,6 @@ async fn return_claims_to_pending(
     Ok(())
 }
 
-async fn requeue_recent_quota_paused_rows(database: &Database) -> Result<(), DatabaseError> {
-    database.query_json(
-        "UPDATE raw_ingest_buffer rib SET status='pending',retry_count=0,error_message='quota pause: recovery-required match retained pending',processed_at=NULL WHERE rib.status='failed' AND rib.entity_type='match' AND rib.endpoint='getmatchdetailsbatch' AND rib.created_at>=now()-INTERVAL '6 hours' AND jsonb_typeof(rib.raw_data)='array' AND (EXISTS(SELECT 1 FROM jsonb_array_elements(rib.raw_data) player WHERE btrim(COALESCE(player->>'ret_msg',''))<>'') OR (SELECT count(*) FROM jsonb_array_elements(rib.raw_data) player WHERE btrim(COALESCE(player->>'ret_msg',''))='')<10) AND EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.match_id::TEXT=rib.entity_id AND debt.status IN('pending','staged'))",
-        &[],
-    ).await?;
-    Ok(())
-}
-
-async fn requeue_recent_hourly_count_failures(database: &Database) -> Result<(), DatabaseError> {
-    database.query_json(
-        "UPDATE raw_ingest_buffer rib SET status='pending',retry_count=0,error_message='requeued after hourly-count finalizer repair',processed_at=NULL,available_at=now() WHERE rib.status='failed' AND rib.entity_type='match' AND rib.endpoint='getmatchdetailsbatch' AND rib.created_at>=now()-INTERVAL '6 hours' AND (rib.error_message LIKE 'invalid canonical match payload: upsert_hourly_count: unparseable entry_datetime %' OR rib.error_message='error serializing parameter 0') AND EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.match_id::TEXT=rib.entity_id AND debt.status IN('pending','staged'))",
-        &[],
-    ).await?;
-    Ok(())
-}
-
 fn integer(value: &Value, key: &str) -> Option<i64> {
     value
         .get(key)
@@ -1192,33 +1172,6 @@ mod tests {
                 && projection_repair < claim
         );
         assert!(body.contains("let Err(error)"));
-    }
-
-    #[test]
-    fn hourly_count_failures_requeue_before_claim_without_relay_headroom() {
-        let source = include_str!("raw_buffer.rs");
-        let body = source
-            .split_once("async fn process_raw_buffer_batch_inner")
-            .expect("batch implementation")
-            .1
-            .split_once("fn merge_batch_result")
-            .expect("batch implementation end")
-            .0;
-        assert!(
-            body.find("requeue_recent_hourly_count_failures")
-                < body.find("if !headroom.has_usable_keys")
-        );
-        let repair = source
-            .split_once("async fn requeue_recent_hourly_count_failures")
-            .expect("hourly count repair")
-            .1
-            .split_once("fn integer")
-            .expect("hourly count repair end")
-            .0;
-        assert!(repair.contains("upsert_hourly_count: unparseable entry_datetime %"));
-        assert!(repair.contains("error serializing parameter 0"));
-        assert!(repair.contains("debt.status IN('pending','staged')"));
-        assert!(repair.contains("status='pending',retry_count=0"));
     }
 
     #[tokio::test]

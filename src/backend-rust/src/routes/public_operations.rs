@@ -87,37 +87,7 @@ async fn public_stats(
         "SELECT \
            COUNT(*)::INT AS total_matches, \
            COUNT(*) FILTER (WHERE broken IS NOT TRUE AND recovered IS NOT TRUE)::INT AS direct_matches, \
-           COUNT(*) FILTER (WHERE recovered IS TRUE)::INT AS recovered_matches, \
-           ( \
-             SELECT COUNT(*)::INT \
-             FROM nonranked_match_acquisition acquisition \
-             WHERE acquisition.status IN ('discovered', 'waiting_for_completion', 'fetching') \
-               AND acquisition.source_date + acquisition.source_hour * interval '1 hour' \
-                     >= (now() AT TIME ZONE 'UTC') - interval '24 hours' \
-           ) AS nonranked_open_24h, \
-           ( \
-             SELECT COUNT(*)::INT \
-             FROM nonranked_match_acquisition acquisition \
-             WHERE acquisition.status = 'waiting_for_completion' \
-               AND acquisition.source_date + acquisition.source_hour * interval '1 hour' \
-                     >= (now() AT TIME ZONE 'UTC') - interval '24 hours' \
-           ) AS nonranked_waiting_for_completion_24h, \
-           ( \
-             SELECT COUNT(*)::INT \
-             FROM nonranked_match_acquisition acquisition \
-             WHERE acquisition.status IN ('discovered', 'waiting_for_completion', 'fetching') \
-               AND acquisition.source_date + acquisition.source_hour * interval '1 hour' \
-                     < (now() AT TIME ZONE 'UTC') - interval '24 hours' \
-           ) AS nonranked_historical_open, \
-           ( \
-             SELECT MIN(acquisition.source_date + acquisition.source_hour * interval '1 hour') \
-             FROM nonranked_match_acquisition acquisition \
-             WHERE acquisition.status IN ('discovered', 'waiting_for_completion', 'fetching') \
-           ) AS nonranked_oldest_open_hour, \
-           ( \
-             SELECT MAX(acquisition.completed_at) \
-             FROM nonranked_match_acquisition acquisition \
-           ) AS nonranked_last_completed_at \
+           COUNT(*) FILTER (WHERE recovered IS TRUE)::INT AS recovered_matches \
          FROM matches \
          WHERE entry_datetime >= now() - INTERVAL '24 hours'",
         &[],

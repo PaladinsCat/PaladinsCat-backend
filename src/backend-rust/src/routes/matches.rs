@@ -24,6 +24,7 @@ use crate::{
     route_cache::{RouteCache, cached_database_value, now_millis},
     routes::live::{request_identity, resolve_player_live_match, vendor_guard},
     workers::{
+        pipeline::CanonicalIngestPipeline,
         relay::WorkerRelayClient,
         requested_match::{RequestedMatchIngestor, RequestedMatchStatus},
     },
@@ -64,6 +65,7 @@ struct MatchesState {
     route_cache: RouteCache,
     relay: Option<WorkerRelayClient>,
     requested_match: Option<RequestedMatchIngestor>,
+    canonical_ingest: Option<CanonicalIngestPipeline>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -100,6 +102,7 @@ pub fn router(
     config: Arc<BackendConfig>,
 ) -> Router {
     let relay = WorkerRelayClient::new(&config).ok();
+    let canonical_ingest = CanonicalIngestPipeline::new(database.clone(), &config).ok();
     let requested_match = relay.clone().map(|relay| {
         RequestedMatchIngestor::new(
             database.clone(),
@@ -138,6 +141,7 @@ pub fn router(
             route_cache,
             relay,
             requested_match,
+            canonical_ingest,
         })
 }
 
@@ -1241,7 +1245,7 @@ async fn pull(
     discover_window(
         &state,
         &request_id,
-        queue_id.unwrap_or(0),
+        i32::try_from(queue_id.unwrap_or(0)).unwrap_or_default(),
         &date,
         hour,
         false,
@@ -1249,6 +1253,8 @@ async fn pull(
     .await
 }
 
+/// Purpose: validate an authenticated operator discovery request. Input: route
+/// state, request ID, and JSON body. Output: canonical ingest response or error.
 async fn discover(
     State(state): State<MatchesState>,
     Extension(request_id): Extension<RequestId>,
@@ -1278,91 +1284,37 @@ async fn discover(
     if date.len() != 8 {
         return Err(ApiError::validation("Invalid date format. Use YYYYMMDD."));
     }
+    let queue_id = i32::try_from(queue_id)
+        .map_err(|_| ApiError::validation("queueId exceeds the supported integer range"))?;
     discover_window(&state, &request_id, queue_id, &date, hour, body.force).await
 }
 
+/// Purpose: adapt the operator HTTP contract to the shared pipeline object.
+/// Input: typed queue/date/hour and compatibility force flag. Output: only
+/// after discovery, DB-first filtering, fact finalization, and projection end.
 async fn discover_window(
     state: &MatchesState,
     request_id: &RequestId,
-    queue_id: i64,
+    queue_id: i32,
     date: &str,
     hour: i32,
-    force: bool,
+    _force: bool,
 ) -> Result<Response, ApiError> {
     let db_date = format!("{}-{}-{}", &date[..4], &date[4..6], &date[6..8]);
-    if !force
-        && let Some(existing) = state.database.one_json_params(
-            "SELECT * FROM hourly_match_counts WHERE date=$1::text::date AND hour=$2 AND queue_id=$3 AND total_matches>0",
-            &[QueryParam::Text(db_date.clone()),QueryParam::Int32(hour),QueryParam::Int32(i32::try_from(queue_id).unwrap_or_default())],
-        ).await.map_err(|error| ApiError::database(error,request_id))?
-    {
-        return Ok((StatusCode::OK,Json(json!({"message":"Already ingested","existing":existing}))).into_response());
-    }
-    let relay = state
-        .relay
+    let pipeline = state
+        .canonical_ingest
         .as_ref()
         .ok_or_else(|| ApiError::internal(request_id))?;
-    let ids = relay
-        .call_value(
-            "getMatchIdsByQueue",
-            vec![json!(queue_id), json!(date), json!(hour)],
-            "rust_matches_discover",
-        )
+    let result = pipeline
+        .discover_hour(queue_id, &db_date, hour, "operator-match-discover")
         .await
         .map_err(|error| {
-            tracing::error!(%error,"matches discovery relay call failed");
+            tracing::error!(%error, queue_id, date=%db_date, hour, "canonical match discovery failed");
             ApiError::internal(request_id)
         })?;
-    let match_ids = ids
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|entry| {
-            entry
-                .get("Match")
-                .or_else(|| entry.get("match_id"))
-                .and_then(json_i64)
-        })
-        .filter(|id| *id > 0)
-        .collect::<Vec<_>>();
-    if match_ids.is_empty() {
-        return Ok((
-            StatusCode::OK,
-            Json(json!({"message":"Queued 0 matches for ingestion","count":0})),
-        )
-            .into_response());
-    }
-    let details = relay
-        .call_value(
-            "getMatchDetailsBatchRaw",
-            vec![json!(match_ids)],
-            "rust_matches_discover",
-        )
-        .await
-        .map_err(|error| {
-            tracing::error!(%error,"matches discovery detail relay call failed");
-            ApiError::internal(request_id)
-        })?;
-    let raw_count = details.as_array().map_or(0, Vec::len);
-    state
-        .database
-        .query_json_params(
-            "INSERT INTO raw_ingest_buffer(raw_data,status,endpoint,entity_type,entity_id) \
-         SELECT entry,'pending','getmatchdetailsbatch','match', \
-           COALESCE(entry->>'Match',entry->>'match_id',entry->>'match') \
-         FROM jsonb_array_elements($1::jsonb) entry \
-         WHERE COALESCE(entry->>'Match',entry->>'match_id',entry->>'match') IS NOT NULL \
-         ON CONFLICT DO NOTHING RETURNING entity_id",
-            &[QueryParam::Text(details.to_string())],
-        )
-        .await
-        .map_err(|error| ApiError::database(error, request_id))?;
     Ok((
         StatusCode::OK,
-        Json(json!({
-            "message":format!("Queued {raw_count} matches for ingestion"),"count":raw_count
-        })),
+        Json(json!({"message":"Discovery and canonical ingestion completed","result":result})),
     )
         .into_response())
 }
@@ -2796,6 +2748,21 @@ mod tests {
         normalize_match_queue_metadata(&mut row);
         assert_eq!(row["is_custom"], true);
         assert_eq!(row["queue_name"], "Custom Match");
+    }
+
+    #[test]
+    fn operator_discovery_uses_the_canonical_pipeline_without_raw_staging() {
+        let source = include_str!("matches.rs");
+        let route = source
+            .split("async fn discover_window")
+            .nth(1)
+            .expect("operator discovery")
+            .split("async fn fact")
+            .next()
+            .expect("operator discovery body");
+        assert!(route.contains(".discover_hour("));
+        assert!(!route.contains("raw_ingest_buffer"));
+        assert!(!route.contains("getMatchDetailsBatchRaw"));
     }
 
     #[test]

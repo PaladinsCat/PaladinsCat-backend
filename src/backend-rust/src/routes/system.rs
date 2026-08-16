@@ -209,10 +209,7 @@ async fn hirez_status(
         Vec::new()
     };
     let mut signal_rows = Vec::new();
-    for (table, message_column) in [
-        ("hourly_ingest_match_debt", "reason"),
-        ("hourly_ingest_state", "error_message"),
-    ] {
+    for (table, message_column) in [("hourly_ingest_state", "error_message")] {
         if table_exists(&state.database, table, &request_id).await? {
             let mut rows = state
                 .database
@@ -243,26 +240,7 @@ async fn hirez_status(
         })
         .take(10)
         .collect::<Vec<_>>();
-    let debt = if table_exists(&state.database, "hourly_ingest_match_debt", &request_id).await? {
-        state
-            .database
-            .one_json(
-                "SELECT COUNT(*) FILTER(WHERE status='pending' AND COALESCE(reason,'') ILIKE '%vendor detail service outage%')::bigint AS pending_vendor_debt, \
-                   COUNT(*) FILTER(WHERE status='pending' AND COALESCE(reason,'') ILIKE '%vendor detail service outage%' AND(next_retry_at IS NULL OR next_retry_at<=now()))::bigint AS due_vendor_debt, \
-                   COUNT(DISTINCT(date::text||':'||hour::text)) FILTER(WHERE status='pending' AND COALESCE(reason,'') ILIKE '%vendor detail service outage%')::bigint AS affected_hours, \
-                   (MIN(next_retry_at) FILTER(WHERE status='pending' AND COALESCE(reason,'') ILIKE '%vendor detail service outage%'))::text AS next_retry_at \
-                 FROM hourly_ingest_match_debt",
-                &[],
-            )
-            .await
-            .map_err(|error| ApiError::database(error, &request_id))?
-            .unwrap_or_else(|| json!({}))
-    } else {
-        json!({})
-    };
-    let pending = as_i64(debt.get("pending_vendor_debt")).unwrap_or(0);
-    let due = as_i64(debt.get("due_vendor_debt")).unwrap_or(0);
-    let mut outages = active
+    let outages = active
         .into_iter()
         .map(|row| {
             let service = row
@@ -294,15 +272,6 @@ async fn hirez_status(
             })
         })
         .collect::<Vec<_>>();
-    if pending > 0 && outages.is_empty() {
-        outages.push(json!({
-            "serviceKey":"match_detail_server_regions","status":"active","title":"Hi-Rez match detail outage",
-            "severity":"critical","message":"Hi-Rez match detail endpoints are currently blocked. PaladinsCat is preserving exact match debt and probing safely.",
-            "reason":"pending vendor detail service outage debt","firstDetectedAt":null,"lastDetectedAt":null,
-            "nextProbeAt":debt.get("next_retry_at").cloned().unwrap_or(Value::Null),"probeDue":due>0,
-            "probeCount":0,"updatedAt":null
-        }));
-    }
     let outage = outages
         .iter()
         .any(|row| row.get("severity").and_then(Value::as_str) == Some("critical"));
@@ -328,9 +297,9 @@ async fn hirez_status(
         StatusCode::OK,
         json!({
             "status":status,"outage":outage,"degraded":status=="degraded","message":message,
-            "activeOutages":outages,"recentSignals":recent,"pendingVendorDebt":pending,
-            "dueVendorDebt":due,"affectedHours":as_i64(debt.get("affected_hours")).unwrap_or(0),
-            "nextDebtRetryAt":debt.get("next_retry_at").cloned().unwrap_or(Value::Null),
+            "activeOutages":outages,"recentSignals":recent,"pendingVendorDebt":0,
+            "dueVendorDebt":0,"affectedHours":0,"nextDebtRetryAt":null,
+            "recoveryModel":"immediate_queue_hour",
             "signalLookbackMinutes":lookback,
             "timestamp":OffsetDateTime::now_utc().format(&Rfc3339).ok()
         }),

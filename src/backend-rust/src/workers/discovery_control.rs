@@ -1,12 +1,8 @@
-use std::collections::BTreeSet;
-
 use paladinscat_core::database::{Database, DatabaseError};
 use serde::Serialize;
 use serde_json::Value;
 
-const FETCH_LEASE_MINUTES: i32 = 30;
-const STAGED_LEASE_MINUTES: i32 = 60;
-const FAILED_RETRY_MINUTES: i32 = 30;
+const FETCH_LEASE_MINUTES: i32 = 5;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HourlyIngestState {
@@ -27,6 +23,8 @@ pub struct HourlyIngestState {
     pub completed_at: Option<String>,
 }
 
+/// Purpose: ensure the single queue-hour ownership ledger exists. Input:
+/// database handle. Output: ready schema or typed database error; no work item.
 pub async fn ensure_hourly_ingest_tables(database: &Database) -> Result<(), DatabaseError> {
     database.query_json(
         "CREATE TABLE IF NOT EXISTS hourly_ingest_state(\
@@ -41,46 +39,18 @@ pub async fn ensure_hourly_ingest_tables(database: &Database) -> Result<(), Data
     ).await?;
     database.query_json("CREATE INDEX IF NOT EXISTS idx_his_status_retry ON hourly_ingest_state(status,next_retry_at,lease_until)", &[]).await?;
     database.query_json("CREATE INDEX IF NOT EXISTS idx_his_queue_window ON hourly_ingest_state(queue_id,date,hour)", &[]).await?;
-    database.query_json(
-        "CREATE TABLE IF NOT EXISTS hourly_ingest_match_debt(\
-          match_id BIGINT PRIMARY KEY,date DATE NOT NULL,hour INT NOT NULL CHECK(hour>=0 AND hour<=23),queue_id INT NOT NULL,\
-          status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK(status IN('pending','staged','complete','unrecoverable')),\
-          reason TEXT,attempts INT NOT NULL DEFAULT 0,first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),last_attempt_at TIMESTAMPTZ,\
-          next_retry_at TIMESTAMPTZ,staged_at TIMESTAMPTZ,completed_at TIMESTAMPTZ,updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
-        &[],
-    ).await?;
-    database.query_json("CREATE INDEX IF NOT EXISTS idx_himd_queue_window_status ON hourly_ingest_match_debt(queue_id,date,hour,status)", &[]).await?;
-    database.query_json("CREATE INDEX IF NOT EXISTS idx_himd_pending_retry ON hourly_ingest_match_debt(status,next_retry_at,updated_at) WHERE status='pending'", &[]).await?;
     Ok(())
 }
 
-pub async fn record_hourly_ingest_quota_wait(
-    database: &Database,
-    date: &str,
-    hour: i32,
-    queue_id: i32,
-    source: &str,
-    reason: &str,
-) -> Result<(), DatabaseError> {
-    ensure_hourly_ingest_tables(database).await?;
-    let retry = env_i32("HOURLY_INGEST_QUOTA_WAIT_RETRY_MINUTES", 15).max(5);
-    database.query_json(
-        "INSERT INTO hourly_ingest_state(date,hour,queue_id,status,attempts,raw_match_count,staged_match_count,\
-         fetched,fetch_succeeded,source,error_message,last_attempt_at,next_retry_at,lease_until,updated_at)\
-         VALUES($1::TEXT::DATE,$2,$3,'pending',0,0,0,FALSE,FALSE,$4,$5,NULL,now()+($6::INT*INTERVAL '1 minute'),NULL,now())\
-         ON CONFLICT(date,hour,queue_id) DO NOTHING",
-        &[&date, &hour, &queue_id, &source, &reason, &retry],
-    ).await?;
-    Ok(())
-}
-
+/// Purpose: acquire exclusive execution for one queue-hour. Input: database,
+/// UTC date/hour, queue ID, audit source. Output: `true` only for the owner that
+/// must execute now; failed hours have no cooldown and completed hours stay final.
 pub async fn claim_hourly_ingest_hour(
     database: &Database,
     date: &str,
     hour: i32,
     queue_id: i32,
     source: &str,
-    allow_due_debt_retry: bool,
 ) -> Result<bool, DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
     let rows = database.query_json(
@@ -89,28 +59,45 @@ pub async fn claim_hourly_ingest_hour(
          ON CONFLICT(date,hour,queue_id) DO UPDATE SET status='fetching',attempts=hourly_ingest_state.attempts+1,\
          fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
          lease_until=now()+($5::INT*INTERVAL '1 minute'),updated_at=now() WHERE \
-         (hourly_ingest_state.status IN('pending','failed') AND (hourly_ingest_state.next_retry_at IS NULL OR hourly_ingest_state.next_retry_at<=now())) OR \
-         (hourly_ingest_state.status IN('fetching','staged') AND (hourly_ingest_state.lease_until IS NULL OR hourly_ingest_state.lease_until<=now())) OR \
-         (hourly_ingest_state.status='empty' AND (hourly_ingest_state.next_retry_at IS NULL OR hourly_ingest_state.next_retry_at<=now())) OR \
-         ($6 AND hourly_ingest_state.status IN('pending','failed','staged','complete')) RETURNING date",
-        &[&date, &hour, &queue_id, &source, &FETCH_LEASE_MINUTES, &allow_due_debt_retry],
+         hourly_ingest_state.status IN('pending','failed') OR \
+         (hourly_ingest_state.status IN('fetching','staged') AND (hourly_ingest_state.lease_until IS NULL OR hourly_ingest_state.lease_until<=now())) RETURNING date",
+        &[&date, &hour, &queue_id, &source, &FETCH_LEASE_MINUTES],
     ).await?;
     Ok(!rows.is_empty())
 }
 
+/// Purpose: preserve exclusive queue-hour ownership while its complete ID set
+/// is actively draining. Input: database and queue-hour key. Output: updated
+/// lease row count; this creates no pending state, retry delay, or new work.
+pub async fn refresh_hourly_ingest_lease(
+    database: &Database,
+    date: &str,
+    hour: i32,
+    queue_id: i32,
+) -> Result<(), DatabaseError> {
+    database
+        .query_json(
+            "UPDATE hourly_ingest_state SET lease_until=now()+($4::INT*INTERVAL '1 minute'),updated_at=now() \
+             WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 AND status='fetching'",
+            &[&date, &hour, &queue_id, &FETCH_LEASE_MINUTES],
+        )
+        .await?;
+    Ok(())
+}
+
+/// Purpose: close an authoritative discovery that returned zero IDs. Input:
+/// database and queue-hour key. Output: durable empty completion, never a retry.
 pub async fn mark_hourly_ingest_empty(
     database: &Database,
     date: &str,
     hour: i32,
     queue_id: i32,
 ) -> Result<(), DatabaseError> {
-    let fast = 360_i32;
-    let slow = 1_440_i32;
     database.query_json(
         "UPDATE hourly_ingest_state SET status='empty',raw_match_count=0,staged_match_count=0,fetched=TRUE,\
-         fetch_succeeded=TRUE,error_message=NULL,lease_until=NULL,next_retry_at=now()+(CASE WHEN attempts>=3 THEN $4::INT ELSE $5::INT END*INTERVAL '1 minute'),updated_at=now()\
+         fetch_succeeded=TRUE,error_message=NULL,lease_until=NULL,next_retry_at=NULL,completed_at=now(),updated_at=now()\
          WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
-        &[&date, &hour, &queue_id, &slow, &fast],
+        &[&date, &hour, &queue_id],
     ).await?;
     database.query_json(
         "INSERT INTO hourly_match_counts(date,hour,queue_id,total_matches,fetched_at) VALUES($1::TEXT::DATE,$2,$3,0,now())\
@@ -120,24 +107,8 @@ pub async fn mark_hourly_ingest_empty(
     Ok(())
 }
 
-pub async fn mark_hourly_ingest_staged(
-    database: &Database,
-    date: &str,
-    hour: i32,
-    queue_id: i32,
-    raw_count: i32,
-    staged_count: i32,
-) -> Result<(), DatabaseError> {
-    database.query_json(
-        "UPDATE hourly_ingest_state SET status='staged',raw_match_count=GREATEST(raw_match_count,$4),\
-         staged_match_count=GREATEST(staged_match_count,$5),fetched=TRUE,fetch_succeeded=TRUE,error_message=NULL,\
-         lease_until=now()+($6::INT*INTERVAL '1 minute'),next_retry_at=NULL,updated_at=now() \
-         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
-        &[&date, &hour, &queue_id, &raw_count, &staged_count, &STAGED_LEASE_MINUTES],
-    ).await?;
-    Ok(())
-}
-
+/// Purpose: close an hour after every discovered ID is durable. Input: database,
+/// queue-hour key and total ID count. Output: completed state with no handoff.
 pub async fn mark_hourly_ingest_complete(
     database: &Database,
     date: &str,
@@ -147,37 +118,18 @@ pub async fn mark_hourly_ingest_complete(
 ) -> Result<(), DatabaseError> {
     ensure_hourly_ingest_tables(database).await?;
     database.query_json(
-        "WITH terminal_debt AS(SELECT count(*)::INT terminal_count FROM hourly_ingest_match_debt \
-         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 AND status='unrecoverable')\
-         UPDATE hourly_ingest_state SET status='complete',raw_match_count=GREATEST(raw_match_count,$4),\
-         staged_match_count=GREATEST(staged_match_count,LEAST(GREATEST(raw_match_count,$4),$4+terminal_debt.terminal_count)),\
-         fetched=TRUE,fetch_succeeded=TRUE,error_message=NULL,lease_until=NULL,next_retry_at=NULL,completed_at=now(),updated_at=now()\
-         FROM terminal_debt WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 \
-         AND (raw_match_count=0 OR $4>=raw_match_count OR $4+terminal_debt.terminal_count>=raw_match_count OR status='complete')\
-         AND NOT EXISTS(SELECT 1 FROM hourly_ingest_match_debt debt WHERE debt.date=$1::TEXT::DATE AND debt.hour=$2 \
-           AND debt.queue_id=$3 AND debt.status IN('pending','staged'))",
-        &[&date, &hour, &queue_id, &total_matches],
-    ).await?;
-    Ok(())
-}
-
-pub async fn mark_presence_ingest_complete(
-    database: &Database,
-    date: &str,
-    hour: i32,
-    queue_id: i32,
-    total_matches: i32,
-) -> Result<(), DatabaseError> {
-    database.query_json(
         "UPDATE hourly_ingest_state SET status='complete',raw_match_count=GREATEST(raw_match_count,$4),\
-         staged_match_count=GREATEST(staged_match_count,$4),fetched=TRUE,fetch_succeeded=TRUE,error_message=NULL,\
-         lease_until=NULL,next_retry_at=NULL,completed_at=now(),updated_at=now() \
+         staged_match_count=GREATEST(staged_match_count,$4),fetched=TRUE,fetch_succeeded=TRUE,\
+         error_message=NULL,lease_until=NULL,next_retry_at=NULL,completed_at=now(),updated_at=now()\
          WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id, &total_matches],
     ).await?;
     Ok(())
 }
 
+/// Purpose: expose an immediate pipeline failure for the same hour to reclaim.
+/// Input: queue-hour key, message, optional observed/durable counts. Output:
+/// failed state with no cooldown timestamp or separate match-ID ledger.
 pub async fn mark_hourly_ingest_failed(
     database: &Database,
     date: &str,
@@ -187,22 +139,18 @@ pub async fn mark_hourly_ingest_failed(
     raw_count: Option<i32>,
     staged_count: Option<i32>,
 ) -> Result<(), DatabaseError> {
-    let budget_retry = env_i32("HOURLY_INGEST_BUDGET_RETRY_MINUTES", 60).max(FAILED_RETRY_MINUTES);
-    let retry = if RegexLike::budget(message) {
-        budget_retry
-    } else {
-        FAILED_RETRY_MINUTES
-    };
     database.query_json(
-        "UPDATE hourly_ingest_state SET status='failed',raw_match_count=GREATEST(raw_match_count,COALESCE($6,raw_match_count)),\
-         staged_match_count=GREATEST(staged_match_count,COALESCE($7,staged_match_count)),fetched=TRUE,fetch_succeeded=FALSE,\
-         error_message=$4,lease_until=NULL,next_retry_at=now()+($5::INT*INTERVAL '1 minute'),updated_at=now()\
+        "UPDATE hourly_ingest_state SET status='failed',raw_match_count=GREATEST(raw_match_count,COALESCE($5,raw_match_count)),\
+         staged_match_count=GREATEST(staged_match_count,COALESCE($6,staged_match_count)),fetched=TRUE,fetch_succeeded=FALSE,\
+         error_message=$4,lease_until=NULL,next_retry_at=NULL,updated_at=now()\
          WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
-        &[&date, &hour, &queue_id, &message, &retry, &raw_count, &staged_count],
+        &[&date, &hour, &queue_id, &message, &raw_count, &staged_count],
     ).await?;
     Ok(())
 }
 
+/// Purpose: read queue-hour state for operations and gap calculation. Input:
+/// queue and inclusive date range. Output: typed state rows from PostgreSQL.
 pub async fn hourly_ingest_states(
     database: &Database,
     queue_id: i32,
@@ -218,289 +166,8 @@ pub async fn hourly_ingest_states(
     ).await?.into_iter().map(map_state).collect())
 }
 
-pub async fn record_discovered_matches(
-    database: &Database,
-    date: &str,
-    hour: i32,
-    queue_id: i32,
-    match_ids: &[i64],
-    reason: &str,
-) -> Result<(), DatabaseError> {
-    let ids = normalized_ids(match_ids);
-    if ids.is_empty() {
-        return Ok(());
-    }
-    ensure_hourly_ingest_tables(database).await?;
-    database.query_json(
-        "INSERT INTO hourly_ingest_match_debt(match_id,date,hour,queue_id,status,reason,attempts,first_seen_at,last_attempt_at,next_retry_at,updated_at)\
-         SELECT id,$1::TEXT::DATE,$2,$3,'pending',$5,0,now(),NULL,NULL,now() FROM unnest($4::BIGINT[]) ids(id)\
-         ON CONFLICT(match_id) DO NOTHING",
-        &[&date, &hour, &queue_id, &ids, &reason],
-    ).await?;
-    Ok(())
-}
-
-pub async fn mark_match_debt_staged_or_complete(
-    database: &Database,
-    match_ids: &[i64],
-    reason: &str,
-) -> Result<(), DatabaseError> {
-    let ids = normalized_ids(match_ids);
-    if ids.is_empty() {
-        return Ok(());
-    }
-    ensure_hourly_ingest_tables(database).await?;
-    database
-        .query_json(
-            "WITH ids AS(SELECT id::BIGINT match_id FROM unnest($1::BIGINT[]) ids(id)),\
-             complete_ids AS(\
-               SELECT mis.match_id FROM match_ingest_status mis \
-               WHERE mis.match_id=ANY($1::BIGINT[]) AND(mis.status IN('complete','limited') OR mis.acquisition_state='facts_ready')\
-             ) UPDATE hourly_ingest_match_debt debt SET \
-               status=CASE WHEN complete_ids.match_id IS NULL THEN 'staged' ELSE 'complete' END,\
-               reason=$2,staged_at=CASE WHEN complete_ids.match_id IS NULL THEN COALESCE(debt.staged_at,now()) ELSE debt.staged_at END,\
-               completed_at=CASE WHEN complete_ids.match_id IS NOT NULL THEN COALESCE(debt.completed_at,now()) ELSE debt.completed_at END,\
-               next_retry_at=NULL,updated_at=now() FROM ids LEFT JOIN complete_ids USING(match_id) \
-             WHERE debt.match_id=ids.match_id AND debt.status NOT IN('complete','unrecoverable')",
-            &[&ids, &reason],
-        )
-        .await?;
-    Ok(())
-}
-
-pub async fn mark_match_debt_complete(
-    database: &Database,
-    match_id: i64,
-) -> Result<(), DatabaseError> {
-    if match_id <= 0 {
-        return Ok(());
-    }
-    ensure_hourly_ingest_tables(database).await?;
-    database.query_json(
-        "UPDATE hourly_ingest_match_debt SET status='complete',reason='match facts durable and readable',\
-         completed_at=COALESCE(completed_at,now()),next_retry_at=NULL,updated_at=now() WHERE match_id=$1",
-        &[&match_id],
-    ).await?;
-    Ok(())
-}
-
-pub async fn mark_match_debt_retryable(
-    database: &Database,
-    match_id: i64,
-    reason: &str,
-    retry_minutes: Option<i32>,
-) -> Result<(), DatabaseError> {
-    if match_id <= 0 {
-        return Ok(());
-    }
-    let retry = retry_minutes
-        .unwrap_or_else(|| env_i32("HOURLY_INGEST_MATCH_DEBT_RETRY_MINUTES", 10).max(5));
-    // TS parity (markHourlyIngestMatchDebtPending): graduated backoff for
-    // "no authoritative payload" debt. Fresh debt retries quickly; once old
-    // and past the attempt threshold it settles into a slow retry to stop
-    // hammering the Hi-Rez API while preserving recoverability.
-    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 6).max(1);
-    let slow_after_attempts = env_i32("NO_AUTH_PAYLOAD_SLOW_RETRY_AFTER_ATTEMPTS", 5).max(1);
-    let slow_minutes = env_i32("NO_AUTH_PAYLOAD_SLOW_RETRY_MINUTES", 180).max(retry);
-    let fresh_minutes = env_i32("HOURLY_INGEST_NO_AUTH_FRESH_RETRY_MINUTES", 5).max(1);
-    // Only the two TS batch-only reasons are ever parked unrecoverable.
-    // "no authoritative payload" / non-authoritative / dropped-corrupt are
-    // NEVER parked — they stay retryable (slowly) exactly as TS does.
-    // TS reads both aliases: HOURLY_INGEST_BATCH_ONLY_NO_AUTHORITY_MAX_ATTEMPTS
-    // || HOURLY_INGEST_BATCH_ONLY_PROFILE_ONLY_MAX_ATTEMPTS || 2.
-    let max_attempts = std::env::var("HOURLY_INGEST_BATCH_ONLY_NO_AUTHORITY_MAX_ATTEMPTS")
-        .ok()
-        .and_then(|value| value.parse::<i32>().ok())
-        .or_else(|| {
-            std::env::var("HOURLY_INGEST_BATCH_ONLY_PROFILE_ONLY_MAX_ATTEMPTS")
-                .ok()
-                .and_then(|value| value.parse::<i32>().ok())
-        })
-        .unwrap_or(2)
-        .max(1);
-    let is_batch_only_no_authority = reason_implies_batch_only_no_authority(reason);
-    let is_no_authority = reason_implies_no_authority_payload(reason);
-    database.query_json(
-        "UPDATE hourly_ingest_match_debt SET \
-         status=CASE \
-           WHEN status='complete' THEN status \
-           WHEN status='unrecoverable' THEN status \
-           WHEN $4::BOOLEAN AND first_seen_at<now()-($5::INT*INTERVAL '1 hour') AND attempts+1>=$6::INT \
-             THEN 'unrecoverable' \
-           ELSE 'pending' END,\
-         reason=CASE WHEN status='complete' OR status='unrecoverable' THEN reason ELSE $2 END,\
-         attempts=attempts+1,last_attempt_at=now(),\
-         next_retry_at=CASE WHEN status='complete' THEN next_retry_at \
-           WHEN $4::BOOLEAN AND first_seen_at<now()-($5::INT*INTERVAL '1 hour') AND attempts+1>=$6::INT \
-             THEN NULL \
-           WHEN $7::BOOLEAN AND first_seen_at<now()-($5::INT*INTERVAL '1 hour') AND attempts+1>=$8::INT \
-             THEN now()+($9::INT*INTERVAL '1 minute') \
-           WHEN $7::BOOLEAN THEN now()+($10::INT*INTERVAL '1 minute') \
-           ELSE now()+($3::INT*INTERVAL '1 minute') END,updated_at=now() \
-         WHERE match_id=$1 AND status<>'unrecoverable'",
-        &[
-            &match_id,
-            &reason,
-            &retry,
-            &is_batch_only_no_authority,
-            &fresh_hours,
-            &max_attempts,
-            &is_no_authority,
-            &slow_after_attempts,
-            &slow_minutes,
-            &fresh_minutes,
-        ],
-    )
-    .await?;
-    Ok(())
-}
-
-fn reason_implies_batch_only_no_authority(reason: &str) -> bool {
-    let r = reason.to_ascii_lowercase();
-    // TS parks ONLY these two reasons as unrecoverable (via $MAX_ATTEMPTS fuse).
-    r.contains("batch-only profile-only") || r.contains("batch-only non-authoritative")
-}
-
-fn reason_implies_no_authority_payload(reason: &str) -> bool {
-    reason
-        .to_ascii_lowercase()
-        .contains("no authoritative payload")
-}
-
-pub async fn mark_match_debt_unrecoverable(
-    database: &Database,
-    match_ids: &[i64],
-    reason: &str,
-) -> Result<(), DatabaseError> {
-    let ids = normalized_ids(match_ids);
-    if ids.is_empty() {
-        return Ok(());
-    }
-    database.query_json(
-        "UPDATE hourly_ingest_match_debt SET status=CASE WHEN status='complete' THEN status ELSE 'unrecoverable' END,\
-         reason=CASE WHEN status='complete' THEN reason ELSE $2 END,next_retry_at=NULL,updated_at=now() \
-         WHERE match_id=ANY($1::BIGINT[]) AND status<>'complete'",
-        &[&ids, &reason],
-    ).await?;
-    Ok(())
-}
-
-pub async fn revive_retryable_match_debt(
-    database: &Database,
-    date: &str,
-    hour: i32,
-    queue_id: i32,
-) -> Result<usize, DatabaseError> {
-    ensure_hourly_ingest_tables(database).await?;
-    let rows = database
-        .query_json(
-            "UPDATE hourly_ingest_match_debt SET status='pending',\
-             reason='retryable revival: previous terminal classification did not prove api_no_data; '||COALESCE(reason,''),\
-             next_retry_at=now(),updated_at=now() WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 \
-             AND status='unrecoverable' AND COALESCE(reason,'') NOT ILIKE 'api_no_data:%' RETURNING match_id",
-            &[&date, &hour, &queue_id],
-        )
-        .await?;
-    Ok(rows.len())
-}
-
-pub async fn revive_fresh_no_authority_debt(
-    database: &Database,
-    queue_id: i32,
-    min_date: &str,
-    max_date: &str,
-) -> Result<Vec<(String, i32, i32)>, DatabaseError> {
-    ensure_hourly_ingest_tables(database).await?;
-    let fresh_hours = env_i32("NO_AUTH_PAYLOAD_FRESH_WINDOW_HOURS", 6).max(1);
-    Ok(database
-        .query_json(
-            "WITH revived AS(UPDATE hourly_ingest_match_debt SET status='pending',\
-             reason='fresh retryable revival: previous terminal classification did not prove api_no_data; '||COALESCE(reason,''),\
-             next_retry_at=now(),updated_at=now() WHERE queue_id=$1 AND date BETWEEN $2::TEXT::DATE AND $3::TEXT::DATE \
-             AND status='unrecoverable' AND first_seen_at>=now()-($4::INT*INTERVAL '1 hour') \
-             AND COALESCE(reason,'') NOT ILIKE 'api_no_data:%' \
-             AND (COALESCE(reason,'') ILIKE '%no authoritative payload%' OR COALESCE(reason,'') ILIKE 'dropped/corrupt:%') \
-             RETURNING date,hour) SELECT date::TEXT,hour,count(*)::INT revived FROM revived GROUP BY date,hour ORDER BY date,hour",
-            &[&queue_id, &min_date, &max_date, &fresh_hours],
-        )
-        .await?
-        .into_iter()
-        .filter_map(|row| {
-            Some((
-                text(&row, "date")?.to_owned(),
-                i32::try_from(integer(&row, "hour")?).ok()?,
-                i32::try_from(integer(&row, "revived")?).ok()?,
-            ))
-        })
-        .collect())
-}
-
-pub async fn revive_recent_ranked_pipeline_debt(
-    database: &Database,
-    lookback_hours: i32,
-) -> Result<usize, DatabaseError> {
-    ensure_hourly_ingest_tables(database).await?;
-    let rows = database
-        .query_json(
-            "WITH revived AS(UPDATE hourly_ingest_match_debt debt SET status='pending',\
-             reason='48h full ranked pipeline recovery: '||COALESCE(debt.reason,''),next_retry_at=now(),updated_at=now() \
-             FROM match_count_discoveries discovery LEFT JOIN match_ingest_status ingest ON ingest.match_id=discovery.match_id \
-             WHERE debt.match_id=discovery.match_id AND discovery.queue_id=486 \
-             AND discovery.source_date+(discovery.source_hour*INTERVAL '1 hour')>=now()-($1::INT*INTERVAL '1 hour') \
-             AND (ingest.match_id IS NULL OR NOT(COALESCE(ingest.completed_stages,'{}'::TEXT[]) \
-               @> ARRAY['player_facts','match_bans']::TEXT[])) \
-             AND debt.status IN('complete','staged','unrecoverable') RETURNING debt.match_id) \
-             SELECT count(*)::INT AS revived FROM revived",
-            &[&lookback_hours],
-        )
-        .await?;
-    Ok(rows
-        .first()
-        .and_then(|row| integer(row, "revived"))
-        .and_then(|value| usize::try_from(value).ok())
-        .unwrap_or_default())
-}
-
-pub async fn due_match_debt_ids(
-    database: &Database,
-    date: &str,
-    hour: i32,
-    queue_id: i32,
-    limit: i64,
-    ignore_cooldown: bool,
-) -> Result<Vec<i64>, DatabaseError> {
-    ensure_hourly_ingest_tables(database).await?;
-    Ok(database.query_json(
-        "SELECT match_id::TEXT FROM hourly_ingest_match_debt WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 \
-         AND status='pending' AND ($5 OR next_retry_at IS NULL OR next_retry_at<=now()) \
-         ORDER BY attempts,first_seen_at LIMIT $4",
-        &[&date, &hour, &queue_id, &limit, &ignore_cooldown],
-    ).await?.into_iter().filter_map(|row| text(&row, "match_id")?.parse().ok()).collect())
-}
-
-pub async fn due_debt_hours(
-    database: &Database,
-    queue_id: i32,
-    min_date: &str,
-    max_date: &str,
-) -> Result<Vec<(String, i32)>, DatabaseError> {
-    ensure_hourly_ingest_tables(database).await?;
-    Ok(database.query_json(
-        "SELECT DISTINCT date::TEXT,hour FROM hourly_ingest_match_debt WHERE queue_id=$1 AND date>=$2::TEXT::DATE \
-         AND date<=$3::TEXT::DATE AND status='pending' AND (next_retry_at IS NULL OR next_retry_at<=now()) ORDER BY date,hour",
-        &[&queue_id, &min_date, &max_date],
-    ).await?.into_iter().filter_map(|row| Some((text(&row, "date")?.to_owned(), i32::try_from(integer(&row, "hour")?).ok()?))).collect())
-}
-
-fn normalized_ids(ids: &[i64]) -> Vec<i64> {
-    ids.iter()
-        .copied()
-        .filter(|id| *id > 0)
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
+/// Purpose: convert one database JSON row to the typed state model. Input:
+/// owned JSON value. Output: `HourlyIngestState` with bounded numeric fields.
 fn map_state(row: Value) -> HourlyIngestState {
     HourlyIngestState {
         date: text(&row, "date").unwrap_or_default().to_owned(),
@@ -534,110 +201,42 @@ fn map_state(row: Value) -> HourlyIngestState {
     }
 }
 
+/// Purpose: read one optional string field. Input: JSON row/key. Output: borrow.
 fn text<'a>(row: &'a Value, key: &str) -> Option<&'a str> {
     row.get(key).and_then(Value::as_str)
 }
+/// Purpose: normalize one JSON integer representation. Input: row/key. Output:
+/// optional `i64` whether PostgreSQL emitted a JSON number or numeric string.
 fn integer(row: &Value, key: &str) -> Option<i64> {
     row.get(key)
         .and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
 }
-fn env_i32(name: &str, fallback: i32) -> i32 {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(fallback)
-}
-struct RegexLike;
-impl RegexLike {
-    fn budget(value: &str) -> bool {
-        let value = value.to_ascii_lowercase();
-        value.contains("budget exhausted") || value.contains("massive drop")
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn reason_classifier_parks_batch_only_no_authority() {
-        // Mirrors the TS $MAX_ATTEMPTS fuse triggers: ONLY the two batch-only
-        // reasons may be parked unrecoverable.
-        assert!(reason_implies_batch_only_no_authority(
-            "batch-only non-authoritative roster missing"
-        ));
-        assert!(reason_implies_batch_only_no_authority(
-            "batch-only profile-only no player anchors"
-        ));
-        // Graduated-backoff reasons must NEVER be parked (TS keeps them
-        // retryable via the slow-retry escalation).
-        assert!(!reason_implies_batch_only_no_authority(
-            "no authoritative payload: Server_Regions temp-table failure"
-        ));
-        assert!(!reason_implies_batch_only_no_authority(
-            "dropped/corrupt: bad payload"
-        ));
-        assert!(!reason_implies_batch_only_no_authority(
-            "non-authoritative aggregate"
-        ));
-        // Non-productive reasons must stay retryable, not get parked.
-        assert!(!reason_implies_batch_only_no_authority(
-            "canonical singleton returned no outcome"
-        ));
-        assert!(!reason_implies_batch_only_no_authority(
-            "discovered by hourly ingest"
-        ));
-        assert!(!reason_implies_batch_only_no_authority(
-            "hourly discovery plus unresolved debt retry"
-        ));
-    }
-
-    #[test]
-    fn reason_classifier_no_authority_payload() {
-        assert!(reason_implies_no_authority_payload(
-            "no authoritative payload: Server_Regions temp-table failure"
-        ));
-        assert!(reason_implies_no_authority_payload(
-            "no authoritative payload: RetMsg malformed"
-        ));
-        assert!(!reason_implies_no_authority_payload(
-            "batch-only profile-only no player anchors"
-        ));
-        assert!(!reason_implies_no_authority_payload(
-            "canonical singleton returned no outcome"
-        ));
-    }
-
-    #[test]
-    fn debt_completion_uses_only_the_ingest_ledger() {
+    fn failed_hours_have_no_cooldown_or_match_debt_gate() {
         let source = include_str!("discovery_control.rs")
             .split_once("#[cfg(test)]")
             .expect("worker source has tests")
             .0;
-        let debt_completion = source
-            .split_once("pub async fn mark_match_debt_staged_or_complete")
-            .expect("debt completion function")
-            .1
-            .split_once("pub async fn mark_match_debt_complete")
-            .expect("next function")
-            .0;
-        assert!(debt_completion.contains("mis.match_id=ANY($1::BIGINT[])"));
-        assert!(debt_completion.contains("mis.acquisition_state='facts_ready'"));
-        assert!(!debt_completion.contains("match_players"));
-        assert!(!debt_completion.contains("GROUP BY"));
+        assert!(source.contains("hourly_ingest_state.status IN('pending','failed')"));
+        assert!(!source.contains("hourly_ingest_match_debt"));
+        assert!(!source.contains("HOURLY_INGEST_MATCH_DEBT_RETRY_MINUTES"));
+        assert!(!source.contains("HOURLY_INGEST_BUDGET_RETRY_MINUTES"));
     }
 
     #[test]
-    fn discovery_is_insert_only_and_does_not_count_as_an_attempt() {
-        let source = include_str!("discovery_control.rs")
-            .split_once("pub async fn record_discovered_matches")
-            .expect("discovery recorder")
+    fn hour_completion_is_direct_after_the_canonical_drain() {
+        let source = include_str!("discovery_control.rs");
+        let completion = source
+            .split_once("pub async fn mark_hourly_ingest_complete")
+            .expect("completion function")
             .1
-            .split_once("pub async fn mark_match_debt_staged_or_complete")
+            .split_once("pub async fn mark_hourly_ingest_failed")
             .expect("next function")
             .0;
-        assert!(source.contains("'pending',$5,0,now(),NULL,NULL,now()"));
-        assert!(source.contains("ON CONFLICT(match_id) DO NOTHING"));
-        assert!(!source.contains("DO UPDATE"));
+        assert!(completion.contains("status='complete'"));
+        assert!(!completion.contains("pending"));
+        assert!(!completion.contains("debt"));
     }
 }

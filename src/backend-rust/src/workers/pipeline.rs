@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use paladinscat_core::{
@@ -9,29 +9,25 @@ use paladinscat_core::{
     database::{Database, DatabaseError},
 };
 use serde::Serialize;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use super::{
+    casual_mechanics::CasualMechanicsRepository,
     discovery_control::{
-        claim_hourly_ingest_hour, due_match_debt_ids, mark_hourly_ingest_complete,
-        mark_hourly_ingest_empty, mark_hourly_ingest_failed, mark_hourly_ingest_staged,
-        mark_match_debt_retryable, mark_match_debt_staged_or_complete,
-        mark_presence_ingest_complete, record_discovered_matches, record_hourly_ingest_quota_wait,
+        claim_hourly_ingest_hour, mark_hourly_ingest_complete, mark_hourly_ingest_empty,
+        mark_hourly_ingest_failed, refresh_hourly_ingest_lease,
     },
-    discovery_store::{
-        MatchIdObservation, filter_already_handled_match_ids, record_match_count_discovery_result,
-    },
-    match_facts::CanonicalMatchPayload,
-    nonranked_acquisition::{NonrankedAcquisitionClaim, NonrankedAcquisitionRepository},
+    discovery_store::{MatchIdObservation, record_match_count_discovery_result},
+    match_facts::{CanonicalMatchPayload, MatchFactRepository},
+    match_lifecycle::{MatchDiscoverySource, MatchPopulation},
     outage::{
         MATCH_DETAIL_SERVICE_OUTAGE_KEY, classify_hirez_service_outage_message,
         mark_hirez_service_recovered, record_hirez_service_outage,
     },
-    policy::{
-        MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot, calculate_background_match_allowance,
-        ranked_priority_reserve_snapshot,
-    },
+    policy::MATCH_COUNT_QUEUE_DEFINITIONS,
+    ranked_projection::RankedProjectionRepository,
     relay::{WorkerRelayClient, WorkerRelayError},
+    requested_match::{MatchIngestRequest, RequestedMatchIngestor, RequestedMatchStatus},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -53,178 +49,110 @@ pub struct DiscoveryResult {
     pub discovered: usize,
     pub skipped: usize,
     pub completed: usize,
-    pub retryable: usize,
     pub empty: bool,
 }
 
 #[derive(Debug, Default)]
-struct RankedFailureContext {
+struct MatchDrainProgress {
     claimed_raw_match_count: Option<i32>,
     checkpointed_ids: HashSet<i64>,
 }
 
-impl RankedFailureContext {
+impl MatchDrainProgress {
+    /// Purpose: report facts completed before a queue-hour error. Input: owned
+    /// checkpoint set. Output: optional saturated `i32` count for state audit.
     fn checkpointed_count(&self) -> Option<i32> {
         (!self.checkpointed_ids.is_empty())
             .then(|| i32::try_from(self.checkpointed_ids.len()).unwrap_or(i32::MAX))
     }
 }
 
-const CLAIM_INCOMPLETE_NONRANKED_SQL: &str = r#"
-WITH due AS (
-  SELECT match_id, queue_id
-  FROM nonranked_match_acquisition
-  WHERE (status = 'discovered' OR (status = 'waiting_for_completion'
-         AND last_observed_at <= now() - ($2::int * interval '1 minute')))
-    AND (lease_until IS NULL OR lease_until <= now())
-    AND (NOT $3::boolean OR source_date >=
-         date_trunc('week', now() AT TIME ZONE 'UTC')::date)
-  ORDER BY
-    CASE WHEN source_date + (source_hour * interval '1 hour') >= (now() AT TIME ZONE 'UTC') - interval '24 hours' THEN 0 ELSE 1 END,
-    CASE WHEN source_date + (source_hour * interval '1 hour') >= (now() AT TIME ZONE 'UTC') - interval '24 hours' THEN source_date + (source_hour * interval '1 hour') END DESC,
-    CASE WHEN source_date + (source_hour * interval '1 hour') < (now() AT TIME ZONE 'UTC') - interval '24 hours' THEN source_date + (source_hour * interval '1 hour') END ASC,
-    match_id
-  LIMIT $1
-  FOR UPDATE SKIP LOCKED
-)
-UPDATE nonranked_match_acquisition acquisition
-SET status = 'fetching', detail_attempts = detail_attempts + 1,
-    last_attempt_at = now(), lease_until = now() + interval '30 minutes',
-    error_message = NULL, updated_at = now()
-FROM due
-WHERE acquisition.match_id = due.match_id
-RETURNING acquisition.match_id, acquisition.queue_id, acquisition.source_date::text,
-          acquisition.source_hour, acquisition.region,
-          acquisition.discovered_entry_datetime::text, acquisition.active_flag
-"#;
-
-const RECONCILE_PERSISTED_NONRANKED_SQL: &str = r#"
-WITH due AS MATERIALIZED (
-  SELECT match_id
-  FROM nonranked_match_acquisition
-  WHERE (status='discovered' OR (status='fetching' AND lease_until<=now()))
-    AND (NOT $1::boolean OR source_date>=
-         date_trunc('week',now() AT TIME ZONE 'UTC')::date)
-), persisted AS (
-  SELECT m.match_id,m.quality,m.player_count,
-    COUNT(*) FILTER(WHERE p.source='roster')::int AS roster_players
-  FROM due JOIN casual_matches m USING(match_id)
-  JOIN casual_match_players p USING(match_id)
-  GROUP BY m.match_id,m.quality,m.player_count
-  UNION ALL
-  SELECT m.match_id,m.quality,m.player_count,
-    COUNT(*) FILTER(WHERE p.source='roster')::int AS roster_players
-  FROM due JOIN special_matches m USING(match_id)
-  JOIN special_match_players p USING(match_id)
-  GROUP BY m.match_id,m.quality,m.player_count
-), reconciled AS (
-  UPDATE nonranked_match_acquisition acquisition
-  SET status=CASE persisted.quality
-      WHEN 'complete' THEN 'complete_direct'
-      WHEN 'partial' THEN 'partial_roster'
-      ELSE 'roster_only' END,
-    quality=persisted.quality,
-    direct_player_count=LEAST(persisted.player_count,32767)::smallint,
-    roster_player_count=LEAST(persisted.roster_players,32767)::smallint,
-    lease_until=NULL,completed_at=COALESCE(acquisition.completed_at,now()),
-    terminal_reason='reconciled_existing_match_facts',error_message=NULL,updated_at=now()
-  FROM persisted
-  WHERE acquisition.match_id=persisted.match_id
-    AND (acquisition.status='discovered' OR
-         (acquisition.status='fetching' AND acquisition.lease_until<=now()))
-    AND (NOT $1::boolean OR acquisition.source_date>=
-         date_trunc('week',now() AT TIME ZONE 'UTC')::date)
-  RETURNING acquisition.match_id
-)
-SELECT COUNT(*)::int AS reconciled FROM reconciled
-"#;
-
 #[derive(Clone)]
+/// Purpose: own the one queue-neutral discovery -> facts -> projection object.
+/// Input dependencies: typed database and relay configuration. Output methods:
+/// `DiscoveryResult` per queue-hour, never an intermediate work identifier.
+/// Relationship: every queue uses `discover_hour`,
+/// `fetch_discovered_completed_continuously`, and
+/// `checkpoint_canonical_outcome`; only the projector varies by stored facts.
 pub struct CanonicalIngestPipeline {
     database: Database,
     relay: WorkerRelayClient,
-    nonranked: NonrankedAcquisitionRepository,
-    reserve_per_key: i32,
+    facts: MatchFactRepository,
+    casual: CasualMechanicsRepository,
+    ranked: RankedProjectionRepository,
+    lifecycle: RequestedMatchIngestor,
 }
 
 impl CanonicalIngestPipeline {
+    /// Purpose: construct all shared lifecycle/fact/projector dependencies.
+    /// Input: `Database` and `BackendConfig`. Output: ready pipeline or relay
+    /// configuration error; no database or vendor work occurs here.
     pub fn new(database: Database, config: &BackendConfig) -> Result<Self, WorkerRelayError> {
+        let relay = WorkerRelayClient::new(config)?;
         Ok(Self {
-            nonranked: NonrankedAcquisitionRepository::new(database.clone()),
+            facts: MatchFactRepository::new(database.clone()),
+            casual: CasualMechanicsRepository::new(database.clone()),
+            ranked: RankedProjectionRepository::new(database.clone()),
+            lifecycle: RequestedMatchIngestor::new(
+                database.clone(),
+                relay.clone(),
+                Duration::from_secs(30 * 60),
+            ),
             database,
-            relay: WorkerRelayClient::new(config)?,
-            reserve_per_key: std::env::var("API_KEY_RESERVE_CALLS")
-                .ok()
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(100),
+            relay,
         })
     }
 
+    /// Purpose: process every configured non-ranked presence queue uniformly.
+    /// Input: UTC date (`&str`), hour (`i32`), audit source (`&str`). Output:
+    /// one result per queue after that queue's complete discovered set drains.
     pub async fn discover_all_presence_queues(
         &self,
         date: &str,
         hour: i32,
         source: &str,
     ) -> Vec<Result<DiscoveryResult, PipelineError>> {
-        // TS takes one snapshot for the complete queue pass. If no key is
-        // usable, it returns before claiming or writing any queue-hour state.
-        let budget = match api_headroom_snapshot(&self.database, self.reserve_per_key).await {
-            Ok(budget) => budget,
-            Err(error) => return vec![Err(error.into())],
-        };
-        if !budget.has_usable_keys {
-            tracing::warn!(
-                "presence discovery has no usable Hi-Rez key headroom; leaving queue-hours untouched"
-            );
-            return Vec::new();
-        }
         let mut results = Vec::new();
         for queue in MATCH_COUNT_QUEUE_DEFINITIONS
             .iter()
             .filter(|queue| queue.track_presence && !queue.ranked)
         {
-            results.push(
-                self.discover_presence_hour(queue.queue_id, date, hour, source)
-                    .await,
-            );
+            results.push(self.discover_hour(queue.queue_id, date, hour, source).await);
         }
         results
     }
 
-    /// Presence discovery has exactly one vendor call: getmatchidsbyqueue.
-    /// It records counts and the non-ranked acquisition ledger, then finalizes
-    /// the hour. Detail/roster acquisition is deliberately a separate pass.
-    pub async fn discover_presence_hour(
+    /// Purpose: discover and immediately ingest one queue-hour of any type.
+    /// Input: positive queue ID, UTC date/hour, audit source. Output: a result
+    /// only after every returned match is durable in the same call.
+    pub async fn discover_hour(
         &self,
         queue_id: i32,
         date: &str,
         hour: i32,
         source: &str,
     ) -> Result<DiscoveryResult, PipelineError> {
+        let mut progress = MatchDrainProgress::default();
         let result = self
-            .discover_presence_hour_inner(queue_id, date, hour, source)
+            .discover_hour_inner(queue_id, date, hour, source, &mut progress)
             .await;
         if let Err(error) = &result {
-            let _ = mark_hourly_ingest_failed(
-                &self.database,
-                date,
-                hour,
-                queue_id,
-                &pipeline_state_error_message(error),
-                None,
-                None,
-            )
-            .await;
+            mark_match_drain_failure(&self.database, queue_id, date, hour, error, &progress)
+                .await?;
         }
         result
     }
 
-    async fn discover_presence_hour_inner(
+    /// Purpose: implement every queue-hour using the shared drain.
+    /// Input/output types match `discover_hour`; errors are returned
+    /// to its state-recording wrapper and never converted into pending work.
+    async fn discover_hour_inner(
         &self,
         queue_id: i32,
         date: &str,
         hour: i32,
         source: &str,
+        progress: &mut MatchDrainProgress,
     ) -> Result<DiscoveryResult, PipelineError> {
         let mut result = DiscoveryResult {
             queue_id,
@@ -232,164 +160,24 @@ impl CanonicalIngestPipeline {
             hour,
             ..DiscoveryResult::default()
         };
-        let Some(definition) = MATCH_COUNT_QUEUE_DEFINITIONS
-            .iter()
-            .find(|definition| definition.queue_id == queue_id)
-        else {
-            return Err(PipelineError::Facts(format!(
-                "queue {queue_id} is not configured for presence discovery"
-            )));
-        };
-        if definition.ranked || !definition.track_presence {
-            return Err(PipelineError::Facts(format!(
-                "queue {queue_id} is not a non-ranked presence queue"
-            )));
+        if queue_id <= 0 {
+            return Err(PipelineError::Facts("queue ID must be positive".to_owned()));
         }
-        if !claim_hourly_ingest_hour(&self.database, date, hour, queue_id, source, false).await? {
+        if !claim_hourly_ingest_hour(&self.database, date, hour, queue_id, source).await? {
             return Ok(result);
         }
-        let discovery = self
-            .relay
-            .call_value(
-                "getMatchIdsByQueueDetails",
-                vec![json!(queue_id), json!(date.replace('-', "")), json!(hour)],
-                "presence_discovery",
-            )
-            .await?;
-        let observations = parse_observations(discovery);
-        result.discovered = record_match_count_discovery_result(
-            &self.database,
-            date,
-            hour,
-            queue_id,
-            &observations,
-            source,
-        )
-        .await?;
-        result.empty = observations.is_empty();
-        // TS presence discovery treats a successful empty response as final;
-        // only an absent or failed cron window is eligible for backfill.
-        if result.empty {
-            mark_hourly_ingest_empty(&self.database, date, hour, queue_id).await?;
-        } else {
-            mark_presence_ingest_complete(
-                &self.database,
-                date,
-                hour,
-                queue_id,
-                i32::try_from(result.discovered).unwrap_or(i32::MAX),
-            )
-            .await?;
-        }
-        result.completed = result.discovered;
-        Ok(result)
-    }
-
-    /// Scheduler-facing spelling: this is deliberately discovery-only and
-    /// cannot acquire completed-match detail.
-    pub async fn discover_presence_only(
-        &self,
-        queue_id: i32,
-        date: &str,
-        hour: i32,
-        source: &str,
-    ) -> Result<DiscoveryResult, PipelineError> {
-        self.discover_presence_hour(queue_id, date, hour, source)
-            .await
-    }
-
-    /// Ranked discovery is the only hourly path that can acquire detail. In
-    /// debt-only mode it starts from durable exact IDs and never rediscoveries
-    /// the hour through getmatchidsbyqueue.
-    pub async fn discover_ranked_hour(
-        &self,
-        date: &str,
-        hour: i32,
-        source: &str,
-        debt_only: bool,
-    ) -> Result<DiscoveryResult, PipelineError> {
-        let mut failure = RankedFailureContext::default();
-        let result = self
-            .discover_ranked_hour_inner(date, hour, source, debt_only, &mut failure)
-            .await;
-        if let Err(error) = &result {
-            mark_ranked_discovery_failure(&self.database, date, hour, error, &failure).await?;
-        }
-        result
-    }
-
-    async fn discover_ranked_hour_inner(
-        &self,
-        date: &str,
-        hour: i32,
-        source: &str,
-        debt_only: bool,
-        failure: &mut RankedFailureContext,
-    ) -> Result<DiscoveryResult, PipelineError> {
-        let queue_id = 486;
-        let mut result = DiscoveryResult {
-            queue_id,
-            date: date.to_owned(),
-            hour,
-            ..DiscoveryResult::default()
-        };
-        // cleanupFetchedPlayersCache is an awaited relay signal in TS. Its
-        // failure is warning-only; discovery and its headroom check continue.
-        if let Err(error) = self
-            .relay
-            .call_value(
-                "cleanupFetchedPlayersCache",
-                Vec::new(),
-                "backend_unattributed",
-            )
-            .await
-        {
-            tracing::warn!(date, hour, %error, "failed to clear relay recovery cache before ranked discovery");
-        }
-        let budget = api_headroom_snapshot(&self.database, self.reserve_per_key).await?;
-        if !budget.has_usable_keys {
-            record_hourly_ingest_quota_wait(
-                &self.database,
-                date,
-                hour,
-                queue_id,
-                source,
-                "all API keys are inside the configured reserve",
-            )
-            .await?;
-            return Ok(result);
-        }
-        // Normal ranked discovery merges fresh IDs with due durable debt too;
-        // debt-only changes only whether getmatchidsbyqueue is called.
-        let due_debt = due_match_debt_ids(&self.database, date, hour, queue_id, 250, false).await?;
-        if debt_only && due_debt.is_empty() {
-            return Ok(result);
-        }
-        if !claim_hourly_ingest_hour(&self.database, date, hour, queue_id, source, debt_only)
-            .await?
-        {
-            return Ok(result);
-        }
-        let observations = if debt_only {
-            Vec::new()
-        } else {
-            let discovery = match self
+        let known_ids = self.discovered_match_ids(date, hour, queue_id).await?;
+        let ids = if known_ids.is_empty() {
+            let discovery = self
                 .relay
                 .call_value(
                     "getMatchIdsByQueueDetails",
                     vec![json!(queue_id), json!(date.replace('-', "")), json!(hour)],
-                    "ranked_discovery",
+                    "hourly_match_discovery",
                 )
-                .await
-            {
-                Ok(value) => value,
-                Err(error) => return Err(error.into()),
-            };
-            parse_observations(discovery)
-        };
-        if !debt_only {
-            result.discovered = observations.len();
-            match record_match_count_discovery_result(
+                .await?;
+            let observations = parse_observations(discovery);
+            result.discovered = record_match_count_discovery_result(
                 &self.database,
                 date,
                 hour,
@@ -397,142 +185,167 @@ impl CanonicalIngestPipeline {
                 &observations,
                 source,
             )
-            .await
-            {
-                Ok(discovered) => result.discovered = discovered,
-                Err(error) => {
-                    tracing::warn!(%error, "ranked match-count mirror failed without blocking acquisition")
-                }
-            }
-        }
-        if !debt_only && observations.is_empty() && due_debt.is_empty() {
-            result.empty = true;
+            .await?;
+            observations
+                .into_iter()
+                .map(|observation| observation.match_id)
+                .collect::<Vec<_>>()
+        } else {
+            result.discovered = known_ids.len();
+            known_ids
+        };
+        result.empty = ids.is_empty();
+        if result.empty {
             mark_hourly_ingest_empty(&self.database, date, hour, queue_id).await?;
             return Ok(result);
         }
-        let discovered_ids = observations
-            .iter()
-            .map(|row| row.match_id)
-            .collect::<Vec<_>>();
-        let ids = stable_merge_ids(&discovered_ids, &due_debt);
-        record_discovered_matches(
+        let fetch_ids = self.undurable_match_ids(&ids).await?;
+        result.skipped = ids.len().saturating_sub(fetch_ids.len());
+        progress.claimed_raw_match_count = Some(i32::try_from(ids.len()).unwrap_or(i32::MAX));
+        let completed = self
+            .fetch_discovered_completed_continuously(
+                &fetch_ids,
+                queue_id,
+                date,
+                hour,
+                MatchDiscoverySource::HourlyDiscovery,
+                progress,
+            )
+            .await?;
+        result.completed = result.skipped + completed;
+        mark_hourly_ingest_complete(
             &self.database,
             date,
             hour,
             queue_id,
-            &ids,
-            if due_debt.is_empty() {
-                "discovered by hourly ingest"
-            } else {
-                "hourly discovery plus unresolved debt retry"
-            },
+            i32::try_from(ids.len()).unwrap_or(i32::MAX),
         )
         .await?;
-        let guard =
-            filter_already_handled_match_ids(&self.database, &ids, queue_id, true, true).await?;
-        result.skipped = guard.skipped_ids.len();
-        mark_match_debt_staged_or_complete(
-            &self.database,
-            &guard.skipped_ids,
-            "staged or already handled by ingest guard",
-        )
-        .await?;
-        if guard.fetch_ids.is_empty() {
-            if guard.skipped.raw_buffer > 0 || guard.skipped.pull_list > 0 {
-                mark_hourly_ingest_staged(
-                    &self.database,
-                    date,
-                    hour,
-                    queue_id,
-                    i32::try_from(ids.len()).unwrap_or(i32::MAX),
-                    0,
-                )
-                .await?;
-            } else {
-                mark_hourly_ingest_complete(
-                    &self.database,
-                    date,
-                    hour,
-                    queue_id,
-                    i32::try_from(ids.len()).unwrap_or(i32::MAX),
-                )
-                .await?;
-            }
-            result.completed = ids.len();
-            return Ok(result);
-        }
-        failure.claimed_raw_match_count = Some(i32::try_from(ids.len()).unwrap_or(i32::MAX));
-        let counts = self
-            .fetch_ranked_completed_continuously(&guard.fetch_ids, source, failure)
-            .await?;
-        result.completed += counts.0;
-        result.retryable += counts.1;
-        if result.retryable > 0 {
-            mark_hourly_ingest_failed(
-                &self.database,
-                date,
-                hour,
-                queue_id,
-                &format!("{} unresolved ranked match debt ID(s)", result.retryable),
-                Some(i32::try_from(ids.len()).unwrap_or(i32::MAX)),
-                Some(i32::try_from(result.completed + result.skipped).unwrap_or(i32::MAX)),
-            )
-            .await?;
-        } else {
-            mark_hourly_ingest_staged(
-                &self.database,
-                date,
-                hour,
-                queue_id,
-                i32::try_from(ids.len()).unwrap_or(i32::MAX),
-                i32::try_from(result.completed + result.skipped).unwrap_or(i32::MAX),
-            )
-            .await?;
-        }
         Ok(result)
     }
 
-    /// Transitional compatibility for existing operator call sites. It
-    /// dispatches to the exact TS-equivalent path; it never turns a presence
-    /// queue into completed-match acquisition.
-    pub async fn discover_hour(
+    /// Purpose: load the complete locally known ID set when discovery already
+    /// happened. Input: queue-hour key. Output: ordered unique positive IDs;
+    /// this replaces debt/pending tables as the source of recovery work.
+    async fn discovered_match_ids(
         &self,
-        queue_id: i32,
         date: &str,
         hour: i32,
-        source: &str,
-        debt_only: bool,
-    ) -> Result<DiscoveryResult, PipelineError> {
-        if queue_id == 486 {
-            self.discover_ranked_hour(date, hour, source, debt_only)
+        queue_id: i32,
+    ) -> Result<Vec<i64>, DatabaseError> {
+        let rows = self
+            .database
+            .query_json(
+                "SELECT DISTINCT match_id FROM match_count_discoveries \
+                 WHERE source_date=$1::TEXT::DATE AND source_hour=$2 AND queue_id=$3 \
+                 AND match_id>0 ORDER BY match_id",
+                &[&date, &hour, &queue_id],
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| row.get("match_id").and_then(Value::as_i64))
+            .collect())
+    }
+
+    /// Purpose: enforce DB-first ingestion for every queue population.
+    /// Input: discovered match IDs. Output: only IDs lacking durable canonical
+    /// player facts; existing rows are never sent back to the vendor.
+    async fn undurable_match_ids(&self, match_ids: &[i64]) -> Result<Vec<i64>, PipelineError> {
+        if match_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = self
+            .database
+            .query_json(
+                "SELECT requested.match_id FROM unnest($1::BIGINT[]) WITH ORDINALITY requested(match_id,ordinality) \
+                 WHERE requested.match_id>0 AND NOT (\
+                   (EXISTS(SELECT 1 FROM matches WHERE match_id=requested.match_id) \
+                     AND EXISTS(SELECT 1 FROM match_players WHERE match_id=requested.match_id)) \
+                   OR (EXISTS(SELECT 1 FROM casual_matches WHERE match_id=requested.match_id) \
+                     AND EXISTS(SELECT 1 FROM casual_match_players WHERE match_id=requested.match_id)) \
+                   OR (EXISTS(SELECT 1 FROM special_matches WHERE match_id=requested.match_id) \
+                     AND EXISTS(SELECT 1 FROM special_match_players WHERE match_id=requested.match_id))\
+                 ) ORDER BY requested.ordinality",
+                &[&match_ids],
+            )
+            .await?;
+        let fetch_ids = rows
+            .into_iter()
+            .filter_map(|row| row.get("match_id").and_then(Value::as_i64))
+            .collect::<Vec<_>>();
+        let fetch_set = fetch_ids.iter().copied().collect::<HashSet<_>>();
+        for match_id in match_ids
+            .iter()
+            .copied()
+            .filter(|match_id| !fetch_set.contains(match_id))
+        {
+            self.ensure_stored_projection(match_id).await?;
+        }
+        Ok(fetch_ids)
+    }
+
+    /// Purpose: complete projections from facts already present in PostgreSQL.
+    /// Input: one durable match ID. Output: the population projector has run;
+    /// no relay/vendor operation is permitted by this function.
+    async fn ensure_stored_projection(&self, match_id: i64) -> Result<(), PipelineError> {
+        let population = self
+            .database
+            .one_json(
+                "SELECT CASE WHEN EXISTS(SELECT 1 FROM matches WHERE match_id=$1) THEN 'ranked' \
+                 WHEN EXISTS(SELECT 1 FROM casual_matches WHERE match_id=$1) THEN 'casual' \
+                 WHEN EXISTS(SELECT 1 FROM special_matches WHERE match_id=$1) THEN 'special' END AS population",
+                &[&match_id],
+            )
+            .await?
+            .and_then(|row| row.get("population").and_then(Value::as_str).map(str::to_owned))
+            .ok_or_else(|| PipelineError::Facts(format!("stored match {match_id} has no population table")))?;
+        match population.as_str() {
+            "ranked" => self
+                .ranked
+                .project_match(match_id)
                 .await
-        } else {
-            self.discover_presence_hour(queue_id, date, hour, source)
+                .map(|_| ())
+                .map_err(|error| PipelineError::Facts(format!("{error:?}"))),
+            "casual" | "special" => self
+                .casual
+                .project_all_for_match(match_id)
                 .await
+                .map(|_| ())
+                .map_err(|error| PipelineError::Facts(format!("{error:?}"))),
+            _ => Err(PipelineError::Facts(format!(
+                "stored match {match_id} has unknown population {population}"
+            ))),
         }
     }
 
-    /// The ranked continuous loop mirrors completed-match-batching.ts: each
-    /// returned outcome becomes durable before another vendor window opens.
-    async fn fetch_ranked_completed_continuously(
+    /// Purpose: drain every discovered match through one shared batch pipeline.
+    /// Input: all positive `i64` IDs for one `i32` queue, UTC date/hour lease
+    /// key, and typed source.
+    /// Output: durable match count; the function exhausts the input
+    /// in vendor-protocol batches of ten and never applies a per-run work cap.
+    async fn fetch_discovered_completed_continuously(
         &self,
         match_ids: &[i64],
-        _source: &str,
-        failure: &mut RankedFailureContext,
-    ) -> Result<(usize, usize), PipelineError> {
-        let mut pending = match_ids
+        queue_id: i32,
+        date: &str,
+        hour: i32,
+        source: MatchDiscoverySource,
+        progress: &mut MatchDrainProgress,
+    ) -> Result<usize, PipelineError> {
+        let mut remaining = match_ids
             .iter()
             .copied()
             .filter(|id| *id > 0)
             .collect::<VecDeque<_>>();
         let mut emitted = BTreeSet::new();
         let mut completed = 0;
-        let mut retryable = 0;
-        let mut forced_windows = VecDeque::<Vec<i64>>::new();
-        while !pending.is_empty() {
-            let batch = forced_windows
+        let mut batch_windows = VecDeque::<Vec<i64>>::new();
+        while !remaining.is_empty() {
+            refresh_hourly_ingest_lease(&self.database, date, hour, queue_id).await?;
+            let batch = batch_windows
                 .pop_front()
-                .unwrap_or_else(|| pending.iter().take(10).copied().collect::<Vec<_>>());
+                .unwrap_or_else(|| remaining.iter().take(10).copied().collect::<Vec<_>>());
             let response = match self
                 .relay
                 .call_value(
@@ -540,23 +353,23 @@ impl CanonicalIngestPipeline {
                     vec![json!(
                         batch
                             .iter()
-                            .map(|match_id| json!({"matchId":match_id,"queueId":486}))
+                            .map(|match_id| json!({"matchId":match_id,"queueId":queue_id}))
                             .collect::<Vec<_>>()
                     )],
-                    "ranked_recovery",
+                    "canonical_match_recovery",
                 )
                 .await
             {
                 Ok(response) => response,
                 Err(error) => {
                     if let Some((left, right)) =
-                        recoverable_ranked_bisection(&batch, &error.to_string())
+                        recoverable_batch_bisection(&batch, &error.to_string())
                     {
-                        forced_windows.push_front(right);
-                        forced_windows.push_front(left);
+                        batch_windows.push_front(right);
+                        batch_windows.push_front(left);
                         continue;
                     }
-                    self.record_ranked_detail_outage(&error).await?;
+                    self.record_match_detail_outage(&error).await?;
                     return Err(error.into());
                 }
             };
@@ -577,18 +390,13 @@ impl CanonicalIngestPipeline {
                         "canonical relay returned duplicate outcome for match {match_id}"
                     )));
                 }
-                if self
-                    .checkpoint_ranked_outcome_with_outage(outcome, failure)
-                    .await?
-                {
-                    completed += 1;
-                } else {
-                    retryable += 1;
-                }
+                self.checkpoint_canonical_outcome(outcome, queue_id, source, progress)
+                    .await?;
+                completed += 1;
             }
             for id in batch.iter().filter(|id| returned_ids.contains(id)) {
-                if let Some(position) = pending.iter().position(|candidate| candidate == id) {
-                    pending.remove(position);
+                if let Some(position) = remaining.iter().position(|candidate| candidate == id) {
+                    remaining.remove(position);
                 }
             }
             let Some(blocker) = batch.iter().find(|id| !returned_ids.contains(id)).copied() else {
@@ -598,14 +406,14 @@ impl CanonicalIngestPipeline {
                 .relay
                 .call_value(
                     "getMatchDetailsBatch",
-                    vec![json!([{"matchId":blocker,"queueId":486}])],
-                    "ranked_recovery",
+                    vec![json!([{"matchId":blocker,"queueId":queue_id}])],
+                    "canonical_match_recovery",
                 )
                 .await
             {
                 Ok(singleton) => singleton,
                 Err(error) => {
-                    self.record_ranked_detail_outage(&error).await?;
+                    self.record_match_detail_outage(&error).await?;
                     return Err(error.into());
                 }
             };
@@ -622,33 +430,26 @@ impl CanonicalIngestPipeline {
                     )));
                 }
                 resolved = true;
-                if self
-                    .checkpoint_ranked_outcome_with_outage(outcome, failure)
-                    .await?
-                {
-                    completed += 1;
-                } else {
-                    retryable += 1;
-                }
+                self.checkpoint_canonical_outcome(outcome, queue_id, source, progress)
+                    .await?;
+                completed += 1;
             }
             if !resolved {
-                mark_match_debt_retryable(
-                    &self.database,
-                    blocker,
-                    "canonical singleton returned no outcome",
-                    None,
-                )
-                .await?;
-                retryable += 1;
+                self.recover_discovered_match(blocker, queue_id, source)
+                    .await?;
+                completed += 1;
             }
-            if let Some(position) = pending.iter().position(|candidate| *candidate == blocker) {
-                pending.remove(position);
+            if let Some(position) = remaining.iter().position(|candidate| *candidate == blocker) {
+                remaining.remove(position);
             }
         }
-        Ok((completed, retryable))
+        Ok(completed)
     }
 
-    async fn record_ranked_detail_outage(
+    /// Purpose: persist a confirmed provider match-detail outage as telemetry.
+    /// Input: typed relay error. Output: database telemetry update or no-op;
+    /// relationship: it never gates or defers the canonical drain.
+    async fn record_match_detail_outage(
         &self,
         error: &WorkerRelayError,
     ) -> Result<(), PipelineError> {
@@ -668,12 +469,17 @@ impl CanonicalIngestPipeline {
         Ok(())
     }
 
-    async fn checkpoint_ranked_outcome_with_outage(
+    /// Purpose: normalize, finalize, and project one batch outcome uniformly.
+    /// Input: relay JSON plus expected queue/source. Output: `true` only when
+    /// canonical facts and the correct ranked/casual/special projection exist.
+    async fn checkpoint_canonical_outcome(
         &self,
         outcome: Value,
-        failure: &mut RankedFailureContext,
-    ) -> Result<bool, PipelineError> {
-        if authoritative_ranked_outcome(&outcome) {
+        queue_id: i32,
+        source: MatchDiscoverySource,
+        progress: &mut MatchDrainProgress,
+    ) -> Result<(), PipelineError> {
+        if authoritative_match_outcome(&outcome) {
             mark_hirez_service_recovered(
                 &self.database,
                 MATCH_DETAIL_SERVICE_OUTAGE_KEY,
@@ -681,533 +487,84 @@ impl CanonicalIngestPipeline {
             )
             .await?;
         }
-        self.checkpoint_ranked_outcome(outcome, failure).await
-    }
-
-    /// Ranked discovery owns only durable buffer staging. Fact normalization
-    /// and projections remain under the common raw-buffer processor exactly as
-    /// in the TS pipeline.
-    async fn checkpoint_ranked_outcome(
-        &self,
-        outcome: Value,
-        failure: &mut RankedFailureContext,
-    ) -> Result<bool, PipelineError> {
         let match_id = extract_match_id(&outcome).unwrap_or_default();
         let canonical = match CanonicalMatchPayload::from_relay_value(outcome.clone()) {
             Ok(payload) => payload,
             Err(error) => {
-                if match_id > 0 {
-                    mark_match_debt_retryable(
-                        &self.database,
-                        match_id,
-                        &format!("no authoritative payload: {error}"),
-                        None,
-                    )
-                    .await?;
+                if match_id <= 0 {
+                    return Err(PipelineError::Facts(format!(
+                        "canonical relay outcome has no match ID: {error}"
+                    )));
                 }
-                return Ok(false);
+                return self
+                    .recover_discovered_match(match_id, queue_id, source)
+                    .await;
             }
         };
-        let guard = filter_already_handled_match_ids(
-            &self.database,
-            &[canonical.match_id],
-            canonical.queue_id,
-            true,
-            true,
-        )
-        .await?;
-        if should_dump_ranked_checkpoint(&guard.fetch_ids, canonical.match_id) {
-            let raw_payload = build_ranked_raw_payload(&outcome, &canonical)?;
-            self.relay
-                .call_value(
-                    "dumpRawPayloads",
-                    vec![Value::Array(vec![raw_payload])],
-                    "backend_unattributed",
-                )
-                .await?;
-        }
-        // TS records guard-resolved/dumped IDs for outer failure accounting
-        // before the debt-state write, because the raw payload is already
-        // durable even if that following state update fails.
-        failure.checkpointed_ids.insert(canonical.match_id);
-        mark_match_debt_staged_or_complete(
-            &self.database,
-            &[canonical.match_id],
-            "checkpointed canonical ranked payload to raw_ingest_buffer",
-        )
-        .await?;
-        Ok(true)
-    }
-
-    /// The separate non-ranked acquisition pass claims only ledger rows
-    /// created by presence discovery. It never calls getmatchidsbyqueue.
-    pub async fn run_nonranked_acquisition(
-        &self,
-        limit: usize,
-        _lookback_hours: i32,
-    ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition_scoped(limit, false).await
-    }
-
-    pub async fn run_current_week_nonranked_acquisition(
-        &self,
-        limit: usize,
-    ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition_scoped(limit, true).await
-    }
-
-    async fn run_nonranked_acquisition_scoped(
-        &self,
-        limit: usize,
-        recent_only: bool,
-    ) -> Result<usize, PipelineError> {
-        if limit == 0 {
-            return Ok(0);
-        }
-        let reconciled = self
-            .database
-            .one_json(RECONCILE_PERSISTED_NONRANKED_SQL, &[&recent_only])
-            .await?
-            .and_then(|row| row.get("reconciled").and_then(Value::as_i64))
-            .unwrap_or_default();
-        tracing::info!(
-            reconciled,
-            recent_only,
-            "reconciled persisted non-ranked facts before API claims"
-        );
-        self.terminalize_interrupted_nonranked_claims().await?;
-        let started = Instant::now();
-        let max_run = Duration::from_millis(
-            env_u64("NONRANKED_ACQUISITION_MAX_RUN_MS", 50_000).clamp(30_000, 1_200_000),
-        );
-        let page_size = env_usize("NONRANKED_ACQUISITION_CLAIM_LIMIT", 500).clamp(10, 1_000);
-        let concurrency = nonranked_fetch_concurrency(
-            env_usize("NONRANKED_ACQUISITION_FETCH_CONCURRENCY", 8),
-            env_usize("DB_POOL_MAX", 20),
-        );
-        let active_grace =
-            i32::try_from(env_u64("NONRANKED_ACTIVE_MATCH_GRACE_MINUTES", 30).clamp(10, 360))
-                .unwrap_or(30);
-        let mut claimed = 0;
-        let mut completed = 0;
-        while claimed < limit && started.elapsed() < max_run {
-            let budget = api_headroom_snapshot(&self.database, self.reserve_per_key).await?;
-            if !budget.has_usable_keys {
-                break;
-            }
-            let reserve = ranked_priority_reserve_snapshot(&self.database).await?;
-            let remaining = limit - claimed;
-            let mut claim_limit = page_size.min(remaining);
-            if budget.total_keys > 0 {
-                claim_limit = claim_limit.min(
-                    usize::try_from(calculate_background_match_allowance(
-                        budget.total_usable_before_reserve,
-                        reserve.reserved_calls,
-                        2,
-                    ))
-                    .unwrap_or(usize::MAX),
-                );
-            }
-            if claim_limit == 0 {
-                break;
-            }
-            let claim_limit_i64 = i64::try_from(claim_limit).unwrap_or(i64::MAX);
-            let rows = self
-                .database
-                .query_json(
-                    CLAIM_INCOMPLETE_NONRANKED_SQL,
-                    &[&claim_limit_i64, &active_grace, &recent_only],
-                )
-                .await?;
-            let requests = rows
-                .into_iter()
-                .filter_map(|row| {
-                    Some(NonrankedAcquisitionClaim {
-                        match_id: positive_i64(row.get("match_id")?)?,
-                        queue_id: positive_i64(row.get("queue_id")?)
-                            .and_then(|id| i32::try_from(id).ok())?,
-                        source_date: row.get("source_date")?.as_str()?.to_owned(),
-                        source_hour: ingest_hour(row.get("source_hour")?)?,
-                        region: row.get("region").and_then(Value::as_str).map(str::to_owned),
-                        discovered_entry_datetime: row
-                            .get("discovered_entry_datetime")
-                            .and_then(Value::as_str)
-                            .map(str::to_owned),
-                    })
-                })
-                .collect::<Vec<_>>();
-            if requests.is_empty() {
-                break;
-            }
-            claimed += requests.len();
-            let lanes = build_continuous_fetch_lanes(&requests, concurrency);
-            let mut joins = tokio::task::JoinSet::new();
-            for lane in lanes {
-                let pipeline = self.clone();
-                joins.spawn(async move {
-                    let result = pipeline.fetch_nonranked_completed_continuously(&lane).await;
-                    (lane, result)
-                });
-            }
-            while let Some(joined) = joins.join_next().await {
-                match joined {
-                    Ok((_lane, Ok(count))) => completed += count,
-                    Ok((lane, Err(error))) => {
-                        self.terminalize_nonranked_claims(&lane, &error.to_string())
-                            .await?;
-                        tracing::warn!(%error, dropped=lane.len(), "non-ranked acquisition lane failed; unpersisted claims terminalized");
-                    }
-                    Err(error) => {
-                        joins.abort_all();
-                        self.terminalize_nonranked_claims(
-                            &requests,
-                            &format!("non-ranked acquisition lane join failed: {error}"),
-                        )
-                        .await?;
-                        return Err(PipelineError::Facts(format!(
-                            "non-ranked acquisition lane join failed: {error}"
-                        )));
-                    }
-                }
-            }
-            if requests.len() < claim_limit {
-                break;
-            }
-        }
-        Ok(completed)
-    }
-
-    /// Non-ranked acquisition is one-pass terminal work. A worker/persistence
-    /// failure is recorded as dropped, never re-claimed for another vendor
-    /// attempt on the following gap scan.
-    async fn mark_nonranked_terminal(
-        &self,
-        match_id: i64,
-        status: &str,
-        error: &str,
-    ) -> Result<(), DatabaseError> {
-        self.database.query_json(
-            "UPDATE nonranked_match_acquisition SET status=$2,quality='unavailable',lease_until=NULL,\
-             terminal_reason=COALESCE(terminal_reason,'single_pass_worker_failure'),error_message=$3,\
-             completed_at=COALESCE(completed_at,now()),updated_at=now() WHERE match_id=$1 AND status='fetching'",
-            &[&match_id, &status, &error],
-        ).await?;
-        Ok(())
-    }
-
-    async fn terminalize_nonranked_claims(
-        &self,
-        claims: &[NonrankedAcquisitionClaim],
-        error: &str,
-    ) -> Result<(), DatabaseError> {
-        let ids = claims
-            .iter()
-            .map(|claim| claim.match_id)
-            .filter(|id| *id > 0)
-            .collect::<Vec<_>>();
-        if ids.is_empty() {
-            return Ok(());
-        }
-        // A whole acquisition lane failing is almost always a TRANSIENT infra
-        // event (relay lease lost, DB unavailable, quota exhausted) — not evidence
-        // of a bad payload. Permanently dropping the lane starved the roster/player
-        // tables and under-reported presence (the 38k `single_pass_worker_failure`
-        // incident). Reset lane-failed claims back to `discovered` so the next pass
-        // re-claims and persists them, bounded by an attempt fuse that parks only
-        // matches which repeatedly fail rather than churning forever.
-        let attempt_cap = std::env::var("NONRANKED_ACQUISITION_INTERRUPT_MAX_ATTEMPTS")
-            .ok()
-            .and_then(|raw| raw.parse::<i32>().ok())
-            .unwrap_or(6)
-            .max(1);
-        self.database
-            .query_json(
-                "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
-             lease_until=NULL,terminal_reason=NULL,error_message=$2,updated_at=now()\
-             WHERE match_id=ANY($1::bigint[]) AND status='fetching'\
-               AND (detail_attempts IS NULL OR detail_attempts < $3::int)",
-                &[&ids, &error, &attempt_cap],
-            )
-            .await?;
-        // Failed too many times: park as dropped to avoid infinite churn.
-        self.database
-            .query_json(
-                "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
-             lease_until=NULL,terminal_reason='worker_failure_attempt_fuse_exceeded',\
-             error_message=$2,completed_at=COALESCE(completed_at,now()),updated_at=now()\
-             WHERE match_id=ANY($1::bigint[]) AND status='fetching'\
-               AND detail_attempts >= $3::int",
-                &[&ids, &error, &attempt_cap],
-            )
-            .await?;
-        Ok(())
-    }
-
-    async fn terminalize_interrupted_nonranked_claims(&self) -> Result<(), DatabaseError> {
-        // An interrupted claim is NOT evidence of a bad payload: it usually means
-        // the worker exited (restart/crash) before persisting an in-flight batch.
-        // Permanently dropping it starved the roster/player tables and under-reported
-        // presence. Reset expired in-flight claims back to `discovered` so the next
-        // acquisition pass re-claims and persists them. A bounded attempt fuse still
-        // parks genuinely-unavailable matches instead of churning forever.
-        let attempt_cap = std::env::var("NONRANKED_ACQUISITION_INTERRUPT_MAX_ATTEMPTS")
-            .ok()
-            .and_then(|raw| raw.parse::<i32>().ok())
-            .unwrap_or(6)
-            .max(1);
-        self.database
-            .query_json(
-                "UPDATE nonranked_match_acquisition SET status='discovered',quality='unknown',\
-             lease_until=NULL,terminal_reason=NULL,error_message=NULL,\
-             updated_at=now()\
-             WHERE status IN('fetching','service_deferred')\
-               AND (lease_until IS NULL OR lease_until<=now())\
-               AND (detail_attempts IS NULL OR detail_attempts < $1::int)",
-                &[&attempt_cap],
-            )
-            .await?;
-        // Anything still stuck in-flight past the fuse is permanently parked.
-        self.database
-            .query_json(
-                "UPDATE nonranked_match_acquisition SET status='dropped',quality='unavailable',\
-             lease_until=NULL,terminal_reason='worker_interrupted_attempt_fuse_exceeded',\
-             error_message='Repeatedly interrupted before persistence; parked to avoid churn',\
-             completed_at=COALESCE(completed_at,now()),updated_at=now()\
-             WHERE status IN('fetching','service_deferred')\
-               AND (lease_until IS NULL OR lease_until<=now())\
-               AND detail_attempts >= $1::int",
-                &[&attempt_cap],
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Matches the TS nonranked-acquisition-batching checkpoint contract: an
-    /// outcome is persisted before the next ordered vendor window is opened.
-    async fn fetch_nonranked_completed_continuously(
-        &self,
-        requests: &[NonrankedAcquisitionClaim],
-    ) -> Result<usize, PipelineError> {
-        let mut pending = requests
-            .iter()
-            .filter(|claim| claim.match_id > 0 && claim.queue_id > 0)
-            .cloned()
-            .collect::<VecDeque<_>>();
-        let mut emitted = BTreeSet::new();
-        let mut completed = 0;
-        let mut forced_windows = VecDeque::<Vec<NonrankedAcquisitionClaim>>::new();
-        while !pending.is_empty() {
-            let batch = forced_windows
-                .pop_front()
-                .unwrap_or_else(|| pending.iter().take(10).cloned().collect::<Vec<_>>());
-            let batch_ids = batch.iter().map(|claim| claim.match_id).collect::<Vec<_>>();
-            let response = match self
-                .relay
-                .call_value(
-                    "getMatchDetailsBatch",
-                    vec![json!(
-                        batch
-                            .iter()
-                            .map(|claim| json!({"matchId":claim.match_id,"queueId":claim.queue_id}))
-                            .collect::<Vec<_>>()
-                    )],
-                    "presence_acquisition",
-                )
-                .await
-            {
-                Ok(response) => response,
-                Err(error) => {
-                    if batch.len() > 1 && is_recoverable_completed_batch_error(&error.to_string()) {
-                        let midpoint = batch.len().div_ceil(2);
-                        forced_windows.push_front(batch[midpoint..].to_vec());
-                        forced_windows.push_front(batch[..midpoint].to_vec());
-                        continue;
-                    }
-                    for claim in pending.drain(..) {
-                        self.mark_nonranked_terminal(claim.match_id, "dropped", &error.to_string())
-                            .await?;
-                    }
-                    return Ok(completed);
-                }
-            };
-            let returned = response
-                .as_array()
-                .cloned()
-                .unwrap_or_else(|| vec![response]);
-            let validated = match validate_requested_outcomes(&batch_ids, returned) {
-                Ok(validated) => validated,
-                Err(error) => {
-                    for claim in pending.drain(..) {
-                        self.mark_nonranked_terminal(claim.match_id, "dropped", &error.to_string())
-                            .await?;
-                    }
-                    return Ok(completed);
-                }
-            };
-            let mut by_id = validated.into_iter().collect::<HashMap<_, _>>();
-            let returned_ids = by_id.keys().copied().collect::<HashSet<_>>();
-            for claim in &batch {
-                let Some(outcome) = by_id.remove(&claim.match_id) else {
-                    continue;
-                };
-                let match_id = claim.match_id;
-                if !emitted.insert(match_id) {
-                    return Err(PipelineError::Facts(format!(
-                        "canonical relay returned duplicate outcome for match {match_id}"
-                    )));
-                }
-                match self.persist_nonranked_outcome(claim, outcome).await {
-                    Ok(true) => completed += 1,
-                    Ok(false) => {}
-                    Err(error) => {
-                        for pending_claim in pending.drain(..) {
-                            self.mark_nonranked_terminal(
-                                pending_claim.match_id,
-                                "dropped",
-                                &error.to_string(),
-                            )
-                            .await?;
-                        }
-                        return Ok(completed);
-                    }
-                }
-            }
-            for id in batch_ids.iter().filter(|id| returned_ids.contains(id)) {
-                if let Some(position) = pending
-                    .iter()
-                    .position(|candidate| candidate.match_id == *id)
-                {
-                    pending.remove(position);
-                }
-            }
-            let Some(blocker) = batch
-                .iter()
-                .find(|claim| !returned_ids.contains(&claim.match_id))
-                .cloned()
-            else {
-                continue;
-            };
-            let singleton = match self
-                .relay
-                .call_value(
-                    "getMatchDetailsBatch",
-                    vec![json!([{"matchId":blocker.match_id,"queueId":blocker.queue_id}])],
-                    "presence_acquisition",
-                )
-                .await
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    for pending_claim in pending.drain(..) {
-                        self.mark_nonranked_terminal(
-                            pending_claim.match_id,
-                            "dropped",
-                            &error.to_string(),
-                        )
-                        .await?;
-                    }
-                    return Ok(completed);
-                }
-            };
-            let mut resolved = false;
-            let singleton = singleton
-                .as_array()
-                .cloned()
-                .unwrap_or_else(|| vec![singleton]);
-            let singleton = match validate_requested_outcomes(&[blocker.match_id], singleton) {
-                Ok(singleton) => singleton,
-                Err(error) => {
-                    for pending_claim in pending.drain(..) {
-                        self.mark_nonranked_terminal(
-                            pending_claim.match_id,
-                            "dropped",
-                            &error.to_string(),
-                        )
-                        .await?;
-                    }
-                    return Ok(completed);
-                }
-            };
-            for (match_id, outcome) in singleton {
-                if !emitted.insert(match_id) {
-                    return Err(PipelineError::Facts(format!(
-                        "canonical relay returned duplicate outcome for match {match_id}"
-                    )));
-                }
-                resolved = true;
-                match self.persist_nonranked_outcome(&blocker, outcome).await {
-                    Ok(true) => completed += 1,
-                    Ok(false) => {}
-                    Err(error) => {
-                        for pending_claim in pending.drain(..) {
-                            self.mark_nonranked_terminal(
-                                pending_claim.match_id,
-                                "dropped",
-                                &error.to_string(),
-                            )
-                            .await?;
-                        }
-                        return Ok(completed);
-                    }
-                }
-            }
-            if !resolved {
-                for pending_claim in pending.drain(..) {
-                    self.mark_nonranked_terminal(
-                        pending_claim.match_id,
-                        "dropped",
-                        "canonical singleton returned no outcome",
-                    )
-                    .await?;
-                }
-                return Ok(completed);
-            }
-            if let Some(position) = pending
-                .iter()
-                .position(|candidate| candidate.match_id == blocker.match_id)
-            {
-                pending.remove(position);
-            }
-        }
-        Ok(completed)
-    }
-
-    async fn persist_nonranked_outcome(
-        &self,
-        claim: &NonrankedAcquisitionClaim,
-        outcome: Value,
-    ) -> Result<bool, PipelineError> {
-        let match_id = extract_match_id(&outcome).unwrap_or_default();
-        if match_id != claim.match_id {
+        if canonical.queue_id != queue_id {
             return Err(PipelineError::Facts(format!(
-                "non-ranked outcome {} does not match claim {}",
-                match_id, claim.match_id
+                "match {} discovered in queue {queue_id} returned queue {}",
+                canonical.match_id, canonical.queue_id
             )));
         }
-        match self.nonranked.persist(claim, outcome).await {
-            Ok(()) => Ok(true),
-            Err(error) => {
-                self.mark_nonranked_terminal(claim.match_id, "dropped", &error.to_string())
-                    .await?;
-                Err(PipelineError::Facts(format!(
-                    "non-ranked persistence failed for match {}: {error}",
-                    claim.match_id
-                )))
+        let finalized = self
+            .facts
+            .finalize(&canonical, source.as_database())
+            .await
+            .map_err(|error| PipelineError::Facts(error.to_string()))?;
+        match finalized.population {
+            MatchPopulation::Ranked => self
+                .ranked
+                .project_match(canonical.match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| PipelineError::Facts(format!("{error:?}")))?,
+            MatchPopulation::Casual | MatchPopulation::Special => self
+                .casual
+                .project_all_for_match(canonical.match_id)
+                .await
+                .map(|_| ())
+                .map_err(|error| PipelineError::Facts(format!("{error:?}")))?,
+            MatchPopulation::Unknown => {
+                return Err(PipelineError::Facts(format!(
+                    "match {} remained unclassified after finalization",
+                    canonical.match_id
+                )));
             }
         }
+        progress.checkpointed_ids.insert(canonical.match_id);
+        Ok(())
     }
 
-    /// Compatibility name retained for the gap checker while it is being
-    /// replaced by the TS-equivalent hourly acquisition call.
-    pub async fn replay_incomplete_nonranked(
+    /// Purpose: finish a non-authoritative/missing batch result immediately via
+    /// the same DB-first lifecycle object used by manual lookup.
+    /// Input: match/queue IDs and source. Output: durable success or terminal
+    /// failure; no retry ledger, buffer, sleep, or deferred claimant is created.
+    async fn recover_discovered_match(
         &self,
-        limit: usize,
-        lookback_hours: i32,
-    ) -> Result<usize, PipelineError> {
-        self.run_nonranked_acquisition(limit, lookback_hours).await
+        match_id: i64,
+        queue_id: i32,
+        source: MatchDiscoverySource,
+    ) -> Result<(), PipelineError> {
+        let result = self
+            .lifecycle
+            .ingest_discovery(MatchIngestRequest {
+                match_id,
+                queue_id: Some(queue_id),
+                source,
+            })
+            .await;
+        match result.status {
+            RequestedMatchStatus::Ready => Ok(()),
+            _ => Err(PipelineError::Facts(result.error.unwrap_or_else(|| {
+                format!("match {match_id} did not reach the durable fact boundary")
+            }))),
+        }
     }
 }
 
+/// Purpose: convert raw discovery rows to typed unique observations. Input:
+/// relay JSON. Output: provider-ordered positive-ID observations.
 fn parse_observations(value: Value) -> Vec<MatchIdObservation> {
     let rows = value.as_array().cloned().unwrap_or_default();
     let mut observations = Vec::new();
@@ -1227,184 +584,31 @@ fn parse_observations(value: Value) -> Vec<MatchIdObservation> {
     observations
 }
 
-fn build_ranked_raw_payload(
-    outcome: &Value,
-    canonical: &CanonicalMatchPayload,
-) -> Result<Value, PipelineError> {
-    let raw_match = outcome.get("match").unwrap_or(outcome);
-    let players = raw_match
-        .get("players")
-        .and_then(Value::as_array)
-        .ok_or_else(|| PipelineError::Facts("ranked relay match has no player array".to_owned()))?;
-    let score_observations = raw_match
-        .get("direct_score_observations")
-        .and_then(Value::as_array);
-    let bans = (1..=8)
-        .map(|slot| {
-            let keys = [
-                format!("ban_id_{slot}"),
-                format!("BanId{slot}"),
-                format!("Ban_{slot}"),
-            ];
-            let value = std::iter::once(raw_match)
-                .chain(players.iter())
-                .find_map(|source| {
-                    keys.iter()
-                        .find_map(|key| source.get(key).and_then(positive_i64))
-                })
-                .unwrap_or_default();
-            (format!("ban_id_{slot}"), json!(value))
-        })
-        .collect::<Vec<_>>();
-    let mut rows = Vec::with_capacity(players.len());
-    for (index, player) in players.iter().enumerate() {
-        let mut row = player.as_object().cloned().unwrap_or_default();
-        row.insert("Match".to_owned(), json!(canonical.match_id));
-        row.insert("Entry_Datetime".to_owned(), json!(canonical.entry_datetime));
-        row.insert("Map_Game".to_owned(), json!(canonical.map));
-        row.insert("match_queue_id".to_owned(), json!(canonical.queue_id));
-        row.insert(
-            "Match_Duration".to_owned(),
-            json!(canonical.duration_seconds),
-        );
-        if let Some(minutes) = raw_match.get("minutes") {
-            row.insert("Minutes".to_owned(), minutes.clone());
-        }
-        row.insert("Region".to_owned(), json!(canonical.region));
-        let score = score_observations.and_then(|values| values.get(index));
-        insert_optional_value(
-            &mut row,
-            "Team1Score",
-            score
-                .and_then(|value| value.get("team1"))
-                .cloned()
-                .or_else(|| canonical.team1_score.map(|value| json!(value))),
-        );
-        insert_optional_value(
-            &mut row,
-            "Team2Score",
-            score
-                .and_then(|value| value.get("team2"))
-                .cloned()
-                .or_else(|| canonical.team2_score.map(|value| json!(value))),
-        );
-        insert_optional_value(
-            &mut row,
-            "Winning_TaskForce",
-            score
-                .and_then(|value| value.get("winner"))
-                .cloned()
-                .or_else(|| canonical.winning_task_force.map(|value| json!(value))),
-        );
-        row.insert(
-            "hasReplay".to_owned(),
-            json!(if canonical.has_replay.unwrap_or(false) {
-                "y"
-            } else {
-                "n"
-            }),
-        );
-        for key in ["recovery_source", "recovery_api_calls"] {
-            if let Some(value) = raw_match.get(key) {
-                row.insert(key.to_owned(), value.clone());
-            }
-        }
-        row.insert(
-            "recovery_attempted".to_owned(),
-            json!(raw_match.get("recovery_attempted").and_then(Value::as_bool) == Some(true)),
-        );
-        row.insert(
-            "recovery_terminal".to_owned(),
-            json!(raw_match.get("recovery_terminal").and_then(Value::as_bool) == Some(true)),
-        );
-        row.insert(
-            "limited".to_owned(),
-            json!(raw_match.get("limited").and_then(Value::as_bool) == Some(true)),
-        );
-        for (key, value) in &bans {
-            row.insert(key.clone(), value.clone());
-        }
-        rows.push(sanitize_json_strings(Value::Object(row)));
-    }
-    Ok(json!({
-        "endpoint":"getmatchdetailsbatch",
-        "entity_type":"match",
-        "entity_id":canonical.match_id,
-        "raw_data":rows,
-        "source":"batch"
-    }))
-}
-
-fn should_dump_ranked_checkpoint(fetch_ids_after_fetch: &[i64], match_id: i64) -> bool {
-    fetch_ids_after_fetch.contains(&match_id)
-}
-
-fn insert_optional_value(target: &mut Map<String, Value>, key: &str, value: Option<Value>) {
-    if let Some(value) = value {
-        target.insert(key.to_owned(), value);
-    }
-}
-
-fn positive_i64(value: &Value) -> Option<i64> {
-    value
-        .as_i64()
-        .or_else(|| value.as_str()?.parse().ok())
-        .filter(|value| *value > 0)
-}
-
-fn ingest_hour(value: &Value) -> Option<i32> {
-    value
-        .as_i64()
-        .or_else(|| value.as_str()?.parse().ok())
-        .and_then(|hour| i32::try_from(hour).ok())
-        .filter(|hour| (0..=23).contains(hour))
-}
-
-fn sanitize_json_strings(value: Value) -> Value {
-    match value {
-        Value::String(value) => Value::String(value.replace('\0', "").replace("\\u0000", "")),
-        Value::Array(values) => {
-            Value::Array(values.into_iter().map(sanitize_json_strings).collect())
-        }
-        Value::Object(values) => Value::Object(
-            values
-                .into_iter()
-                .map(|(key, value)| (key, sanitize_json_strings(value)))
-                .collect(),
-        ),
-        value => value,
-    }
-}
-
-fn stable_merge_ids(primary: &[i64], secondary: &[i64]) -> Vec<i64> {
-    let mut seen = HashSet::new();
-    primary
-        .iter()
-        .chain(secondary)
-        .copied()
-        .filter(|id| *id > 0 && seen.insert(*id))
-        .collect()
-}
-
-async fn mark_ranked_discovery_failure(
+/// Purpose: record the progress boundary when any canonical drain aborts.
+/// Input: queue ID, queue-hour error and typed progress. Output: reclaimable
+/// failed hour; relationship delegates to `mark_hourly_ingest_failed`.
+async fn mark_match_drain_failure(
     database: &Database,
+    queue_id: i32,
     date: &str,
     hour: i32,
     error: &PipelineError,
-    failure: &RankedFailureContext,
+    progress: &MatchDrainProgress,
 ) -> Result<(), DatabaseError> {
     mark_hourly_ingest_failed(
         database,
         date,
         hour,
-        486,
+        queue_id,
         &pipeline_state_error_message(error),
-        failure.claimed_raw_match_count,
-        failure.checkpointed_count(),
+        progress.claimed_raw_match_count,
+        progress.checkpointed_count(),
     )
     .await
 }
 
+/// Purpose: preserve the useful relay message in hourly state. Input: typed
+/// pipeline error. Output: borrowed or owned display text.
 fn pipeline_state_error_message(error: &PipelineError) -> Cow<'_, str> {
     match error {
         PipelineError::Relay(WorkerRelayError::Operation { message, .. }) => Cow::Borrowed(message),
@@ -1412,47 +616,8 @@ fn pipeline_state_error_message(error: &PipelineError) -> Cow<'_, str> {
     }
 }
 
-fn build_continuous_fetch_lanes(
-    requests: &[NonrankedAcquisitionClaim],
-    concurrency: usize,
-) -> Vec<Vec<NonrankedAcquisitionClaim>> {
-    let mut seen = HashSet::new();
-    let requests = requests
-        .iter()
-        .filter(|claim| claim.match_id > 0 && claim.queue_id > 0 && seen.insert(claim.match_id))
-        .cloned()
-        .collect::<Vec<_>>();
-    if requests.is_empty() {
-        return Vec::new();
-    }
-    let lane_count = concurrency.max(1).min(requests.len().div_ceil(10));
-    let mut lanes = vec![Vec::new(); lane_count];
-    for (window_index, window) in requests.chunks(10).enumerate() {
-        lanes[window_index % lane_count].extend_from_slice(window);
-    }
-    lanes.into_iter().filter(|lane| !lane.is_empty()).collect()
-}
-
-fn env_u64(name: &str, fallback: u64) -> u64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(fallback)
-}
-
-fn env_usize(name: &str, fallback: usize) -> usize {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(fallback)
-}
-
-fn nonranked_fetch_concurrency(configured: usize, database_pool_max: usize) -> usize {
-    configured
-        .clamp(1, 8)
-        .min(database_pool_max.saturating_sub(2).max(1))
-}
-
+/// Purpose: decide whether a batch payload error can be isolated by bisection.
+/// Input: error text. Output: boolean; quota and transport failures stay fatal.
 fn is_recoverable_completed_batch_error(error: &str) -> bool {
     let error = error.to_ascii_lowercase();
     [
@@ -1468,7 +633,9 @@ fn is_recoverable_completed_batch_error(error: &str) -> bool {
     .any(|needle| error.contains(needle))
 }
 
-fn recoverable_ranked_bisection(batch: &[i64], error: &str) -> Option<(Vec<i64>, Vec<i64>)> {
+/// Purpose: split only a multi-ID payload-failure batch. Input: IDs and error.
+/// Output: ordered left/right typed ID windows or `None` for a fatal error.
+fn recoverable_batch_bisection(batch: &[i64], error: &str) -> Option<(Vec<i64>, Vec<i64>)> {
     if batch.len() <= 1 || !is_recoverable_completed_batch_error(error) {
         return None;
     }
@@ -1476,13 +643,19 @@ fn recoverable_ranked_bisection(batch: &[i64], error: &str) -> Option<(Vec<i64>,
     Some((batch[..midpoint].to_vec(), batch[midpoint..].to_vec()))
 }
 
-fn authoritative_ranked_outcome(outcome: &Value) -> bool {
+/// Purpose: recognize a complete authoritative relay wrapper. Input: outcome
+/// JSON. Output: boolean used only to clear outage telemetry.
+fn authoritative_match_outcome(outcome: &Value) -> bool {
     matches!(
         outcome.get("status").and_then(Value::as_str),
         Some("complete_direct" | "complete_recovered")
     ) && outcome.get("match").is_some_and(Value::is_object)
 }
 
+/// Purpose: enforce exact batch response ownership. Input: requested IDs and
+/// relay outcomes. Output: typed `(match_id, outcome)` pairs or a hard error for
+/// malformed IDs, duplicates, or outcomes belonging to another request;
+/// omitted requested IDs continue to the immediate singleton recovery path.
 fn validate_requested_outcomes(
     requested: &[i64],
     outcomes: Vec<Value>,
@@ -1511,6 +684,8 @@ fn validate_requested_outcomes(
     Ok(validated)
 }
 
+/// Purpose: extract one positive match identifier from supported relay shapes.
+/// Input: JSON value. Output: optional `i64` without vendor work.
 fn extract_match_id(value: &Value) -> Option<i64> {
     for candidate in [Some(value), value.get("match"), value.get("payload")]
         .into_iter()
@@ -1529,11 +704,15 @@ fn extract_match_id(value: &Value) -> Option<i64> {
     None
 }
 
+/// Purpose: read the first non-empty text alias from a vendor row. Input: JSON
+/// and alias slice. Output: owned optional text.
 fn text(value: &Value, keys: &[&str]) -> Option<String> {
     keys.iter()
         .find_map(|key| value.get(*key)?.as_str().map(str::to_owned))
 }
 
+/// Purpose: normalize supported vendor boolean encodings. Input: JSON and
+/// aliases. Output: deterministic boolean.
 fn boolean(value: &Value, keys: &[&str]) -> bool {
     keys.iter()
         .find_map(|key| value.get(*key)?.as_bool())
@@ -1543,14 +722,6 @@ fn boolean(value: &Value, keys: &[&str]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use paladinscat_core::config::BackendConfig;
-
-    #[test]
-    fn nonranked_fetch_lanes_reserve_pool_headroom_for_coordination() {
-        assert_eq!(nonranked_fetch_concurrency(8, 8), 6);
-        assert_eq!(nonranked_fetch_concurrency(8, 12), 8);
-        assert_eq!(nonranked_fetch_concurrency(8, 2), 1);
-    }
 
     #[test]
     fn relay_operation_state_error_matches_typescript_raw_message() {
@@ -1562,47 +733,6 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "HirezRelay getMatchIdsByQueueDetails failed: fixture outage"
-        );
-    }
-
-    #[test]
-    fn incomplete_nonranked_replay_claim_is_oldest_first_and_bounded() {
-        assert!(
-            CLAIM_INCOMPLETE_NONRANKED_SQL
-                .contains("status = 'discovered' OR (status = 'waiting_for_completion'")
-        );
-        assert!(
-            !CLAIM_INCOMPLETE_NONRANKED_SQL
-                .contains("status IN ('discovered', 'waiting_for_completion', 'fetching')")
-        );
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("interval '30 minutes'"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("(now() AT TIME ZONE 'UTC')"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("$2::int * interval '1 minute'"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("NOT $3::boolean"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("date_trunc('week'"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("THEN 0 ELSE 1 END"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("END DESC"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("END ASC"));
-        assert!(
-            CLAIM_INCOMPLETE_NONRANKED_SQL.contains("lease_until = now() + interval '30 minutes'")
-        );
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("LIMIT $1"));
-        assert!(CLAIM_INCOMPLETE_NONRANKED_SQL.contains("FOR UPDATE SKIP LOCKED"));
-    }
-
-    #[test]
-    fn nonranked_reconciliation_reuses_persisted_facts_before_api_claims() {
-        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("JOIN casual_match_players"));
-        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("JOIN special_match_players"));
-        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("lease_until<=now()"));
-        assert!(RECONCILE_PERSISTED_NONRANKED_SQL.contains("reconciled_existing_match_facts"));
-    }
-
-    #[test]
-    fn ranked_discovery_then_debt_merge_is_stable() {
-        assert_eq!(
-            stable_merge_ids(&[30, 10, 30, 20], &[20, 40, 10, 50]),
-            vec![30, 10, 20, 40, 50]
         );
     }
 
@@ -1641,44 +771,7 @@ mod tests {
     }
 
     #[test]
-    fn nonranked_lanes_distribute_ordered_windows_like_typescript() {
-        let requests = (1..=25)
-            .map(|id| NonrankedAcquisitionClaim {
-                match_id: id,
-                queue_id: 424,
-                source_date: "2026-08-02".to_owned(),
-                source_hour: 0,
-                region: None,
-                discovered_entry_datetime: None,
-            })
-            .collect::<Vec<_>>();
-        let lanes = build_continuous_fetch_lanes(&requests, 2);
-        assert_eq!(
-            lanes[0]
-                .iter()
-                .map(|claim| claim.match_id)
-                .collect::<Vec<_>>(),
-            [(1..=10).collect::<Vec<_>>(), (21..=25).collect::<Vec<_>>()].concat()
-        );
-        assert_eq!(
-            lanes[1]
-                .iter()
-                .map(|claim| claim.match_id)
-                .collect::<Vec<_>>(),
-            (11..=20).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn nonranked_claim_accepts_midnight_but_rejects_invalid_hours() {
-        assert_eq!(ingest_hour(&json!(0)), Some(0));
-        assert_eq!(ingest_hour(&json!(23)), Some(23));
-        assert_eq!(ingest_hour(&json!(-1)), None);
-        assert_eq!(ingest_hour(&json!(24)), None);
-    }
-
-    #[test]
-    fn nonranked_bisection_is_limited_to_typescript_recoverable_errors() {
+    fn batch_bisection_is_limited_to_recoverable_payload_errors() {
         assert!(is_recoverable_completed_batch_error(
             "Int16 skin_id too large"
         ));
@@ -1688,8 +781,8 @@ mod tests {
     }
 
     #[test]
-    fn ranked_recoverable_bisection_preserves_typescript_left_then_right_sequence() {
-        let (left, right) = recoverable_ranked_bisection(
+    fn recoverable_batch_bisection_preserves_typescript_left_then_right_sequence() {
+        let (left, right) = recoverable_batch_bisection(
             &(1..=10).collect::<Vec<_>>(),
             "HIREZ_UNKNOWN_RETURN Int16 skin_id",
         )
@@ -1697,338 +790,38 @@ mod tests {
         assert_eq!(left, vec![1, 2, 3, 4, 5]);
         assert_eq!(right, vec![6, 7, 8, 9, 10]);
         let (left_left, left_right) =
-            recoverable_ranked_bisection(&left, "too large").expect("recursive left split");
+            recoverable_batch_bisection(&left, "too large").expect("recursive left split");
         assert_eq!(left_left, vec![1, 2, 3]);
         assert_eq!(left_right, vec![4, 5]);
-        assert!(recoverable_ranked_bisection(&[1], "Int16").is_none());
-        assert!(recoverable_ranked_bisection(&[1, 2], "quota exhausted").is_none());
+        assert!(recoverable_batch_bisection(&[1], "Int16").is_none());
+        assert!(recoverable_batch_bisection(&[1, 2], "quota exhausted").is_none());
     }
 
     #[test]
-    fn ranked_outage_latch_transitions_match_authoritative_ts_states() {
-        assert!(authoritative_ranked_outcome(&json!({
-            "status":"complete_direct","match":{}
-        })));
-        assert!(authoritative_ranked_outcome(&json!({
-            "status":"complete_recovered","match":{}
-        })));
-        assert!(!authoritative_ranked_outcome(&json!({
-            "status":"limited","match":{}
-        })));
-        assert!(!authoritative_ranked_outcome(&json!({
-            "status":"complete_direct"
-        })));
-        let classified = classify_hirez_service_outage_message(
-            "Invalid object name 'Server_Regions' in ##sql_paladins_api",
-        )
-        .expect("detail outage");
-        assert_eq!(classified.service_key, MATCH_DETAIL_SERVICE_OUTAGE_KEY);
-
+    fn every_queue_uses_one_immediate_canonical_pipeline_without_debt_or_caps() {
         let source = include_str!("pipeline.rs");
-        let clear = source
-            .split("async fn checkpoint_ranked_outcome_with_outage")
+        let discovery = source
+            .split("async fn discover_hour_inner")
             .nth(1)
-            .expect("outage recovery handler")
-            .split("/// Ranked discovery owns only durable buffer staging")
+            .expect("queue-neutral discovery")
+            .split("async fn discovered_match_ids")
             .next()
-            .expect("handler body");
-        assert!(
-            clear.find("mark_hirez_service_recovered").unwrap()
-                < clear
-                    .find("checkpoint_ranked_outcome(outcome, failure)")
-                    .unwrap()
-        );
-        let outage = source
-            .split("async fn record_ranked_detail_outage")
+            .expect("queue-neutral discovery body");
+        assert!(discovery.contains("fetch_discovered_completed_continuously"));
+        assert!(discovery.contains("mark_hourly_ingest_complete"));
+        assert!(!discovery.contains("hourly_ingest_match_debt"));
+        assert!(!discovery.contains("raw_ingest_buffer"));
+        assert!(!discovery.contains("MATCH_COUNT_QUEUE_DEFINITIONS"));
+        assert!(!discovery.contains("queue_id =="));
+        let drain = source
+            .split("async fn fetch_discovered_completed_continuously")
             .nth(1)
-            .expect("outage recorder")
-            .split("async fn checkpoint_ranked_outcome_with_outage")
+            .expect("canonical drain")
+            .split("async fn record_match_detail_outage")
             .next()
-            .expect("outage recorder body");
-        assert!(outage.contains("record_hirez_service_outage"));
-        assert!(!outage.contains("mark_match_debt_retryable"));
-    }
-
-    #[test]
-    fn ranked_checkpoint_uses_raw_buffer_not_direct_fact_finalization() {
-        let source = include_str!("pipeline.rs").replace("\r\n", "\n");
-        let checkpoint = source
-            .split("async fn checkpoint_ranked_outcome(\n")
-            .nth(1)
-            .expect("checkpoint function")
-            .split("pub async fn run_nonranked_acquisition")
-            .next()
-            .expect("checkpoint body");
-        assert!(checkpoint.contains("build_ranked_raw_payload"));
-        assert!(checkpoint.contains("\"dumpRawPayloads\""));
-        assert!(checkpoint.contains("\"backend_unattributed\""));
-        assert!(
-            checkpoint.find("filter_already_handled_match_ids").unwrap()
-                < checkpoint.find("\"dumpRawPayloads\"").unwrap()
-        );
-        assert!(checkpoint.contains("mark_match_debt_staged_or_complete"));
-        assert!(!checkpoint.contains("INSERT INTO raw_ingest_buffer"));
-        assert!(!checkpoint.contains("facts.finalize"));
-        assert!(!checkpoint.contains("project_match"));
-    }
-
-    #[test]
-    fn ranked_raw_payload_matches_historical_array_contract() {
-        let outcome = json!({
-            "matchId":77,"status":"complete_direct",
-            "match":{
-                "match_id":77,"queue_id":486,"entry_datetime":"2026-08-02T01:00:00Z",
-                "map":"Frog Isle","duration_seconds":600,"minutes":10,"region":"NA",
-                "team1_score":4,"team2_score":2,"winning_task_force":1,"has_replay":true,
-                "direct_score_observations":[{"team1":3,"team2":1,"winner":1}],
-                "players":[{"player_id":9,"player_name":format!("A{}B", '\0'),"BanId1":101}]
-            }
-        });
-        let canonical = CanonicalMatchPayload::from_relay_value(outcome.clone()).unwrap();
-        let payload = build_ranked_raw_payload(&outcome, &canonical).unwrap();
-        assert_eq!(payload["endpoint"], "getmatchdetailsbatch");
-        assert_eq!(payload["entity_type"], "match");
-        assert_eq!(payload["entity_id"], 77);
-        assert_eq!(payload["source"], "batch");
-        let rows = payload["raw_data"].as_array().expect("historical rows");
-        assert_eq!(rows[0]["Match"], 77);
-        assert_eq!(rows[0]["Team1Score"], 3);
-        assert_eq!(rows[0]["ban_id_1"], 101);
-        assert_eq!(rows[0]["player_name"], "AB");
-    }
-
-    #[test]
-    fn ranked_post_fetch_race_guard_suppresses_completed_match_dump() {
-        assert!(should_dump_ranked_checkpoint(&[77], 77));
-        // A match completing while getMatchDetailsBatch is in flight is absent
-        // from the second guard's fetchIds and must never be dumped again.
-        assert!(!should_dump_ranked_checkpoint(&[], 77));
-    }
-
-    #[test]
-    fn ranked_source_keeps_normal_due_debt_and_failed_or_staged_hour_ownership() {
-        let source = include_str!("pipeline.rs");
-        let ranked = source
-            .split("async fn discover_ranked_hour_inner")
-            .nth(1)
-            .expect("ranked discovery")
-            .split("pub async fn discover_hour")
-            .next()
-            .expect("ranked body");
-        assert!(ranked.contains("due_match_debt_ids"));
-        assert!(ranked.contains("stable_merge_ids(&discovered_ids, &due_debt)"));
-        assert!(ranked.contains("guard.skipped.raw_buffer > 0 || guard.skipped.pull_list > 0"));
-        assert!(ranked.contains("mark_hourly_ingest_failed"));
-        assert!(!ranked.contains("if result.retryable == 0"));
-    }
-
-    #[test]
-    fn ranked_cleanup_signal_is_awaited_before_headroom_and_is_warning_only() {
-        let source = include_str!("pipeline.rs");
-        let ranked = source
-            .split("async fn discover_ranked_hour_inner")
-            .nth(1)
-            .expect("ranked discovery")
-            .split("pub async fn discover_hour")
-            .next()
-            .expect("ranked body");
-        let cleanup = ranked
-            .find("\"cleanupFetchedPlayersCache\"")
-            .expect("cleanup relay signal");
-        let headroom = ranked
-            .find("api_headroom_snapshot")
-            .expect("headroom snapshot");
-        assert!(cleanup < headroom);
-        assert!(ranked[..headroom].contains("\"backend_unattributed\""));
-        assert!(ranked[..headroom].contains("if let Err(error)"));
-        assert!(ranked[..headroom].contains("tracing::warn!"));
-    }
-
-    #[test]
-    fn presence_pass_has_one_preloop_budget_gate_and_no_queue_state_on_exhaustion() {
-        let source = include_str!("pipeline.rs");
-        let pass = source
-            .split("pub async fn discover_all_presence_queues")
-            .nth(1)
-            .expect("presence pass")
-            .split("/// Presence discovery has exactly one vendor call")
-            .next()
-            .expect("presence pass body");
-        assert_eq!(pass.matches("api_headroom_snapshot").count(), 1);
-        assert!(pass.find("api_headroom_snapshot").unwrap() < pass.find("for queue").unwrap());
-        let exhausted = pass
-            .split("if !budget.has_usable_keys")
-            .nth(1)
-            .expect("no-headroom branch")
-            .split("let mut results")
-            .next()
-            .expect("no-headroom body");
-        assert!(exhausted.contains("return Vec::new()"));
-        assert!(!exhausted.contains("mark_hourly_ingest"));
-        assert!(!exhausted.contains("record_hourly_ingest_quota_wait"));
-
-        let queue = source
-            .split("async fn discover_presence_hour_inner")
-            .nth(1)
-            .expect("presence queue")
-            .split("/// Scheduler-facing spelling")
-            .next()
-            .expect("presence queue body");
-        assert!(!queue.contains("api_headroom_snapshot"));
-        assert!(!queue.contains("record_hourly_ingest_quota_wait"));
-    }
-
-    #[test]
-    fn nonranked_lane_failures_terminalize_claims_before_join_error_propagates() {
-        let source = include_str!("pipeline.rs");
-        let run = source
-            .split("pub async fn run_nonranked_acquisition")
-            .nth(1)
-            .expect("nonranked runner")
-            .split("/// Non-ranked acquisition is one-pass terminal work")
-            .next()
-            .expect("runner body");
-        let cleanups = run
-            .match_indices("terminalize_nonranked_claims")
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        assert!(cleanups.len() >= 2, "both failure paths must clean up claims");
-        let propagate = run
-            .find("return Err(PipelineError::Facts")
-            .expect("join propagation");
-        assert!(cleanups[0] < propagate);
-        assert!(cleanups[1] < propagate);
-    }
-
-    #[test]
-    fn interrupted_claim_reset_never_nulls_quality_or_drops_permanently() {
-        let source = include_str!("pipeline.rs");
-        let reset = source
-            .split("async fn terminalize_interrupted_nonranked_claims")
-            .nth(1)
-            .expect("interrupted terminalize fn")
-            .split("async fn fetch_nonranked_completed_continuously")
-            .next()
-            .expect("fn body");
-        // The reset branch must set a valid quality (column is NOT NULL) and must
-        // NOT permanently drop a merely-interrupted claim, or roster recovery stalls.
-        let reset_stmt = reset
-            .split("Anything still stuck in-flight past the fuse is permanently parked")
-            .next()
-            .expect("reset branch only");
-        assert!(
-            reset_stmt.contains("SET status='discovered',quality='unknown'"),
-            "interrupted-claim reset must set quality='unknown' (NOT NULL column), got:\n{reset_stmt}"
-        );
-        assert!(
-            reset_stmt.contains("status IN('fetching','service_deferred')"),
-            "reset targets in-flight claims"
-        );
-        assert!(
-            !reset_stmt.contains("status='dropped'"),
-            "interrupted-claim reset must NOT permanently drop; the bounded fuse branch is separate"
-        );
-        // The bounded fuse still parks genuinely-unavailable matches (churn guard).
-        assert!(
-            reset.contains("status='dropped',quality='unavailable'"),
-            "fuse branch parks over-attempted claims"
-        );
-    }
-
-    #[tokio::test]
-    #[ignore = "requires PALADINSCAT_TEST_DATABASE_URL with hourly ingest tables"]
-    async fn forced_ranked_outage_latches_then_fails_hour_with_ts_run_counts() {
-        let database_url =
-            std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
-        let config = BackendConfig::from_lookup(|name| match name {
-            "DATABASE_URL" => Some(database_url.clone()),
-            "REDIS_URL" => Some("redis://127.0.0.1:9".to_owned()),
-            _ => None,
-        })
-        .expect("config");
-        let database = Database::new(&config, "ranked-failure-state-integration").unwrap();
-        let date = "2099-12-29";
-        let hour = 23;
-        let client = database.connection().await.unwrap();
-        client
-            .execute(
-                "DELETE FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=486",
-                &[&date, &hour],
-            )
-            .await
-            .unwrap();
-        drop(client);
-        assert!(
-            claim_hourly_ingest_hour(&database, date, hour, 486, "integration", false)
-                .await
-                .unwrap()
-        );
-        record_hirez_service_outage(
-            &database,
-            MATCH_DETAIL_SERVICE_OUTAGE_KEY,
-            "Hi-Rez match detail service outage: Server_Regions temp-table failure",
-            None,
-        )
-        .await
-        .unwrap();
-        let mut failure = RankedFailureContext {
-            claimed_raw_match_count: Some(7),
-            ..RankedFailureContext::default()
-        };
-        failure.checkpointed_ids.extend([7001, 7002]);
-        mark_ranked_discovery_failure(
-            &database,
-            date,
-            hour,
-            &PipelineError::Facts("forced ranked relay outage".to_owned()),
-            &failure,
-        )
-        .await
-        .unwrap();
-        let row = database
-            .one_json(
-                "SELECT status,raw_match_count,staged_match_count,fetched,fetch_succeeded,lease_until::text,next_retry_at::text,error_message FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=486",
-                &[&date, &hour],
-            )
-            .await
-            .unwrap()
-            .expect("failed hour");
-        assert_eq!(row["status"], "failed");
-        assert_eq!(row["raw_match_count"], 7);
-        assert_eq!(row["staged_match_count"], 2);
-        assert_eq!(row["fetched"], true);
-        assert_eq!(row["fetch_succeeded"], false);
-        assert!(row["lease_until"].is_null());
-        assert!(row["next_retry_at"].is_string());
-        assert!(
-            row["error_message"]
-                .as_str()
-                .unwrap()
-                .contains("forced ranked relay outage")
-        );
-        assert!(
-            crate::workers::outage::active_hirez_service_outage(
-                &database,
-                MATCH_DETAIL_SERVICE_OUTAGE_KEY,
-            )
-            .await
-            .unwrap()
-            .is_some()
-        );
-        let client = database.connection().await.unwrap();
-        client
-            .execute(
-                "DELETE FROM hourly_ingest_state WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=486",
-                &[&date, &hour],
-            )
-            .await
-            .unwrap();
-        client
-            .execute(
-                "DELETE FROM hirez_service_outage_state WHERE service_key=$1",
-                &[&MATCH_DETAIL_SERVICE_OUTAGE_KEY],
-            )
-            .await
-            .unwrap();
+            .expect("drain body");
+        assert!(drain.contains("while !remaining.is_empty()"));
+        assert!(drain.contains("remaining.iter().take(10)"));
+        assert!(!drain.contains("LIMIT"));
     }
 }

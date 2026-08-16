@@ -20,21 +20,17 @@ use url::{Host, Url};
 
 use super::{
     coordination::WorkerCoordinationRepository,
-    discovery_control::{
-        due_debt_hours, record_hourly_ingest_quota_wait, revive_fresh_no_authority_debt,
-    },
     history_retention::cleanup_player_history_retention,
     live_tracker::detect_dropped_matches,
     maintenance::{
         BufferBatchResult, cleanup_raw_ingest_buffer_retention, process_buffer_batch_until,
         refresh_baselines_with_job, refresh_derived_projections_with_job,
     },
-    outage::{
-        MATCH_DETAIL_SERVICE_OUTAGE_KEY, active_hirez_service_outage,
-        is_hirez_service_outage_probe_due,
-    },
     pipeline::CanonicalIngestPipeline,
-    policy::{ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, api_headroom_snapshot},
+    policy::{
+        ApiHeadroomSnapshot, MATCH_COUNT_QUEUE_DEFINITIONS, RANKED_STATS_QUEUE_ID,
+        api_headroom_snapshot,
+    },
     profile_enrichment::{ProfileEnrichmentRepository, ProfileEnrichmentResult},
     projections,
     ranked_tracker::RankedTracker,
@@ -50,7 +46,6 @@ const OWNERSHIP_HEARTBEAT: Duration = Duration::from_secs(15);
 const OWNERSHIP_HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const JOB_LEASE: Duration = Duration::from_secs(60 * 60);
 const GAP_CHECKER_MIN_DATE: &str = "2026-05-31";
-const GAP_CHECKER_MAX_BACKFILL_LIMIT: usize = 8;
 
 #[derive(Clone)]
 struct SchedulerServices {
@@ -188,18 +183,6 @@ fn cron_field_matches(field: &str, value: u8, min: u8, max: u8) -> bool {
     })
 }
 
-fn nonranked_acquisition_max_matches_per_run() -> usize {
-    bounded_nonranked_acquisition_max_matches(
-        std::env::var("NONRANKED_ACQUISITION_MAX_MATCHES_PER_RUN")
-            .ok()
-            .and_then(|value| value.parse().ok()),
-    )
-}
-
-fn bounded_nonranked_acquisition_max_matches(value: Option<usize>) -> usize {
-    value.unwrap_or(2_000).clamp(1, 20_000)
-}
-
 /// Cap on buffer batches drained per scheduler invocation. Bounding the drain
 /// (rather than draining until the inbox is empty) prevents a large or
 /// permanently non-empty raw inbox from pinning the scheduler job slot open
@@ -249,34 +232,10 @@ fn auto_ingester_presence_source(trigger: &str) -> &'static str {
     }
 }
 
-fn bounded_gap_retry_lookback_days(value: Option<i64>) -> i64 {
-    value.unwrap_or(2).max(1)
-}
-
-fn bounded_gap_backfill_limit(value: Option<usize>) -> usize {
-    value
-        .unwrap_or(GAP_CHECKER_MAX_BACKFILL_LIMIT)
-        .clamp(1, GAP_CHECKER_MAX_BACKFILL_LIMIT)
-}
-
-fn configured_gap_min_date(now: OffsetDateTime) -> String {
-    let lookback = bounded_gap_retry_lookback_days(
-        std::env::var("GAP_CHECKER_RETRY_STATE_LOOKBACK_DAYS")
-            .ok()
-            .and_then(|value| value.parse().ok()),
-    );
-    gap_min_date(now, lookback)
-}
-
-fn gap_min_date(now: OffsetDateTime, lookback_days: i64) -> String {
-    let calculated = (now - time::Duration::days(lookback_days))
-        .date()
-        .to_string();
-    if calculated.as_str() < GAP_CHECKER_MIN_DATE {
-        GAP_CHECKER_MIN_DATE.to_owned()
-    } else {
-        calculated
-    }
+/// Purpose: return the full governed recovery boundary, never a rolling window.
+/// Input: none. Output: the earliest supported UTC date as an owned string.
+fn configured_gap_min_date() -> String {
+    GAP_CHECKER_MIN_DATE.to_owned()
 }
 
 fn url_is_loopback(value: &str) -> bool {
@@ -614,37 +573,23 @@ async fn dispatch(
             let worker = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
                 .map_err(|error| error.to_string())?;
             let presence_source = auto_ingester_presence_source(trigger);
-            // Keep the TS auto-ingester order: ranked discovery, presence-only
-            // discovery, then one ledger-backed non-ranked acquisition pass.
+            // Every queue now completes discovery and canonical ingestion in
+            // this invocation; there is no second claimant or deferred ledger.
             let ranked = worker
-                .discover_ranked_hour(&date, hour, "auto-ingester", false)
+                .discover_hour(RANKED_STATS_QUEUE_ID, &date, hour, "auto-ingester")
                 .await;
             let presence = worker
                 .discover_all_presence_queues(&date, hour, presence_source)
                 .await;
             let presence_complete = presence.iter().filter(|result| result.is_ok()).count();
             let presence_failed = presence.len() - presence_complete;
-            let nonranked = worker
-                .run_nonranked_acquisition(nonranked_acquisition_max_matches_per_run(), 48)
-                .await
-                .map_err(|error| error.to_string())?;
             Ok(json!({
                 "date":date,
                 "hour":hour,
                 "ranked_complete":ranked.is_ok(),
                 "presence_complete":presence_complete,
-                "presence_failed":presence_failed,
-                "nonranked_acquired":nonranked
+                "presence_failed":presence_failed
             }))
-        }
-        "auto-ingester:nonranked-acquisition" => {
-            let worker = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
-                .map_err(|error| error.to_string())?;
-            let acquired = worker
-                .run_current_week_nonranked_acquisition(nonranked_acquisition_max_matches_per_run())
-                .await
-                .map_err(|error| error.to_string())?;
-            Ok(json!({"nonranked_acquired": acquired}))
         }
         "auto-ingester:profile-enrichment" => {
             let max_calls = profile_enrichment_allowed_calls(
@@ -830,106 +775,49 @@ async fn drain_view_counts(database: &Database, config: &BackendConfig) -> Resul
     Ok(json!({ "postsIncremented": posts, "buildsIncremented": builds }))
 }
 
+/// Purpose: discover every missing hour and drain every locally known ID.
+/// Input: shared scheduler services. Output: JSON counts for all attempted
+/// queue-hours; ranked/casual candidates share one newest-first ordering.
 async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let now = OffsetDateTime::now_utc();
-    let min_date = configured_gap_min_date(now);
-    let max_date = now.date().to_string();
-    let _ = revive_fresh_no_authority_debt(&services.database, 486, &min_date, &max_date)
-        .await
-        .map_err(|error| error.to_string())?;
-    let due = due_debt_hours(&services.database, 486, &min_date, &max_date)
-        .await
-        .map_err(|error| error.to_string())?;
-    let limit = bounded_gap_backfill_limit(
-        std::env::var("GAP_CHECKER_MAX_BACKFILL_PER_RUN")
-            .ok()
-            .and_then(|value| value.parse().ok()),
-    );
-    let mut ranked = ranked_gap_candidates(&services.database, now, &min_date, due)
+    let min_date = configured_gap_min_date();
+    let ranked = ranked_gap_candidates(&services.database, now, &min_date)
         .await
         .map_err(|error| error.to_string())?;
     let mut presence = presence_gap_candidates(&services.database, now, &min_date)
         .await
         .map_err(|error| error.to_string())?;
-    // Hi-Rez history exposes only the newest 50 matches. Drain the newest
-    // discovery windows first so an outage backlog cannot age recoverable
-    // matches out of that bounded fallback while older gaps consume quota.
-    ranked.reverse();
-    presence.reverse();
-    let mut candidates = ranked.clone();
-    candidates.extend(presence.iter().cloned());
+    // Hi-Rez history exposes only the newest 50 matches. Merge every population
+    // into one newest-first order; ranked history must not run as a separate
+    // priority lane that pushes casual matches behind older ranked hours.
+    let mut candidates = ranked;
+    candidates.append(&mut presence);
+    candidates.sort_by(|left, right| {
+        right
+            .date
+            .cmp(&left.date)
+            .then_with(|| right.hour.cmp(&left.hour))
+            .then_with(|| left.queue_id.cmp(&right.queue_id))
+    });
     if candidates.is_empty() {
         return Ok(json!({"candidates":0,"attempted":0,"completed":0}));
     }
-    let headroom = api_headroom_snapshot(&services.database, api_key_reserve_calls())
-        .await
-        .map_err(|error| error.to_string())?;
-    if !headroom.has_usable_keys {
-        for candidate in &candidates {
-            record_hourly_ingest_quota_wait(
-                &services.database,
-                &candidate.date,
-                candidate.hour,
-                candidate.queue_id,
-                "gap-checker-quota-wait",
-                "no usable Hi-Rez key headroom",
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-        }
-        return Ok(
-            json!({"candidates":candidates.len(),"attempted":0,"completed":0,"skipped":"no_api_headroom"}),
-        );
-    }
-    let active_outage =
-        active_hirez_service_outage(&services.database, MATCH_DETAIL_SERVICE_OUTAGE_KEY)
-            .await
-            .map_err(|error| error.to_string())?;
-    let probe_due = is_hirez_service_outage_probe_due(active_outage.as_ref(), now);
-    let mut selected = if active_outage.is_some() {
-        let mut eligible = presence.clone();
-        if probe_due
-            && let Some(probe) = ranked
-                .iter()
-                .find(|candidate| candidate.debt_only)
-                .or(ranked.first())
-        {
-            eligible.push(probe.clone());
-        }
-        eligible
-    } else {
-        let presence_budget = presence.len().min(limit.div_ceil(2));
-        let mut eligible = presence
-            .into_iter()
-            .take(presence_budget)
-            .collect::<Vec<_>>();
-        eligible.extend(ranked.into_iter().take(limit - eligible.len()));
-        eligible
-    };
-    selected.truncate(limit);
+    // Drain the complete newest-first recovery set. The input is every missing
+    // or unfinished queue-hour; no per-run cap, reserve lane, or outage wait
+    // may push a discovered match closer to the 50-match loss boundary.
+    let selected = candidates.clone();
     let pipeline = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
         .map_err(|error| error.to_string())?;
     let mut completed = 0;
     for candidate in &selected {
-        let result = if candidate.presence_only {
-            pipeline
-                .discover_presence_hour(
-                    candidate.queue_id,
-                    &candidate.date,
-                    candidate.hour,
-                    "gap-checker-presence-backfill",
-                )
-                .await
-        } else {
-            pipeline
-                .discover_ranked_hour(
-                    &candidate.date,
-                    candidate.hour,
-                    "gap-checker",
-                    candidate.debt_only,
-                )
-                .await
-        };
+        let result = pipeline
+            .discover_hour(
+                candidate.queue_id,
+                &candidate.date,
+                candidate.hour,
+                "gap-checker",
+            )
+            .await;
         if result.is_ok() {
             completed += 1;
         }
@@ -942,18 +830,14 @@ struct GapCandidate {
     queue_id: i32,
     date: String,
     hour: i32,
-    debt_only: bool,
-    presence_only: bool,
 }
 
 impl GapCandidate {
-    fn ranked(date: String, hour: i32, debt_only: bool) -> Self {
+    fn ranked(date: String, hour: i32) -> Self {
         Self {
-            queue_id: 486,
+            queue_id: RANKED_STATS_QUEUE_ID,
             date,
             hour,
-            debt_only,
-            presence_only: false,
         }
     }
 
@@ -962,28 +846,16 @@ impl GapCandidate {
             queue_id,
             date,
             hour,
-            debt_only: false,
-            presence_only: true,
         }
     }
 }
 
 const RANKED_GAP_STATES_SQL: &str = r#"SELECT state.date::TEXT,state.hour,state.status,state.raw_match_count,
-         state.next_retry_at<=now() retry_due,state.lease_until<=now() lease_due,
-         COALESCE(counts.total_matches,0) total_matches,COALESCE(debt.open_count,0) open_count,
-         COALESCE(debt.terminal_count,0) terminal_count
+         state.lease_until<=now() lease_due
          FROM hourly_ingest_state state
-         LEFT JOIN hourly_match_counts counts ON counts.date=state.date AND counts.hour=state.hour AND counts.queue_id=state.queue_id
-         LEFT JOIN (SELECT date,hour,COUNT(*) FILTER(WHERE status='unrecoverable')::INT terminal_count,
-          COUNT(*) FILTER(WHERE status IN('pending','staged'))::INT open_count FROM hourly_ingest_match_debt
-          WHERE queue_id=486 AND date>=$1::TEXT::DATE AND date<=$2::TEXT::DATE GROUP BY date,hour) debt
-          ON debt.date=state.date AND debt.hour=state.hour
-         WHERE state.queue_id=486 AND state.date>=$1::TEXT::DATE AND state.date<=$2::TEXT::DATE"#;
+         WHERE state.queue_id=$3 AND state.date>=$1::TEXT::DATE AND state.date<=$2::TEXT::DATE"#;
 
-const RANKED_GAP_COUNTS_SQL: &str = r#"SELECT date::TEXT,hour,total_matches FROM hourly_match_counts
-         WHERE queue_id=486 AND date>=$1::TEXT::DATE AND date<=$2::TEXT::DATE"#;
-
-const PRESENCE_GAP_STATES_SQL: &str = r#"SELECT date::TEXT,hour,queue_id,status,next_retry_at<=now() retry_due,lease_until<=now() lease_due
+const PRESENCE_GAP_STATES_SQL: &str = r#"SELECT date::TEXT,hour,queue_id,status,lease_until<=now() lease_due
          FROM hourly_ingest_state WHERE queue_id=ANY($1::INT[])
          AND date>=$2::TEXT::DATE AND date<=$3::TEXT::DATE"#;
 
@@ -991,26 +863,21 @@ async fn ranked_gap_candidates(
     database: &Database,
     now: OffsetDateTime,
     min_date: &str,
-    due_debt: Vec<(String, i32)>,
 ) -> Result<Vec<GapCandidate>, DatabaseError> {
     let max_date = now.date().to_string();
     let states = database
-        .query_json(RANKED_GAP_STATES_SQL, &[&min_date, &max_date])
+        .query_json(
+            RANKED_GAP_STATES_SQL,
+            &[&min_date, &max_date, &RANKED_STATS_QUEUE_ID],
+        )
         .await?;
-    let counts = database
-        .query_json(RANKED_GAP_COUNTS_SQL, &[&min_date, &max_date])
-        .await?;
-    Ok(ranked_gap_candidates_from_rows(
-        now, min_date, states, counts, due_debt,
-    ))
+    Ok(ranked_gap_candidates_from_rows(now, min_date, states))
 }
 
 fn ranked_gap_candidates_from_rows(
     now: OffsetDateTime,
     min_date: &str,
     states: Vec<Value>,
-    counts: Vec<Value>,
-    due_debt: Vec<(String, i32)>,
 ) -> Vec<GapCandidate> {
     let mut states_by_key = BTreeMap::new();
     for row in states {
@@ -1019,43 +886,23 @@ fn ranked_gap_candidates_from_rows(
         };
         states_by_key.insert((date, hour), row);
     }
-    let mut counts_by_key = BTreeMap::new();
-    for row in counts {
-        let Some((date, hour)) = row_key(&row) else {
-            continue;
-        };
-        counts_by_key.insert((date, hour), row_i32(&row, "total_matches"));
-    }
     let mut candidates = BTreeMap::new();
     for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
         let key = (date.clone(), hour);
-        let handled = states_by_key.get(&key).map_or_else(
-            || counts_by_key.get(&key).copied().unwrap_or_default() > 0,
-            ranked_state_handled,
-        );
-        let has_open_debt = states_by_key
-            .get(&key)
-            .is_some_and(ranked_state_has_open_debt);
-        if !handled && !has_open_debt {
-            candidates.insert(key, GapCandidate::ranked(date, hour, false));
+        let handled = states_by_key.get(&key).is_some_and(ranked_state_handled);
+        if !handled {
+            candidates.insert(key, GapCandidate::ranked(date, hour));
         }
     }
     for ((date, hour), row) in &states_by_key {
-        if !ranked_state_handled(row) && !ranked_state_has_open_debt(row) {
+        if !ranked_state_handled(row) {
             candidates.insert(
                 (date.clone(), *hour),
-                GapCandidate::ranked(date.clone(), *hour, false),
+                GapCandidate::ranked(date.clone(), *hour),
             );
         }
     }
-    for (date, hour) in due_debt {
-        candidates.insert((date.clone(), hour), GapCandidate::ranked(date, hour, true));
-    }
     candidates.into_values().collect()
-}
-
-fn ranked_state_has_open_debt(row: &Value) -> bool {
-    row_i32(row, "open_count") > 0
 }
 
 async fn presence_gap_candidates(
@@ -1098,13 +945,13 @@ async fn presence_gap_candidates(
     for queue_id in &queue_ids {
         for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
             let key = (*queue_id, date.clone(), hour);
-            if states.get(&key).is_none_or(presence_state_retryable) {
+            if states.get(&key).is_none_or(presence_state_needs_recovery) {
                 candidates.insert(key, GapCandidate::presence(*queue_id, date, hour));
             }
         }
     }
     for ((queue_id, date, hour), row) in &states {
-        if presence_state_retryable(row) {
+        if presence_state_needs_recovery(row) {
             candidates.insert(
                 (*queue_id, date.clone(), *hour),
                 GapCandidate::presence(*queue_id, date.clone(), *hour),
@@ -1121,46 +968,27 @@ async fn presence_gap_candidates(
 }
 
 fn ranked_state_handled(row: &Value) -> bool {
-    let raw = row_i32(row, "raw_match_count");
-    let count = row_i32(row, "total_matches");
-    let open = row_i32(row, "open_count");
-    let terminal = row_i32(row, "terminal_count");
-    if row.get("status").and_then(Value::as_str) == Some("complete")
-        || (raw > 0 && count >= raw)
-        || (raw > 0 && open == 0 && count + terminal >= raw)
-    {
+    if row.get("status").and_then(Value::as_str) == Some("complete") {
         return true;
     }
     match row.get("status").and_then(Value::as_str) {
-        Some("empty") | Some("fetching") | Some("staged") => !row
-            .get(
-                if row.get("status").and_then(Value::as_str) == Some("empty") {
-                    "retry_due"
-                } else {
-                    "lease_due"
-                },
-            )
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
-        Some("failed") | Some("pending") => !row
-            .get("retry_due")
+        Some("empty") => true,
+        Some("fetching") | Some("staged") => !row
+            .get("lease_due")
             .and_then(Value::as_bool)
             .unwrap_or(true),
         _ => false,
     }
 }
 
-fn presence_state_retryable(row: &Value) -> bool {
+fn presence_state_needs_recovery(row: &Value) -> bool {
     match row.get("status").and_then(Value::as_str) {
         Some("complete") | Some("empty") => false,
         Some("fetching") | Some("staged") => row
             .get("lease_due")
             .and_then(Value::as_bool)
             .unwrap_or(true),
-        _ => row
-            .get("retry_due")
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
+        _ => true,
     }
 }
 
@@ -1171,13 +999,6 @@ fn row_key(row: &Value) -> Option<(String, i32)> {
             .as_i64()
             .and_then(|value| i32::try_from(value).ok())?,
     ))
-}
-
-fn row_i32(row: &Value, key: &str) -> i32 {
-    row.get(key)
-        .and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))
-        .and_then(|value| i32::try_from(value).ok())
-        .unwrap_or_default()
 }
 
 fn profile_enrichment_max_calls() -> usize {
@@ -1394,13 +1215,7 @@ mod tests {
     }
 
     #[test]
-    fn acquisition_limit_and_presence_source_match_typescript() {
-        assert_eq!(bounded_nonranked_acquisition_max_matches(None), 2_000);
-        assert_eq!(bounded_nonranked_acquisition_max_matches(Some(0)), 1);
-        assert_eq!(
-            bounded_nonranked_acquisition_max_matches(Some(50_000)),
-            20_000
-        );
+    fn presence_source_matches_scheduler_trigger() {
         assert_eq!(auto_ingester_presence_source("cron"), "auto-ingester-cron");
         assert_eq!(
             auto_ingester_presence_source("capture-once"),
@@ -1454,22 +1269,8 @@ mod tests {
     }
 
     #[test]
-    fn gap_lookback_matches_typescript_range_and_minimum_date() {
-        assert_eq!(bounded_gap_retry_lookback_days(None), 2);
-        assert_eq!(bounded_gap_retry_lookback_days(Some(0)), 1);
-        assert_eq!(bounded_gap_retry_lookback_days(Some(35)), 35);
-        let near_deployment = Date::from_calendar_date(2026, Month::June, 2)
-            .expect("date")
-            .with_time(Time::MIDNIGHT)
-            .assume_offset(UtcOffset::UTC);
-        assert_eq!(gap_min_date(near_deployment, 35), GAP_CHECKER_MIN_DATE);
-    }
-
-    #[test]
-    fn gap_backfill_limit_cannot_exceed_pipeline_bound() {
-        assert_eq!(bounded_gap_backfill_limit(None), 8);
-        assert_eq!(bounded_gap_backfill_limit(Some(0)), 1);
-        assert_eq!(bounded_gap_backfill_limit(Some(500)), 8);
+    fn gap_scan_uses_full_governed_history_boundary() {
+        assert_eq!(configured_gap_min_date(), GAP_CHECKER_MIN_DATE);
     }
 
     #[test]
@@ -1595,81 +1396,30 @@ mod tests {
 
     #[test]
     fn gap_candidate_queries_preserve_sql_token_boundaries() {
-        assert!(RANKED_GAP_STATES_SQL.contains("terminal_count\n         FROM"));
-        assert!(RANKED_GAP_STATES_SQL.contains("hourly_ingest_match_debt\n          WHERE"));
-        assert!(RANKED_GAP_STATES_SQL.contains(") debt\n          ON"));
-        assert!(RANKED_GAP_COUNTS_SQL.contains("hourly_match_counts\n         WHERE"));
+        assert!(RANKED_GAP_STATES_SQL.contains("hourly_ingest_state"));
+        assert!(!RANKED_GAP_STATES_SQL.contains("hourly_ingest_match_debt"));
         assert!(PRESENCE_GAP_STATES_SQL.contains("lease_due\n         FROM"));
     }
 
     #[test]
-    fn ranked_gap_prefers_known_debt_without_rediscovery() {
-        let cooling_debt = json!({
+    fn ranked_gap_includes_failed_hour_without_retry_cooldown() {
+        let failed = json!({
             "date":"2026-08-02",
             "hour":2,
             "status":"failed",
             "raw_match_count":10,
-            "retry_due":true,
-            "lease_due":true,
-            "total_matches":9,
-            "open_count":1,
-            "terminal_count":0
+            "lease_due":true
         });
-        let candidates = ranked_gap_candidates_from_rows(
-            at(5, 15),
-            "2026-08-02",
-            vec![cooling_debt.clone()],
-            Vec::new(),
-            Vec::new(),
-        );
-        assert!(
-            !candidates
-                .iter()
-                .any(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
-        );
-
-        let due = ranked_gap_candidates_from_rows(
-            at(5, 15),
-            "2026-08-02",
-            vec![cooling_debt],
-            Vec::new(),
-            vec![("2026-08-02".to_owned(), 2)],
-        );
-        let target = due
-            .iter()
-            .find(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
-            .expect("due exact-ID debt candidate");
-        assert!(target.debt_only);
-    }
-
-    #[test]
-    fn ranked_gap_discovers_failed_hour_without_known_debt() {
-        let candidates = ranked_gap_candidates_from_rows(
-            at(5, 15),
-            "2026-08-02",
-            vec![json!({
-                "date":"2026-08-02",
-                "hour":2,
-                "status":"failed",
-                "raw_match_count":0,
-                "retry_due":true,
-                "lease_due":true,
-                "total_matches":0,
-                "open_count":0,
-                "terminal_count":0
-            })],
-            Vec::new(),
-            Vec::new(),
-        );
+        let candidates = ranked_gap_candidates_from_rows(at(5, 15), "2026-08-02", vec![failed]);
         let target = candidates
             .iter()
             .find(|candidate| candidate.date == "2026-08-02" && candidate.hour == 2)
-            .expect("failed undiscovered hour candidate");
-        assert!(!target.debt_only);
+            .expect("failed candidate");
+        assert_eq!(target.queue_id, RANKED_STATS_QUEUE_ID);
     }
 
     #[test]
-    fn gap_candidates_sort_like_typescript_by_date_hour_then_queue() {
+    fn gap_candidates_merge_populations_newest_first() {
         let queues = [424, 425, 452, 453, 10297, 10332, 10348, 10362, 10367, 10369];
         let mut candidates = [1, 2, 3]
             .into_iter()
@@ -1678,20 +1428,23 @@ mod tests {
                     .into_iter()
                     .map(move |queue| GapCandidate::presence(queue, "2026-08-02".to_owned(), hour))
             })
-            .chain([GapCandidate::ranked("2026-08-01".to_owned(), 23, true)])
+            .chain([GapCandidate::ranked("2026-08-01".to_owned(), 23)])
             .collect::<Vec<_>>();
 
-        candidates.reverse();
         candidates.sort_by(|left, right| {
-            left.date
-                .cmp(&right.date)
-                .then(left.hour.cmp(&right.hour))
-                .then(left.queue_id.cmp(&right.queue_id))
+            right
+                .date
+                .cmp(&left.date)
+                .then_with(|| right.hour.cmp(&left.hour))
+                .then_with(|| left.queue_id.cmp(&right.queue_id))
         });
 
-        assert!(candidates[0].debt_only);
-        assert_eq!(candidates[1].hour, 1);
-        assert_eq!(candidates[1].queue_id, 424);
+        assert_eq!(candidates[0].hour, 3);
+        assert_eq!(candidates[0].queue_id, 424);
+        assert_eq!(
+            candidates.last().map(|candidate| candidate.queue_id),
+            Some(RANKED_STATS_QUEUE_ID)
+        );
     }
 
     #[test]
