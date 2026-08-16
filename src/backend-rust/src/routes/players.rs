@@ -26,6 +26,13 @@ mod provider;
 pub const ROUTE_COUNT: usize = 28;
 
 const RANKED_QUEUE_ID: i32 = 486;
+const EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL: &str = "NOT EXISTS( \
+  SELECT 1 FROM queue_types custom_queue WHERE custom_queue.queue_id=combined.queue_id \
+    AND (custom_queue.stats_scope='custom' OR custom_queue.participant_model='custom') \
+) AND NOT EXISTS( \
+  SELECT 1 FROM special_matches custom_match WHERE custom_match.match_id=combined.match_id \
+    AND (custom_match.stats_scope='custom' OR custom_match.participant_model='custom') \
+)";
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -1323,6 +1330,7 @@ async fn matches(
                    FROM player_match_history_entries h LEFT JOIN matches m ON m.match_id=h.match_id \
                    LEFT JOIN champions c ON c.id=h.champion_id WHERE {} \
                  ) SELECT * FROM (SELECT * FROM authoritative UNION ALL SELECT * FROM history_observations) combined \
+                 WHERE {EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL} \
                  ORDER BY entry_datetime DESC NULLS LAST LIMIT ${limit_parameter} OFFSET ${}",
                 authoritative.join(" AND "),
                 casual.join(" AND "),
@@ -1588,4 +1596,17 @@ async fn bulk(
         payload["notFound"] = json!(missing);
     }
     Ok(json_response(payload))
+}
+
+#[cfg(test)]
+mod visibility_tests {
+    use super::EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL;
+
+    #[test]
+    fn player_history_excludes_custom_taxonomy_and_stored_special_scope() {
+        assert!(EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL.contains("queue_types custom_queue"));
+        assert!(EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL.contains("special_matches custom_match"));
+        assert!(EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL.contains("stats_scope='custom'"));
+        assert!(EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL.contains("participant_model='custom'"));
+    }
 }
