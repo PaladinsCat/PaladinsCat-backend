@@ -2011,11 +2011,11 @@ async fn hourly_stats_payload(
         ];
         if let Some(minimum) = tier_min {
             params.push(QueryParam::Int32(minimum));
-            predicates.push(format!("average_tier>=${}", params.len()));
+            predicates.push(format!("average_tier>=${}::int", params.len()));
         }
         if let Some(maximum) = tier_max {
             params.push(QueryParam::Int32(maximum + 1));
-            predicates.push(format!("average_tier<${}", params.len()));
+            predicates.push(format!("average_tier<${}::int", params.len()));
         }
         state.database.query_json_params(
             &format!(
@@ -2763,6 +2763,13 @@ mod tests {
         assert!(route.contains(".discover_hour("));
         assert!(!route.contains("raw_ingest_buffer"));
         assert!(!route.contains("getMatchDetailsBatchRaw"));
+    }
+
+    #[test]
+    fn tiered_activity_bounds_bind_as_postgres_integers() {
+        let source = include_str!("matches.rs");
+        assert!(source.contains("average_tier>=${}::int"));
+        assert!(source.contains("average_tier<${}::int"));
     }
 
     #[test]

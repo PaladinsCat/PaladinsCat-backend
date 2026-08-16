@@ -15,6 +15,7 @@ use super::policy::champion_page_warm_urls;
 const ACTIVITY_API_WARM_URLS: &[&str] = &[
     "/matches/overview?view=activity-v3",
     "/stats/presence?view=activity-v4",
+    "/stats/presence/hourly?view=activity-v3",
     "/stats/activity-banner",
 ];
 
@@ -200,38 +201,48 @@ impl CacheWarmer {
         Ok(self.warm_api_urls(urls.iter().map(String::as_str)).await)
     }
 
+    /// Purpose: populate public API caches without allowing one slow route to
+    /// serialize every other major-page warm. Input: canonical API paths.
+    /// Output: one aggregate success/failure result; no response body is kept.
     async fn warm_api_urls<'a>(&self, urls: impl IntoIterator<Item = &'a str>) -> WarmResult {
-        let urls = urls.into_iter().collect::<Vec<_>>();
+        let urls = urls.into_iter().map(str::to_owned).collect::<Vec<_>>();
+        let discovered = urls.len();
+        let concurrency = env_usize("SITE_CACHE_WARM_API_CONCURRENCY", 2).max(1);
+        let client = self.client.clone();
+        let origin = self.api_origin.trim_end_matches('/').to_owned();
+        let service_token = self.service_token.clone();
+        let outcomes = stream::iter(urls)
+            .map(move |path| {
+                let client = client.clone();
+                let origin = origin.clone();
+                let service_token = service_token.clone();
+                async move {
+                    let mut request = client
+                        .get(format!("{origin}{path}"))
+                        .header("x-paladinscat-cache-revalidate", "1")
+                        .header("x-paladinscat-internal-request", "cache-warmer");
+                    if let Some(token) = service_token.as_deref() {
+                        request = request.bearer_auth(token);
+                    }
+                    let failure = match request.send().await {
+                        Ok(response) if response.status().is_success() => None,
+                        Ok(response) => Some(format!("{path}: {}", response.status())),
+                        Err(error) => Some(format!("{path}: {error}")),
+                    };
+                    failure
+                }
+            })
+            .buffer_unordered(concurrency)
+            .collect::<Vec<_>>()
+            .await;
         let mut result = WarmResult {
-            discovered: urls.len(),
+            discovered,
+            warmed: outcomes.iter().filter(|failure| failure.is_none()).count(),
+            failed: outcomes.iter().filter(|failure| failure.is_some()).count(),
             ..WarmResult::default()
         };
-        for path in urls {
-            let mut request = self
-                .client
-                .get(format!("{}{}", self.api_origin.trim_end_matches('/'), path))
-                .header("x-paladinscat-cache-revalidate", "1")
-                .header("x-paladinscat-internal-request", "cache-warmer");
-            if let Some(token) = self.service_token.as_deref() {
-                request = request.bearer_auth(token);
-            }
-            match request.send().await {
-                Ok(response) if response.status().is_success() => result.warmed += 1,
-                Ok(response) => {
-                    result.failed += 1;
-                    if result.failures.len() < 10 {
-                        result
-                            .failures
-                            .push(format!("{path}: {}", response.status()));
-                    }
-                }
-                Err(error) => {
-                    result.failed += 1;
-                    if result.failures.len() < 10 {
-                        result.failures.push(format!("{path}: {error}"));
-                    }
-                }
-            }
+        for failure in outcomes.into_iter().flatten().take(10) {
+            result.failures.push(failure);
         }
         result
     }
@@ -374,4 +385,21 @@ fn env_f64(name: &str, fallback: f64) -> f64 {
 #[allow(dead_code)]
 fn _status_is_success(status: StatusCode) -> bool {
     status.is_success()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::main_api_warm_urls;
+
+    #[test]
+    fn activity_default_requests_are_all_warmed() {
+        let urls = main_api_warm_urls();
+        for expected in [
+            "/matches/overview?view=activity-v3",
+            "/stats/presence?view=activity-v4",
+            "/stats/presence/hourly?view=activity-v3",
+        ] {
+            assert!(urls.iter().any(|url| url == expected), "missing {expected}");
+        }
+    }
 }
