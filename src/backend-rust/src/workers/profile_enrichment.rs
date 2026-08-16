@@ -382,7 +382,7 @@ impl ProfileEnrichmentRepository {
     /// Input: audited JSON profiles tied to failed/unavailable refresh rows by
     /// typed player ID and attempt time. Output: count durably persisted and
     /// marked successful; unrelated or genuinely unavailable rows are ignored.
-    async fn replay_audited_profiles(&self) -> Result<usize, ProfileEnrichmentError> {
+    pub async fn replay_audited_profiles(&self) -> Result<usize, ProfileEnrichmentError> {
         let rows = self
             .database
             .query_json(

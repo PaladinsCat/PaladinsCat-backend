@@ -588,6 +588,15 @@ async fn dispatch(
             }))
         }
         "auto-ingester:profile-enrichment" => {
+            let repository = ProfileEnrichmentRepository::new(services.database.clone());
+            if trigger == "startup" {
+                let mut replay = ProfileEnrichmentResult::default();
+                replay.refreshed = repository
+                    .replay_audited_profiles()
+                    .await
+                    .map_err(|error| error.to_string())?;
+                return Ok(profile_enrichment_result_json(replay));
+            }
             let max_calls = profile_enrichment_allowed_calls(
                 profile_enrichment_max_calls(),
                 api_headroom_snapshot(&services.database, api_key_reserve_calls())
@@ -599,7 +608,7 @@ async fn dispatch(
                     ProfileEnrichmentResult::default(),
                 ));
             }
-            let enrichment = ProfileEnrichmentRepository::new(services.database.clone())
+            let enrichment = repository
                 .run(&services.config, max_calls, "cron")
                 .await
                 .map_err(|error| error.to_string())?;
@@ -1187,8 +1196,8 @@ mod tests {
             .filter_map(|job| startup_delay_seconds(*job))
             .collect::<Vec<_>>();
 
-        assert_eq!(delays, vec![10, 15, 20, 25]);
-        assert_eq!(delays.last().copied(), Some(25));
+        assert_eq!(delays, vec![10, 15, 20, 25, 30]);
+        assert_eq!(delays.last().copied(), Some(30));
     }
 
     #[tokio::test]

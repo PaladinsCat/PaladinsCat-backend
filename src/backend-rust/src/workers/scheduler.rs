@@ -130,7 +130,7 @@ pub const SCHEDULED_JOBS: [ScheduledJob; 14] = [
         cron_expression: "50 * * * *",
         minute: MinuteSchedule::Exact(50),
         hour: HourSchedule::Any,
-        startup: StartupPolicy::None,
+        startup: StartupPolicy::DurableCatchup { delay_seconds: 30 },
     },
     ScheduledJob {
         job_key: "baseline-tracker:refresh",
