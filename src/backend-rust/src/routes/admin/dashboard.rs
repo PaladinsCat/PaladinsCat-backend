@@ -15,14 +15,29 @@ pub(super) async fn get(
     State(state): State<AdminState>,
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
-) -> Result<Response, ApiError> { dashboard(state, request_id, headers, false).await }
+) -> Result<Response, ApiError> {
+    dashboard(state, request_id, headers, false).await
+}
 
 pub(super) async fn get_developer(
-    State(state): State<AdminState>, Extension(request_id): Extension<RequestId>, headers: HeaderMap,
-) -> Result<Response, ApiError> { dashboard(state, request_id, headers, true).await }
+    State(state): State<AdminState>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    dashboard(state, request_id, headers, true).await
+}
 
-async fn dashboard(state: AdminState, request_id: RequestId, headers: HeaderMap, developer: bool) -> Result<Response, ApiError> {
-    let access = if developer { require_project_staff(&state.database, &headers, &request_id).await } else { require_admin(&state.database, &headers, &request_id).await };
+async fn dashboard(
+    state: AdminState,
+    request_id: RequestId,
+    headers: HeaderMap,
+    developer: bool,
+) -> Result<Response, ApiError> {
+    let access = if developer {
+        require_project_staff(&state.database, &headers, &request_id).await
+    } else {
+        require_admin(&state.database, &headers, &request_id).await
+    };
     if let Err(response) = access {
         return Ok(response);
     }
@@ -131,7 +146,13 @@ async fn dashboard(state: AdminState, request_id: RequestId, headers: HeaderMap,
     let mut keys = keys.map_err(|error| ApiError::database(error, &request_id))?;
     if developer {
         for (index, key) in keys.iter_mut().enumerate() {
-            if let Some(object) = key.as_object_mut() { object.remove("dev_id"); object.insert("label".to_owned(), Value::String(format!("Key {}", index + 1))); }
+            if let Some(object) = key.as_object_mut() {
+                object.remove("dev_id");
+                object.insert(
+                    "label".to_owned(),
+                    Value::String(format!("Key {}", index + 1)),
+                );
+            }
         }
     }
     let payload = json!({

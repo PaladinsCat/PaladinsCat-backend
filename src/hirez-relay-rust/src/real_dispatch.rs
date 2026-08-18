@@ -288,7 +288,7 @@ impl RealRuntime {
                     .unwrap_or_default();
                 self.raw_api
                     .api_request(
-                        &method,
+                        method,
                         &params,
                         crate::hirez_client::ApiRequestOptions::default(),
                         consumer,

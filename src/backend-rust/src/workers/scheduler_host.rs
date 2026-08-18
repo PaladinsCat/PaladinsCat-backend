@@ -591,12 +591,14 @@ async fn dispatch(
         "auto-ingester:profile-enrichment" => {
             let repository = ProfileEnrichmentRepository::new(services.database.clone());
             if trigger == "startup" {
-                let mut replay = ProfileEnrichmentResult::default();
-                replay.refreshed = repository
+                let refreshed = repository
                     .replay_audited_profiles()
                     .await
                     .map_err(|error| error.to_string())?;
-                return Ok(profile_enrichment_result_json(replay));
+                return Ok(profile_enrichment_result_json(ProfileEnrichmentResult {
+                    refreshed,
+                    ..Default::default()
+                }));
             }
             let max_calls = profile_enrichment_allowed_calls(
                 profile_enrichment_max_calls(),

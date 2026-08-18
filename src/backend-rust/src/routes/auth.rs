@@ -424,395 +424,6 @@ fn oidc_bff_token_matches(expected: Option<&str>, candidate: Option<&str>) -> bo
         })
 }
 
-#[cfg(test)]
-mod oidc_tests {
-    use super::*;
-    use axum::{body::Body, http::Request};
-    use paladinscat_core::config::BackendConfig;
-    use tower::ServiceExt;
-    #[test]
-    fn bff_token_is_fail_closed_and_transaction_input_is_bounded() {
-        let token = "x".repeat(32);
-        assert!(!oidc_bff_token_matches(None, Some(&token)));
-        assert!(!oidc_bff_token_matches(Some(&token), None));
-        assert!(!oidc_bff_token_matches(Some(&token), Some("wrong")));
-        assert!(oidc_bff_token_matches(Some(&token), Some(&token)));
-        assert!(oidc_state(&json!({"state":"x".repeat(32)})).is_some());
-        assert!(oidc_state(&json!({"state":"x".repeat(31)})).is_none());
-        assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
-    }
-
-    #[test]
-    fn bff_service_auth_never_accepts_a_browser_session_cookie() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "cookie",
-            "__Host-pc_session=browser-session".parse().expect("cookie"),
-        );
-        assert_eq!(service_bearer(&headers), None);
-        headers.insert(
-            AUTHORIZATION,
-            "Bearer service-token".parse().expect("authorization"),
-        );
-        assert_eq!(service_bearer(&headers), Some("service-token"));
-    }
-
-    #[tokio::test]
-    async fn legacy_password_routes_require_explicit_rollback_opt_in() {
-        let app = |rollback: bool| {
-            let config = BackendConfig::from_lookup(|name| match name {
-                "DATABASE_URL" => Some("postgres://fixture".to_owned()),
-                "PALADINSCAT_LEGACY_PASSWORD_LOGIN_ENABLED" if rollback => Some("true".to_owned()),
-                _ => None,
-            })
-            .expect("config");
-            router(
-                Database::new(&config, "legacy-route-presence").expect("database pool"),
-                paladinscat_core::cache::RedisCache::new(&config.redis_url).expect("redis client"),
-                std::sync::Arc::new(config),
-            )
-        };
-        for uri in ["/auth/login", "/auth/account/password"] {
-            let response = app(false)
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri(uri)
-                        .body(Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
-            assert_eq!(response.status(), StatusCode::NOT_FOUND, "default {uri}");
-            let response = app(true)
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri(uri)
-                        .body(Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
-            assert_ne!(response.status(), StatusCode::NOT_FOUND, "rollback {uri}");
-        }
-        for rollback in [false, true] {
-            let response = app(rollback)
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri("/auth/register")
-                        .body(Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
-            assert_eq!(
-                response.status(),
-                StatusCode::NOT_FOUND,
-                "registration is Keycloak-only"
-            );
-            let response = app(rollback)
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri("/auth/oidc/exchange")
-                        .body(Body::empty())
-                        .expect("request"),
-                )
-                .await
-                .expect("response");
-            assert_ne!(
-                response.status(),
-                StatusCode::NOT_FOUND,
-                "OIDC exchange remains available"
-            );
-        }
-    }
-
-    #[test]
-    fn oidc_registration_ignores_unverified_email_and_bounds_username() {
-        let identity = crate::oidc::AccessIdentity {
-            issuer: "https://auth.test/realms/test".to_owned(),
-            subject: "subject".to_owned(),
-            email_verified: true,
-            email: Some("new@example.test".to_owned()),
-            preferred_username: Some("new-user".to_owned()),
-        };
-        assert!(oidc_registration_claims(&identity).is_some());
-        let mut unverified = crate::oidc::AccessIdentity {
-            email_verified: false,
-            ..identity
-        };
-        let first = oidc_registration_claims(&unverified).expect("unverified identity");
-        assert!(first.1.starts_with("oidc-"));
-        assert!(first.1.ends_with("@id.paladinscat.invalid"));
-        assert_eq!(oidc_registration_claims(&unverified), Some(first.clone()));
-        unverified.email = Some("attacker@example.test".to_owned());
-        assert_eq!(oidc_registration_claims(&unverified), Some(first));
-        unverified.preferred_username = Some("x".repeat(33));
-        assert!(oidc_registration_claims(&unverified).is_none());
-    }
-
-    #[tokio::test]
-    #[ignore = "requires PALADINSCAT_TEST_REDIS_URL and PALADINSCAT_TEST_DATABASE_URL"]
-    async fn live_bff_transactions_are_one_use() {
-        let redis_url = std::env::var("PALADINSCAT_TEST_REDIS_URL").expect("test redis URL");
-        let database_url =
-            std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
-        let bff_token = "b".repeat(32);
-        let config = BackendConfig::from_lookup(|name| match name {
-            "DATABASE_URL" => Some(database_url.clone()),
-            "REDIS_URL" => Some(redis_url.clone()),
-            "PALADINSCAT_OIDC_BFF_SERVICE_TOKEN" => Some(bff_token.clone()),
-            _ => None,
-        })
-        .expect("test config");
-        let app = router(
-            Database::new(&config, "oidc-route-e2e").expect("test database pool"),
-            paladinscat_core::cache::RedisCache::new(&redis_url).expect("test redis client"),
-            std::sync::Arc::new(config),
-        );
-        async fn request(app: Router, token: Option<&str>, uri: &str, body: Value) -> StatusCode {
-            let mut request = Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .expect("request");
-            if let Some(token) = token {
-                request.headers_mut().insert(
-                    AUTHORIZATION,
-                    format!("Bearer {token}").parse().expect("authorization"),
-                );
-            }
-            request
-                .extensions_mut()
-                .insert(RequestId("oidc-route-e2e".to_owned()));
-            app.oneshot(request).await.expect("response").status()
-        }
-        let state = "s".repeat(32);
-        let transaction = json!({"state":state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
-        assert_eq!(
-            request(
-                app.clone(),
-                None,
-                "/auth/oidc/transactions",
-                transaction.clone()
-            )
-            .await,
-            StatusCode::UNAUTHORIZED
-        );
-        assert_eq!(
-            request(
-                app.clone(),
-                Some("wrong"),
-                "/auth/oidc/transactions",
-                transaction.clone()
-            )
-            .await,
-            StatusCode::UNAUTHORIZED
-        );
-        assert_eq!(
-            request(
-                app.clone(),
-                Some(&bff_token),
-                "/auth/oidc/transactions",
-                transaction.clone()
-            )
-            .await,
-            StatusCode::CREATED
-        );
-        assert_eq!(
-            request(
-                app.clone(),
-                Some(&bff_token),
-                "/auth/oidc/transactions",
-                transaction
-            )
-            .await,
-            StatusCode::CONFLICT
-        );
-        let concurrent_state = "c".repeat(32);
-        let concurrent =
-            json!({"state":concurrent_state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
-        let (first, second) = tokio::join!(
-            request(
-                app.clone(),
-                Some(&bff_token),
-                "/auth/oidc/transactions",
-                concurrent.clone()
-            ),
-            request(
-                app.clone(),
-                Some(&bff_token),
-                "/auth/oidc/transactions",
-                concurrent
-            ),
-        );
-        assert!(matches!(
-            (first, second),
-            (StatusCode::CREATED, StatusCode::CONFLICT)
-                | (StatusCode::CONFLICT, StatusCode::CREATED)
-        ));
-        assert_eq!(
-            request(
-                app.clone(),
-                Some(&bff_token),
-                "/auth/oidc/transactions/consume",
-                json!({"state":state})
-            )
-            .await,
-            StatusCode::OK
-        );
-        assert_eq!(
-            request(
-                app.clone(),
-                Some(&bff_token),
-                "/auth/oidc/transactions/consume",
-                json!({"state":state})
-            )
-            .await,
-            StatusCode::UNAUTHORIZED
-        );
-        assert_eq!(
-            request(
-                app.clone(),
-                None,
-                "/auth/oidc/exchange",
-                json!({"access_token":"x"})
-            )
-            .await,
-            StatusCode::UNAUTHORIZED
-        );
-        assert_eq!(
-            request(
-                app.clone(),
-                Some("wrong"),
-                "/auth/oidc/exchange",
-                json!({"access_token":"x"})
-            )
-            .await,
-            StatusCode::UNAUTHORIZED
-        );
-        assert_eq!(
-            request(
-                app,
-                Some(&bff_token),
-                "/auth/oidc/exchange",
-                json!({"access_token":"x"})
-            )
-            .await,
-            StatusCode::NOT_FOUND
-        );
-
-        let promotion_config = BackendConfig::from_lookup(|name| {
-            (name == "DATABASE_URL").then(|| database_url.clone())
-        })
-        .expect("database config");
-        let database =
-            Database::new(&promotion_config, "oidc-promotion-e2e").expect("promotion database");
-        for sql in [
-            "CREATE TABLE users(id SERIAL PRIMARY KEY,username TEXT NOT NULL,email TEXT NOT NULL,password_hash TEXT NOT NULL,salt TEXT NOT NULL,avatar_url TEXT,bio TEXT,time_zone TEXT,is_admin BOOLEAN NOT NULL DEFAULT false,is_approved BOOLEAN NOT NULL DEFAULT false,created_at TIMESTAMPTZ,last_login TIMESTAMPTZ,linked_player_id INTEGER,is_active BOOLEAN NOT NULL DEFAULT true,updated_at TIMESTAMPTZ)",
-            "CREATE UNIQUE INDEX test_users_username ON users(username)",
-            "CREATE UNIQUE INDEX test_users_email ON users(email)",
-            "CREATE TABLE players(id INTEGER PRIMARY KEY,name TEXT)",
-            "CREATE TABLE user_identities(user_id INTEGER NOT NULL,issuer TEXT NOT NULL,subject TEXT NOT NULL,migration_state TEXT NOT NULL,last_login_at TIMESTAMPTZ,PRIMARY KEY(issuer,subject))",
-            "INSERT INTO users(id,username,email,password_hash,salt,is_active) VALUES(1,'reset','reset@test','x','x',true),(2,'disabled','disabled@test','x','x',true),(3,'inactive','inactive@test','x','x',false),(4,'legacy','legacy@test','x','x',true)",
-            "SELECT setval(pg_get_serial_sequence('users','id'), 4)",
-            "INSERT INTO user_identities(user_id,issuer,subject,migration_state) VALUES(1,'https://auth.test/realms/test','reset','reset_required'),(2,'https://auth.test/realms/test','disabled','disabled'),(3,'https://auth.test/realms/test','inactive','reset_required'),(4,'https://auth.test/realms/test','legacy','legacy')",
-        ] {
-            database
-                .query_json(sql, &[])
-                .await
-                .expect("promotion fixture");
-        }
-        let request_id = RequestId("oidc-promotion-e2e".to_owned());
-        let identity = |subject: &str| crate::oidc::AccessIdentity {
-            issuer: "https://auth.test/realms/test".to_owned(),
-            subject: subject.to_owned(),
-            email_verified: true,
-            email: Some("new@example.test".to_owned()),
-            preferred_username: Some("new-user".to_owned()),
-        };
-        assert!(matches!(
-            promote_oidc_identity(&database, &identity("legacy"), &request_id)
-                .await
-                .expect("legacy promotion"),
-            OidcAdmission::User(4)
-        ));
-        assert!(matches!(
-            promote_oidc_identity(&database, &identity("reset"), &request_id)
-                .await
-                .expect("reset promotion"),
-            OidcAdmission::User(1)
-        ));
-        assert!(matches!(
-            promote_oidc_identity(&database, &identity("disabled"), &request_id)
-                .await
-                .expect("disabled admission"),
-            OidcAdmission::Unlinked
-        ));
-        assert!(matches!(
-            promote_oidc_identity(&database, &identity("inactive"), &request_id)
-                .await
-                .expect("inactive admission"),
-            OidcAdmission::Unlinked
-        ));
-        let mut collision = identity("collision");
-        collision.preferred_username = Some("reset".to_owned());
-        assert!(matches!(
-            promote_oidc_identity(&database, &collision, &request_id)
-                .await
-                .expect("legacy collision"),
-            OidcAdmission::Collision
-        ));
-        let mut unverified = identity("unverified");
-        unverified.email_verified = false;
-        unverified.preferred_username = Some("unverified-user".to_owned());
-        assert!(matches!(
-            promote_oidc_identity(&database, &unverified, &request_id)
-                .await
-                .expect("unverified claim"),
-            OidcAdmission::User(5)
-        ));
-        let replay = identity("replay");
-        let (first, second) = tokio::join!(
-            promote_oidc_identity(&database, &replay, &request_id),
-            promote_oidc_identity(&database, &replay, &request_id),
-        );
-        assert!(matches!(
-            first.expect("first replay"),
-            OidcAdmission::User(6)
-        ));
-        assert!(matches!(
-            second.expect("second replay"),
-            OidcAdmission::User(6)
-        ));
-        assert_eq!(
-            database
-                .query_json("SELECT id FROM users WHERE username='new-user'", &[])
-                .await
-                .expect("single provision")
-                .len(),
-            1
-        );
-        let states = database.query_json("SELECT subject,migration_state,last_login_at IS NOT NULL AS logged_in FROM user_identities ORDER BY subject", &[]).await.expect("promotion states");
-        assert_eq!(
-            states,
-            vec![
-                json!({"subject":"disabled","migration_state":"disabled","logged_in":false}),
-                json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}),
-                json!({"subject":"legacy","migration_state":"linked","logged_in":true}),
-                json!({"subject":"replay","migration_state":"linked","logged_in":true}),
-                json!({"subject":"reset","migration_state":"linked","logged_in":true}),
-                json!({"subject":"unverified","migration_state":"linked","logged_in":true})
-            ]
-        );
-    }
-}
-
 fn service_bearer(headers: &HeaderMap) -> Option<&str> {
     headers
         .get(AUTHORIZATION)
@@ -1253,7 +864,10 @@ async fn read_site_notification(
             "UPDATE user_notifications SET read_at=COALESCE(read_at,now()) WHERE id=$1 AND user_id=$2 RETURNING -id AS id,read_at",
             &[&-id, &user_id],
         ).await.map_err(|error| ApiError::database(error, &request_id))?;
-        return Ok(match read { Some(row) => json_response(StatusCode::OK,row), None => simple_error(StatusCode::NOT_FOUND,"Notification not found") });
+        return Ok(match read {
+            Some(row) => json_response(StatusCode::OK, row),
+            None => simple_error(StatusCode::NOT_FOUND, "Notification not found"),
+        });
     }
     if state
         .database
@@ -1772,4 +1386,393 @@ async fn change_password(
         StatusCode::OK,
         json!({"message":"Password changed successfully"}),
     ))
+}
+
+#[cfg(test)]
+mod oidc_tests {
+    use super::*;
+    use axum::{body::Body, http::Request};
+    use paladinscat_core::config::BackendConfig;
+    use tower::ServiceExt;
+    #[test]
+    fn bff_token_is_fail_closed_and_transaction_input_is_bounded() {
+        let token = "x".repeat(32);
+        assert!(!oidc_bff_token_matches(None, Some(&token)));
+        assert!(!oidc_bff_token_matches(Some(&token), None));
+        assert!(!oidc_bff_token_matches(Some(&token), Some("wrong")));
+        assert!(oidc_bff_token_matches(Some(&token), Some(&token)));
+        assert!(oidc_state(&json!({"state":"x".repeat(32)})).is_some());
+        assert!(oidc_state(&json!({"state":"x".repeat(31)})).is_none());
+        assert!(oidc_state(&json!({"state":"x".repeat(32)+"!"})).is_none());
+    }
+
+    #[test]
+    fn bff_service_auth_never_accepts_a_browser_session_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            "__Host-pc_session=browser-session".parse().expect("cookie"),
+        );
+        assert_eq!(service_bearer(&headers), None);
+        headers.insert(
+            AUTHORIZATION,
+            "Bearer service-token".parse().expect("authorization"),
+        );
+        assert_eq!(service_bearer(&headers), Some("service-token"));
+    }
+
+    #[tokio::test]
+    async fn legacy_password_routes_require_explicit_rollback_opt_in() {
+        let app = |rollback: bool| {
+            let config = BackendConfig::from_lookup(|name| match name {
+                "DATABASE_URL" => Some("postgres://fixture".to_owned()),
+                "PALADINSCAT_LEGACY_PASSWORD_LOGIN_ENABLED" if rollback => Some("true".to_owned()),
+                _ => None,
+            })
+            .expect("config");
+            router(
+                Database::new(&config, "legacy-route-presence").expect("database pool"),
+                paladinscat_core::cache::RedisCache::new(&config.redis_url).expect("redis client"),
+                std::sync::Arc::new(config),
+            )
+        };
+        for uri in ["/auth/login", "/auth/account/password"] {
+            let response = app(false)
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "default {uri}");
+            let response = app(true)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_ne!(response.status(), StatusCode::NOT_FOUND, "rollback {uri}");
+        }
+        for rollback in [false, true] {
+            let response = app(rollback)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/auth/register")
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(
+                response.status(),
+                StatusCode::NOT_FOUND,
+                "registration is Keycloak-only"
+            );
+            let response = app(rollback)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/auth/oidc/exchange")
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_ne!(
+                response.status(),
+                StatusCode::NOT_FOUND,
+                "OIDC exchange remains available"
+            );
+        }
+    }
+
+    #[test]
+    fn oidc_registration_ignores_unverified_email_and_bounds_username() {
+        let identity = crate::oidc::AccessIdentity {
+            issuer: "https://auth.test/realms/test".to_owned(),
+            subject: "subject".to_owned(),
+            email_verified: true,
+            email: Some("new@example.test".to_owned()),
+            preferred_username: Some("new-user".to_owned()),
+        };
+        assert!(oidc_registration_claims(&identity).is_some());
+        let mut unverified = crate::oidc::AccessIdentity {
+            email_verified: false,
+            ..identity
+        };
+        let first = oidc_registration_claims(&unverified).expect("unverified identity");
+        assert!(first.1.starts_with("oidc-"));
+        assert!(first.1.ends_with("@id.paladinscat.invalid"));
+        assert_eq!(oidc_registration_claims(&unverified), Some(first.clone()));
+        unverified.email = Some("attacker@example.test".to_owned());
+        assert_eq!(oidc_registration_claims(&unverified), Some(first));
+        unverified.preferred_username = Some("x".repeat(33));
+        assert!(oidc_registration_claims(&unverified).is_none());
+    }
+
+    #[tokio::test]
+    #[ignore = "requires PALADINSCAT_TEST_REDIS_URL and PALADINSCAT_TEST_DATABASE_URL"]
+    async fn live_bff_transactions_are_one_use() {
+        let redis_url = std::env::var("PALADINSCAT_TEST_REDIS_URL").expect("test redis URL");
+        let database_url =
+            std::env::var("PALADINSCAT_TEST_DATABASE_URL").expect("test database URL");
+        let bff_token = "b".repeat(32);
+        let config = BackendConfig::from_lookup(|name| match name {
+            "DATABASE_URL" => Some(database_url.clone()),
+            "REDIS_URL" => Some(redis_url.clone()),
+            "PALADINSCAT_OIDC_BFF_SERVICE_TOKEN" => Some(bff_token.clone()),
+            _ => None,
+        })
+        .expect("test config");
+        let app = router(
+            Database::new(&config, "oidc-route-e2e").expect("test database pool"),
+            paladinscat_core::cache::RedisCache::new(&redis_url).expect("test redis client"),
+            std::sync::Arc::new(config),
+        );
+        async fn request(app: Router, token: Option<&str>, uri: &str, body: Value) -> StatusCode {
+            let mut request = Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request");
+            if let Some(token) = token {
+                request.headers_mut().insert(
+                    AUTHORIZATION,
+                    format!("Bearer {token}").parse().expect("authorization"),
+                );
+            }
+            request
+                .extensions_mut()
+                .insert(RequestId("oidc-route-e2e".to_owned()));
+            app.oneshot(request).await.expect("response").status()
+        }
+        let state = "s".repeat(32);
+        let transaction = json!({"state":state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
+        assert_eq!(
+            request(
+                app.clone(),
+                None,
+                "/auth/oidc/transactions",
+                transaction.clone()
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some("wrong"),
+                "/auth/oidc/transactions",
+                transaction.clone()
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                transaction.clone()
+            )
+            .await,
+            StatusCode::CREATED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                transaction
+            )
+            .await,
+            StatusCode::CONFLICT
+        );
+        let concurrent_state = "c".repeat(32);
+        let concurrent =
+            json!({"state":concurrent_state,"nonce":"n".repeat(32),"verifier":"v".repeat(43)});
+        let (first, second) = tokio::join!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                concurrent.clone()
+            ),
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions",
+                concurrent
+            ),
+        );
+        assert!(matches!(
+            (first, second),
+            (StatusCode::CREATED, StatusCode::CONFLICT)
+                | (StatusCode::CONFLICT, StatusCode::CREATED)
+        ));
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions/consume",
+                json!({"state":state})
+            )
+            .await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some(&bff_token),
+                "/auth/oidc/transactions/consume",
+                json!({"state":state})
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                None,
+                "/auth/oidc/exchange",
+                json!({"access_token":"x"})
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app.clone(),
+                Some("wrong"),
+                "/auth/oidc/exchange",
+                json!({"access_token":"x"})
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            request(
+                app,
+                Some(&bff_token),
+                "/auth/oidc/exchange",
+                json!({"access_token":"x"})
+            )
+            .await,
+            StatusCode::NOT_FOUND
+        );
+
+        let promotion_config = BackendConfig::from_lookup(|name| {
+            (name == "DATABASE_URL").then(|| database_url.clone())
+        })
+        .expect("database config");
+        let database =
+            Database::new(&promotion_config, "oidc-promotion-e2e").expect("promotion database");
+        for sql in [
+            "CREATE TABLE users(id SERIAL PRIMARY KEY,username TEXT NOT NULL,email TEXT NOT NULL,password_hash TEXT NOT NULL,salt TEXT NOT NULL,avatar_url TEXT,bio TEXT,time_zone TEXT,is_admin BOOLEAN NOT NULL DEFAULT false,is_approved BOOLEAN NOT NULL DEFAULT false,created_at TIMESTAMPTZ,last_login TIMESTAMPTZ,linked_player_id INTEGER,is_active BOOLEAN NOT NULL DEFAULT true,updated_at TIMESTAMPTZ)",
+            "CREATE UNIQUE INDEX test_users_username ON users(username)",
+            "CREATE UNIQUE INDEX test_users_email ON users(email)",
+            "CREATE TABLE players(id INTEGER PRIMARY KEY,name TEXT)",
+            "CREATE TABLE user_identities(user_id INTEGER NOT NULL,issuer TEXT NOT NULL,subject TEXT NOT NULL,migration_state TEXT NOT NULL,last_login_at TIMESTAMPTZ,PRIMARY KEY(issuer,subject))",
+            "INSERT INTO users(id,username,email,password_hash,salt,is_active) VALUES(1,'reset','reset@test','x','x',true),(2,'disabled','disabled@test','x','x',true),(3,'inactive','inactive@test','x','x',false),(4,'legacy','legacy@test','x','x',true)",
+            "SELECT setval(pg_get_serial_sequence('users','id'), 4)",
+            "INSERT INTO user_identities(user_id,issuer,subject,migration_state) VALUES(1,'https://auth.test/realms/test','reset','reset_required'),(2,'https://auth.test/realms/test','disabled','disabled'),(3,'https://auth.test/realms/test','inactive','reset_required'),(4,'https://auth.test/realms/test','legacy','legacy')",
+        ] {
+            database
+                .query_json(sql, &[])
+                .await
+                .expect("promotion fixture");
+        }
+        let request_id = RequestId("oidc-promotion-e2e".to_owned());
+        let identity = |subject: &str| crate::oidc::AccessIdentity {
+            issuer: "https://auth.test/realms/test".to_owned(),
+            subject: subject.to_owned(),
+            email_verified: true,
+            email: Some("new@example.test".to_owned()),
+            preferred_username: Some("new-user".to_owned()),
+        };
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("legacy"), &request_id)
+                .await
+                .expect("legacy promotion"),
+            OidcAdmission::User(4)
+        ));
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("reset"), &request_id)
+                .await
+                .expect("reset promotion"),
+            OidcAdmission::User(1)
+        ));
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("disabled"), &request_id)
+                .await
+                .expect("disabled admission"),
+            OidcAdmission::Unlinked
+        ));
+        assert!(matches!(
+            promote_oidc_identity(&database, &identity("inactive"), &request_id)
+                .await
+                .expect("inactive admission"),
+            OidcAdmission::Unlinked
+        ));
+        let mut collision = identity("collision");
+        collision.preferred_username = Some("reset".to_owned());
+        assert!(matches!(
+            promote_oidc_identity(&database, &collision, &request_id)
+                .await
+                .expect("legacy collision"),
+            OidcAdmission::Collision
+        ));
+        let mut unverified = identity("unverified");
+        unverified.email_verified = false;
+        unverified.preferred_username = Some("unverified-user".to_owned());
+        assert!(matches!(
+            promote_oidc_identity(&database, &unverified, &request_id)
+                .await
+                .expect("unverified claim"),
+            OidcAdmission::User(5)
+        ));
+        let replay = identity("replay");
+        let (first, second) = tokio::join!(
+            promote_oidc_identity(&database, &replay, &request_id),
+            promote_oidc_identity(&database, &replay, &request_id),
+        );
+        assert!(matches!(
+            first.expect("first replay"),
+            OidcAdmission::User(6)
+        ));
+        assert!(matches!(
+            second.expect("second replay"),
+            OidcAdmission::User(6)
+        ));
+        assert_eq!(
+            database
+                .query_json("SELECT id FROM users WHERE username='new-user'", &[])
+                .await
+                .expect("single provision")
+                .len(),
+            1
+        );
+        let states = database.query_json("SELECT subject,migration_state,last_login_at IS NOT NULL AS logged_in FROM user_identities ORDER BY subject", &[]).await.expect("promotion states");
+        assert_eq!(
+            states,
+            vec![
+                json!({"subject":"disabled","migration_state":"disabled","logged_in":false}),
+                json!({"subject":"inactive","migration_state":"reset_required","logged_in":false}),
+                json!({"subject":"legacy","migration_state":"linked","logged_in":true}),
+                json!({"subject":"replay","migration_state":"linked","logged_in":true}),
+                json!({"subject":"reset","migration_state":"linked","logged_in":true}),
+                json!({"subject":"unverified","migration_state":"linked","logged_in":true})
+            ]
+        );
+    }
 }

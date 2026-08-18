@@ -155,11 +155,17 @@ pub(crate) fn is_project_staff_session(session: Option<&Session>) -> bool {
 }
 
 pub(crate) async fn require_project_staff(
-    database: &Database, headers: &HeaderMap, request_id: &RequestId,
+    database: &Database,
+    headers: &HeaderMap,
+    request_id: &RequestId,
 ) -> Result<(), Response> {
     match session(database, headers, request_id).await {
         Ok(user) if is_project_staff_session(user.as_ref()) => Ok(()),
-        _ => Err(coded_error(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Operations access required")),
+        _ => Err(coded_error(
+            StatusCode::UNAUTHORIZED,
+            "UNAUTHORIZED",
+            "Operations access required",
+        )),
     }
 }
 

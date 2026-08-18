@@ -77,27 +77,6 @@ pub(crate) fn session_token(headers: &HeaderMap) -> Option<&str> {
         })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::session_token;
-    use axum::http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
-
-    #[test]
-    fn accepts_oidc_cookie_and_prefers_bearer_session() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "cookie",
-            HeaderValue::from_static("other=x; __Host-pc_session=cookie-token"),
-        );
-        assert_eq!(session_token(&headers), Some("cookie-token"));
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_static("Bearer bearer-token"),
-        );
-        assert_eq!(session_token(&headers), Some("bearer-token"));
-    }
-}
-
 pub(crate) async fn require_session(
     database: &Database,
     headers: &HeaderMap,
@@ -129,5 +108,26 @@ pub(crate) fn as_i64(value: Option<&Value>) -> Option<i64> {
             .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok())),
         Some(Value::String(value)) => value.parse().ok(),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::session_token;
+    use axum::http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
+
+    #[test]
+    fn accepts_oidc_cookie_and_prefers_bearer_session() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            HeaderValue::from_static("other=x; __Host-pc_session=cookie-token"),
+        );
+        assert_eq!(session_token(&headers), Some("cookie-token"));
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_static("Bearer bearer-token"),
+        );
+        assert_eq!(session_token(&headers), Some("bearer-token"));
     }
 }

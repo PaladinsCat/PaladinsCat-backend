@@ -2514,8 +2514,10 @@ async fn overview_with_cache(
                     tier_min,
                     tier_max,
                     &refresh_view,
-                    overview_fresh_ttl,
-                    overview_stale_ttl,
+                    OverviewTtls {
+                        fresh: overview_fresh_ttl,
+                        stale: overview_stale_ttl,
+                    },
                 )
                 .await
                 {
@@ -2544,8 +2546,10 @@ async fn overview_with_cache(
         tier_min,
         tier_max,
         view,
-        overview_fresh_ttl,
-        overview_stale_ttl,
+        OverviewTtls {
+            fresh: overview_fresh_ttl,
+            stale: overview_stale_ttl,
+        },
     )
     .await?;
     state
@@ -2572,6 +2576,14 @@ async fn overview_with_cache(
     Ok(response)
 }
 
+/// Purpose: pair of cache lifetimes for one overview view so the overview
+/// assembly path stays under the clippy argument-count budget.
+#[derive(Clone, Copy)]
+struct OverviewTtls {
+    fresh: u64,
+    stale: u64,
+}
+
 /// Purpose: build one match-overview payload for both foreground cold misses
 /// and the shared background refresh path. Input: route dependencies, typed
 /// query bounds/view, and cache lifetimes. Output: the complete JSON payload;
@@ -2583,8 +2595,7 @@ async fn overview_payload(
     tier_min: Option<i32>,
     tier_max: Option<i32>,
     view: &str,
-    overview_fresh_ttl: u64,
-    overview_stale_ttl: u64,
+    ttls: OverviewTtls,
 ) -> Result<Value, ApiError> {
     let is_activity_view = view == "activity-v3";
     let mut hourly_query = HashMap::new();
@@ -2606,12 +2617,7 @@ async fn overview_payload(
             hourly_stats_payload(state, request_id, &hourly_query, tier_min, tier_max).await?;
         state
             .route_cache
-            .store(
-                &hourly_cache_key,
-                payload.clone(),
-                overview_fresh_ttl,
-                overview_stale_ttl,
-            )
+            .store(&hourly_cache_key, payload.clone(), ttls.fresh, ttls.stale)
             .await;
         payload
     };

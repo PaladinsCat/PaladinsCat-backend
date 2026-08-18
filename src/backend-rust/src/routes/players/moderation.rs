@@ -50,10 +50,9 @@ async fn require_session(
     headers: &HeaderMap,
     request_id: &RequestId,
 ) -> Result<Session, ApiError> {
-    let token = crate::routes::identity::session_token(headers)
-        .ok_or_else(|| {
-            ApiError::coded(StatusCode::UNAUTHORIZED, "AUTH", "Authentication required")
-        })?;
+    let token = crate::routes::identity::session_token(headers).ok_or_else(|| {
+        ApiError::coded(StatusCode::UNAUTHORIZED, "AUTH", "Authentication required")
+    })?;
     let token_hash = format!("{:x}", Sha256::digest(token.as_bytes()));
     let row = state
         .database

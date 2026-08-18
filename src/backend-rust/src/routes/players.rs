@@ -1630,7 +1630,10 @@ mod visibility_tests {
         let source = include_str!("players.rs");
         let history_route = source
             .split_once("async fn matches(")
-            .and_then(|(_, rest)| rest.split_once("async fn champions(").map(|(route, _)| route))
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn champions(")
+                    .map(|(route, _)| route)
+            })
             .expect("player match-history route");
         assert!(history_route.contains("FROM special_match_players smp JOIN special_matches sm"));
         assert!(!history_route.contains("EXCLUDE_CUSTOM_PLAYER_HISTORY_SQL"));

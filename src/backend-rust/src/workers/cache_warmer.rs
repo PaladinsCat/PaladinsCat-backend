@@ -224,12 +224,11 @@ impl CacheWarmer {
                     if let Some(token) = service_token.as_deref() {
                         request = request.bearer_auth(token);
                     }
-                    let failure = match request.send().await {
+                    match request.send().await {
                         Ok(response) if response.status().is_success() => None,
                         Ok(response) => Some(format!("{path}: {}", response.status())),
                         Err(error) => Some(format!("{path}: {error}")),
-                    };
-                    failure
+                    }
                 }
             })
             .buffer_unordered(concurrency)
