@@ -3,9 +3,11 @@
 ## Development Setup
 1. Install Rust (stable): `rustup default stable`
 2. Build: `cargo build`
-3. Lint: `cargo clippy -- -D warnings`
-4. Test: `cargo test`
-5. Format: `cargo fmt`
+3. Lint (mandatory gate): `cargo clippy --workspace --all-targets -- -D warnings`
+4. Test: `cargo test --workspace`
+5. Format: `cargo fmt --all --check`
+
+All three gates (lint, test, format) must pass locally before pushing.
 
 ## Branch Naming
 - Features: `feat/description`

@@ -22,9 +22,10 @@ This workspace contains the API, ingestion and recovery workers, Hi-Rez relay, s
 ```text
 cargo build --workspace
 cargo test --workspace
-cargo clippy --workspace -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Run `cargo fmt --all -- --check` before submitting a pull request. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
+Run `cargo fmt --all --check` before submitting a pull request. All commands above
+plus the format check are the mandatory local validation gate. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
 Licensed under the [MIT License](LICENSE).
