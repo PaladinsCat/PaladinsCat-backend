@@ -34,6 +34,8 @@ const PLAYERS_OVERVIEW_FRESH_SECONDS: u64 = 300;
 const PLAYERS_OVERVIEW_STALE_SECONDS: u64 = 1_800;
 const PLAYER_MATCHES_FRESH_SECONDS: u64 = 300;
 const PLAYER_MATCHES_STALE_SECONDS: u64 = 1_800;
+const AUTOMATIC_AFK_FRESH_SECONDS: u64 = 300;
+const AUTOMATIC_AFK_STALE_SECONDS: u64 = 1_800;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -1033,9 +1035,42 @@ fn automatic_afk_filters(
 async fn automatic_afk(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
     let bounds = tier_bounds(&query)?;
+    let key = format!(
+        "route:players:automatic-afk:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        AUTOMATIC_AFK_FRESH_SECONDS,
+        AUTOMATIC_AFK_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_automatic_afk(database, &query, bounds).await }
+        },
+    )
+    .await
+}
+
+/// Purpose: load the auto-flagged AFK directory rows that back
+/// `/players/automatic-afk`. Input: database handle, the parsed query
+/// filters, and the resolved lobby-tier bounds. Output: the JSON row array
+/// (player aggregates with `automatic_match_count`, ecpm stats, and the
+/// paged `total_count`) ordered by activity. Relationship: `automatic_afk`
+/// is the only caller and wraps this loader in the shared stale-while-
+/// refreshing route cache, so the query text must stay byte-stable.
+async fn load_automatic_afk(
+    database: Database,
+    query: &PlayerQuery,
+    bounds: (Option<i32>, Option<i32>),
+) -> Result<Value, DatabaseError> {
     let (mut params, filters) = automatic_afk_filters(None, bounds);
     let limit = limit(
         query.limit.as_deref().or(query.per_page.as_deref()),
@@ -1048,8 +1083,7 @@ async fn automatic_afk(
     params.push(QueryParam::Int64(limit));
     let limit_parameter = params.len();
     params.push(QueryParam::Int64(offset));
-    let rows = state
-        .database
+    database
         .query_json_params(
             &format!(
                 "SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
@@ -1074,10 +1108,7 @@ async fn automatic_afk(
             &params,
         )
         .await
-        .map_err(|error| map_database(error, &request_id))?;
-    let mut response = rows_response(rows);
-    cache(&mut response, "public, max-age=60");
-    Ok(response)
+        .map(Value::Array)
 }
 
 async fn automatic_afk_detail(
@@ -1655,6 +1686,22 @@ mod visibility_tests {
         assert!(overview.contains("cached_database_json("));
         assert!(overview.contains("PLAYERS_OVERVIEW_CACHE_KEY"));
         assert!(overview.contains("load_players_overview"));
+    }
+
+    #[test]
+    fn automatic_afk_uses_the_shared_stale_while_refreshing_cache() {
+        let source = include_str!("players.rs");
+        let route = source
+            .split_once("async fn automatic_afk(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn automatic_afk_detail(")
+                    .map(|(route, _)| route)
+            })
+            .expect("players automatic-afk route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("AUTOMATIC_AFK_FRESH_SECONDS"));
+        assert!(route.contains("load_automatic_afk"));
     }
 
     #[test]
