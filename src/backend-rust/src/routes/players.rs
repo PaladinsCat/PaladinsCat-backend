@@ -18,8 +18,8 @@ use serde_json::{Map, Value, json};
 
 use crate::{
     error::ApiError,
-    request::RequestId,
-    route_cache::{RouteCache, cached_database_json},
+    request::{EffectiveUri, RequestId},
+    route_cache::{RouteCache, cached_database_json, canonical_route_cache_url},
     workers::relay::WorkerRelayClient,
 };
 
@@ -32,6 +32,8 @@ const RANKED_QUEUE_ID: i32 = 486;
 const PLAYERS_OVERVIEW_CACHE_KEY: &str = "route:players:v1:/players/overview";
 const PLAYERS_OVERVIEW_FRESH_SECONDS: u64 = 300;
 const PLAYERS_OVERVIEW_STALE_SECONDS: u64 = 1_800;
+const PLAYER_MATCHES_FRESH_SECONDS: u64 = 300;
+const PLAYER_MATCHES_STALE_SECONDS: u64 = 1_800;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -135,7 +137,7 @@ pub fn router(
         })
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerQuery {
     name: Option<String>,
@@ -1235,10 +1237,42 @@ async fn profile(
 async fn matches(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Path(id): Path<String>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
     let player_id = player_id(&id)?;
+    let key = format!(
+        "route:players:matches:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        PLAYER_MATCHES_FRESH_SECONDS,
+        PLAYER_MATCHES_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_player_matches(database, player_id, &query).await }
+        },
+    )
+    .await
+}
+
+/// Purpose: load the player match-history rows that back `/players/{id}/matches`.
+/// Input: database handle, player id, and the parsed query filters. Output: the
+/// JSON row array (ranked + casual + special + history observations) ordered by
+/// recency. Relationship: `matches` is the only caller and wraps this loader in
+/// the shared stale-while-refreshing route cache, so the query text must stay
+/// byte-stable for the `player_history_keeps_special_matches_discoverable` test.
+async fn load_player_matches(
+    database: Database,
+    player_id: i64,
+    query: &PlayerQuery,
+) -> Result<Value, DatabaseError> {
     let mut params = vec![QueryParam::Int64(player_id)];
     let mut authoritative = vec!["mp.player_id=$1".to_owned()];
     let mut history = vec![
@@ -1311,8 +1345,7 @@ async fn matches(
     params.push(QueryParam::Int64(
         parse_js_integer(query.offset.as_deref().unwrap_or("0")).unwrap_or_default(),
     ));
-    let rows = state
-        .database
+    database
         .query_json_params(
             &format!(
                 "WITH authoritative AS ( \
@@ -1354,8 +1387,7 @@ async fn matches(
             &params,
         )
         .await
-        .map_err(|error| map_database(error, &request_id))?;
-    Ok(rows_response(rows))
+        .map(Value::Array)
 }
 
 async fn champions(
