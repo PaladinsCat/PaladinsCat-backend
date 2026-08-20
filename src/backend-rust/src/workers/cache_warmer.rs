@@ -457,11 +457,12 @@ fn env_f64(name: &str, fallback: f64) -> f64 {
 
 /// Purpose: size the cache-warmer back-off window for a route that has failed
 /// `consecutive_failures` times in a row. Input: failure count. Output: seconds
-/// to defer the route — a 5-minute base that doubles per consecutive failure and
-/// caps at 6 hours, so a persistently timing-out route is retried at most hourly
-/// rather than on every 10-minute warm cycle.
+/// to defer the route — a 30-minute base that doubles per consecutive failure and
+/// caps at 6 hours. The base must exceed the 10-minute warm cycle, otherwise a
+/// persistently timing-out route is still re-fired on most cycles (prod-verified:
+/// a 5-minute base re-fired the casual percentile scans on cycles 2 and 4).
 fn warm_backoff_seconds(consecutive_failures: u32) -> u64 {
-    const BASE_SECONDS: u64 = 300;
+    const BASE_SECONDS: u64 = 1800;
     const MAX_SECONDS: u64 = 6 * 3600;
     let shift = consecutive_failures.saturating_sub(1).min(20);
     BASE_SECONDS.saturating_mul(1u64 << shift).min(MAX_SECONDS)
@@ -490,10 +491,12 @@ mod tests {
 
     #[test]
     fn warm_backoff_grows_then_caps() {
-        assert_eq!(warm_backoff_seconds(1), 300);
-        assert_eq!(warm_backoff_seconds(2), 600);
-        assert_eq!(warm_backoff_seconds(3), 1200);
-        assert_eq!(warm_backoff_seconds(4), 2400);
+        // Base exceeds the 10-minute warm cycle so a failing route is skipped,
+        // not re-fired, on the next cycle.
+        assert_eq!(warm_backoff_seconds(1), 1800);
+        assert_eq!(warm_backoff_seconds(2), 3600);
+        assert_eq!(warm_backoff_seconds(3), 7200);
+        assert_eq!(warm_backoff_seconds(4), 14400);
         // Doubles until it hits the 6-hour cap and stays there.
         assert_eq!(warm_backoff_seconds(100), 6 * 3600);
     }
