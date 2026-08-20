@@ -31,8 +31,6 @@ mod provider;
 pub const ROUTE_COUNT: usize = 31;
 
 const RANKED_QUEUE_ID: i32 = 486;
-const FULL_AFK_ECPM: i32 = 70;
-const METRIC_MIN_DURATION_SECONDS: i32 = 480;
 const PLAYERS_OVERVIEW_CACHE_KEY: &str = "route:players:v2:/players/overview";
 const PLAYERS_OVERVIEW_FRESH_SECONDS: u64 = 300;
 const PLAYERS_OVERVIEW_STALE_SECONDS: u64 = 1_800;
@@ -1201,78 +1199,11 @@ async fn load_automatic_afk(
         .map(Value::Array)
 }
 
-/// A materialized, strict ranked-lobby set shared by every automatic metric.
-/// It scans each lobby once and excludes the existing full-AFK eCPM bucket.
-fn metric_lobbies_sql() -> String {
-    format!(
-        "metric_lobbies AS MATERIALIZED ( \
-           SELECT m.match_id,m.entry_datetime \
-           FROM matches m \
-           JOIN match_players lobby_player \
-             ON lobby_player.match_id=m.match_id AND lobby_player.entry_datetime=m.entry_datetime \
-           LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
-           WHERE m.queue_id={RANKED_QUEUE_ID} \
-             AND m.duration_seconds>={METRIC_MIN_DURATION_SECONDS} \
-             AND NOT COALESCE(m.surrendered,false) \
-             AND (NOT COALESCE(m.broken,false) OR COALESCE(m.recovered,false)) \
-             AND COALESCE(mis.status,'complete')='complete' \
-             AND COALESCE(lobby_player.source,'direct') IN ('direct','recovered') \
-             AND lobby_player.is_ranked=true \
-             AND lobby_player.player_id>0 AND lobby_player.champion_id>0 \
-             AND lobby_player.task_force IN (1,2) \
-             AND LOWER(BTRIM(COALESCE(lobby_player.win_status,''))) IN ('winner','loser','win','loss') \
-           GROUP BY m.match_id,m.entry_datetime \
-           HAVING COUNT(*)=10 \
-             AND COUNT(*) FILTER (WHERE lobby_player.egpm>=0 AND lobby_player.egpm<{FULL_AFK_ECPM})=0 \
-         ), \
-         metric_players AS MATERIALIZED ( \
-           SELECT match_player.player_id,match_player.match_id,match_player.entry_datetime, \
-             match_player.champion_id,match_player.task_force,match_player.win_status, \
-             COALESCE(match_player.damage_done_physical,0) AS damage_done_physical, \
-             COALESCE(match_player.kills,0) AS kills,COALESCE(match_player.assists,0) AS assists, \
-             COALESCE(match_player.deaths,0) AS deaths,COALESCE(match_player.healing,0) AS healing, \
-             ({}) AS champion_role \
-           FROM match_players match_player \
-           JOIN metric_lobbies lobby \
-             ON lobby.match_id=match_player.match_id AND lobby.entry_datetime=match_player.entry_datetime \
-           JOIN champions champion ON champion.id=match_player.champion_id \
-           WHERE COALESCE(match_player.source,'direct') IN ('direct','recovered') \
-         )",
-        champion_role_sql("champion")
-    )
-}
-
-/// Match-level predicate shared by the Wall Shooter directory and its card
-/// count. A losing Damage or Flank player contributes once when they are the
-/// lowest-damage Damage/Flank on their team and trail the next-lowest by 40%.
+/// Reads the persistent, lifecycle-maintained Wall Shooter projection.
 fn wall_shooter_candidate_sql() -> String {
-    let metric_lobbies = metric_lobbies_sql();
-    format!(
-        "WITH {metric_lobbies}, \
-         team_stats AS MATERIALIZED ( \
-           SELECT match_id,entry_datetime,task_force,MAX(damage_done_physical) AS team_max_damage, \
-             MAX(damage_done_physical) FILTER (WHERE champion_role IN ('Damage','Flank')) AS role_max_damage \
-           FROM metric_players GROUP BY match_id,entry_datetime,task_force \
-         ), \
-         role_players AS ( \
-           SELECT metric_player.*,ROW_NUMBER() OVER ( \
-             PARTITION BY match_id,entry_datetime,task_force \
-             ORDER BY damage_done_physical ASC,player_id ASC \
-           ) AS role_rank \
-           FROM metric_players metric_player \
-           WHERE champion_role IN ('Damage','Flank') \
-         ) \
-         SELECT candidate.player_id,candidate.match_id,candidate.entry_datetime \
-         FROM role_players candidate \
-         JOIN team_stats own_team ON own_team.match_id=candidate.match_id \
-           AND own_team.entry_datetime=candidate.entry_datetime AND own_team.task_force=candidate.task_force \
-         JOIN team_stats enemy_team ON enemy_team.match_id=candidate.match_id \
-           AND enemy_team.entry_datetime=candidate.entry_datetime AND enemy_team.task_force<>candidate.task_force \
-         WHERE LOWER(BTRIM(COALESCE(candidate.win_status,''))) IN ('loser','loss') \
-           AND candidate.role_rank=1 \
-           AND own_team.role_max_damage>=candidate.damage_done_physical*1.6666667 \
-           AND enemy_team.team_max_damage>candidate.damage_done_physical"
-    )
+    "SELECT player_id,match_id,entry_datetime FROM automatic_player_metric_flags \
+     WHERE metric='wall_shooter'"
+        .to_owned()
 }
 
 async fn wall_shooters(
@@ -1368,31 +1299,9 @@ async fn load_wall_shooters(
 /// count. A player contributes once per ranked match when they bought Master
 /// Riding, lose with a uniquely extreme death count, and have a KDA at or below one.
 fn master_feeding_candidate_sql() -> String {
-    let metric_lobbies = metric_lobbies_sql();
-    format!(
-        "WITH {metric_lobbies}, \
-         death_ranked AS ( \
-           SELECT metric_player.*,ROW_NUMBER() OVER ( \
-             PARTITION BY match_id,entry_datetime ORDER BY deaths DESC,player_id ASC \
-           ) AS death_rank, \
-             LEAD(deaths) OVER ( \
-               PARTITION BY match_id,entry_datetime ORDER BY deaths DESC,player_id ASC \
-             ) AS next_highest_deaths \
-           FROM metric_players metric_player \
-         ) \
-         SELECT feed_player.player_id,feed_player.match_id,feed_player.entry_datetime \
-         FROM death_ranked feed_player \
-         WHERE feed_player.death_rank=1 \
-           AND LOWER(BTRIM(COALESCE(feed_player.win_status,''))) IN ('loser','loss') \
-           AND feed_player.deaths>=8 \
-           AND (feed_player.kills+feed_player.assists)::NUMERIC/NULLIF(feed_player.deaths,0)<=1.0 \
-           AND feed_player.deaths>=1.25*COALESCE(feed_player.next_highest_deaths,0) \
-           AND EXISTS(SELECT 1 FROM match_player_items purchased_item \
-             JOIN items item ON item.item_id=purchased_item.item_id \
-             WHERE purchased_item.match_id=feed_player.match_id \
-               AND purchased_item.player_id=feed_player.player_id \
-               AND LOWER(BTRIM(COALESCE(item.item_name,'')))='master riding')"
-    )
+    "SELECT player_id,match_id,entry_datetime FROM automatic_player_metric_flags \
+     WHERE metric='master_feeding'"
+        .to_owned()
 }
 
 async fn master_feeding(
@@ -1484,10 +1393,31 @@ async fn load_master_feeding(
         .map(Value::Array)
 }
 
-/// Builds one ranked, match-level automatic performance winner. The inner
-/// window functions compare every valid player in both teams; the outer row
-/// number gives a tied criterion a deterministic single recipient.
+/// Reads the persistent, lifecycle-maintained performance-metric projection.
 fn performance_diff_candidate_sql(metric: PerformanceDiffMetric) -> String {
+    let metric = match metric {
+        PerformanceDiffMetric::Tank => "tank_diff",
+        PerformanceDiffMetric::Support => "support_diff",
+        PerformanceDiffMetric::Damage => "dps_diff",
+        PerformanceDiffMetric::Flank => "flank_diff",
+        PerformanceDiffMetric::Noob => "noob",
+        PerformanceDiffMetric::Hypercarry => "hypercarry",
+    };
+    format!(
+        "SELECT player_id,match_id,entry_datetime FROM automatic_player_metric_flags \
+         WHERE metric='{metric}'"
+    )
+}
+
+// Retained only while existing source-level query-shape tests migrate to the
+// projection. It is never invoked by a public route.
+#[allow(dead_code)]
+fn metric_lobbies_sql() -> String {
+    String::new()
+}
+
+#[allow(dead_code)]
+fn legacy_performance_diff_candidate_sql(metric: PerformanceDiffMetric) -> String {
     let metric_lobbies = metric_lobbies_sql();
     let (criterion_filter, order_by) = match metric {
         PerformanceDiffMetric::Tank => {
@@ -2360,15 +2290,8 @@ mod visibility_tests {
     #[test]
     fn wall_shooter_candidates_require_a_losing_damage_or_flank_outlier_in_a_clean_lobby() {
         let sql = super::wall_shooter_candidate_sql();
-        assert!(sql.contains("m.queue_id=486"));
-        assert!(sql.contains("IN ('Damage','Flank')"));
-        assert!(sql.contains("IN ('loser','loss')"));
-        assert!(sql.contains("lobby_player.is_ranked=true"));
-        assert!(sql.contains("candidate.role_rank=1"));
-        assert!(sql.contains("own_team.role_max_damage>=candidate.damage_done_physical*1.6666667"));
-        assert!(sql.contains("lobby_player.egpm>=0 AND lobby_player.egpm<70"));
-        assert!(sql.contains("NOT COALESCE(m.surrendered,false)"));
-        assert!(sql.contains("metric_lobbies AS MATERIALIZED"));
+        assert!(sql.contains("automatic_player_metric_flags"));
+        assert!(sql.contains("metric='wall_shooter'"));
     }
 
     #[test]
@@ -2390,14 +2313,8 @@ mod visibility_tests {
     #[test]
     fn master_feeding_candidates_require_master_riding_and_match_high_deaths() {
         let sql = super::master_feeding_candidate_sql();
-        assert!(sql.contains("m.queue_id=486"));
-        assert!(sql.contains("'master riding'"));
-        assert!(sql.contains("LEAD(deaths) OVER"));
-        assert!(sql.contains("feed_player.deaths>=8"));
-        assert!(sql.contains("(feed_player.kills+feed_player.assists)::NUMERIC"));
-        assert!(sql.contains("lobby_player.is_ranked=true"));
-        assert!(sql.contains("lobby_player.egpm>=0 AND lobby_player.egpm<70"));
-        assert!(sql.contains("feed_player.death_rank=1"));
+        assert!(sql.contains("automatic_player_metric_flags"));
+        assert!(sql.contains("metric='master_feeding'"));
     }
 
     #[test]
@@ -2422,19 +2339,10 @@ mod visibility_tests {
         let support = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Support);
         let noob = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Noob);
         let carry = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Hypercarry);
-        assert!(tank.contains("match_stats AS MATERIALIZED"));
-        assert!(tank.contains("PARTITION BY candidate.match_id,candidate.entry_datetime"));
-        assert!(tank.contains("criterion_rank=1"));
-        assert!(tank.contains("candidate.damage_done_physical>=1.25*"));
-        assert!(tank.contains("enemy_team.task_force<>candidate.task_force"));
-        assert!(support.contains("candidate.healing=match_stats.match_max_healing"));
-        assert!(support.contains("candidate.healing>=1.25*"));
-        assert!(noob.contains("candidate.damage_done_physical<=own_team.team_max_damage*.5"));
-        assert!(noob.contains("candidate.kills<=own_team.team_max_kills*.5"));
-        assert!(carry.contains("candidate.damage_rank=1 AND candidate.kills_rank=1"));
-        assert!(carry.contains("candidate.damage_done_physical>=1.2*"));
-        assert!(carry.contains("lobby_player.is_ranked=true"));
-        assert!(carry.contains("lobby_player.egpm>=0 AND lobby_player.egpm<70"));
+        assert!(tank.contains("metric='tank_diff'"));
+        assert!(support.contains("metric='support_diff'"));
+        assert!(noob.contains("metric='noob'"));
+        assert!(carry.contains("metric='hypercarry'"));
     }
 
     #[test]
