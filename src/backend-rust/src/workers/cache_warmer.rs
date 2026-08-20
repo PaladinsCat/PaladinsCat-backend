@@ -30,13 +30,54 @@ const DEPLOYMENT_CRITICAL_API_WARM_URLS: &[&str] = &[
     "/stats/overview",
     "/matches/overview?view=activity-v3",
     "/stats/presence?view=activity-v4",
+    "/players/automatic-afk?limit=32&offset=0",
+    "/players/wall-shooters?limit=32&offset=0",
+    "/players/master-feeding?limit=32&offset=0",
+    "/players/performance-diff/tank-diff?limit=32&offset=0",
+    "/players/performance-diff/support-diff?limit=32&offset=0",
+    "/players/performance-diff/dps-diff?limit=32&offset=0",
+    "/players/performance-diff/flank-diff?limit=32&offset=0",
+    "/players/performance-diff/the-noob?limit=32&offset=0",
+    "/players/performance-diff/hypercarry?limit=32&offset=0",
+    "/players/boosted?limit=100&offset=0",
+    "/players/search?cheater=true&limit=100&offset=0&perPage=100",
+    "/players/search?susOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?weirdoOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?hallOfFameOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?dropperOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?afkWintradeOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?altAccountOnly=true&limit=100&offset=0&perPage=100",
+    "/player-ext/private?page=1&perPage=24",
+    "/coplay/parties?page=1&perPage=24&kind=pairs",
+    "/coplay/parties?page=1&perPage=24&kind=stacks",
+    "/players/alt-account-relations?page=1&perPage=24",
 ];
 
 const STATIC_MAIN_API_WARM_URLS: &[&str] = &[
     "/players/leaderboard/class?role=Frontline&limit=100&queueId=486&mode=account",
     "/players/leaderboard/champion-elo?limit=100&queueId=486",
     "/stats/ranked-leaderboard?tier=26&top=100",
-    "/players/boosted?limit=100",
+    "/players/automatic-afk?limit=32&offset=0",
+    "/players/wall-shooters?limit=32&offset=0",
+    "/players/master-feeding?limit=32&offset=0",
+    "/players/performance-diff/tank-diff?limit=32&offset=0",
+    "/players/performance-diff/support-diff?limit=32&offset=0",
+    "/players/performance-diff/dps-diff?limit=32&offset=0",
+    "/players/performance-diff/flank-diff?limit=32&offset=0",
+    "/players/performance-diff/the-noob?limit=32&offset=0",
+    "/players/performance-diff/hypercarry?limit=32&offset=0",
+    "/players/boosted?limit=100&offset=0",
+    "/players/search?cheater=true&limit=100&offset=0&perPage=100",
+    "/players/search?susOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?weirdoOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?hallOfFameOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?dropperOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?afkWintradeOnly=true&limit=100&offset=0&perPage=100",
+    "/players/search?altAccountOnly=true&limit=100&offset=0&perPage=100",
+    "/player-ext/private?page=1&perPage=24",
+    "/coplay/parties?page=1&perPage=24&kind=pairs",
+    "/coplay/parties?page=1&perPage=24&kind=stacks",
+    "/players/alt-account-relations?page=1&perPage=24",
     "/matches/recent?limit=20",
     "/matches/compositions?limit=200",
     "/stats/champions?sort=winrate&limit=100",
@@ -475,7 +516,7 @@ fn _status_is_success(status: StatusCode) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{main_api_warm_urls, warm_backoff_seconds};
+    use super::{DEPLOYMENT_CRITICAL_API_WARM_URLS, main_api_warm_urls, warm_backoff_seconds};
 
     #[test]
     fn activity_default_requests_are_all_warmed() {
@@ -486,6 +527,37 @@ mod tests {
             "/stats/presence/hourly?view=activity-v3",
         ] {
             assert!(urls.iter().any(|url| url == expected), "missing {expected}");
+        }
+    }
+
+    #[test]
+    fn automatic_player_directories_are_warmed_before_and_after_deployment() {
+        let main = main_api_warm_urls();
+        for expected in [
+            "/players/boosted?limit=100&offset=0",
+            "/players/search?cheater=true&limit=100&offset=0&perPage=100",
+            "/players/search?susOnly=true&limit=100&offset=0&perPage=100",
+            "/players/search?weirdoOnly=true&limit=100&offset=0&perPage=100",
+            "/players/search?hallOfFameOnly=true&limit=100&offset=0&perPage=100",
+            "/players/search?dropperOnly=true&limit=100&offset=0&perPage=100",
+            "/players/search?afkWintradeOnly=true&limit=100&offset=0&perPage=100",
+            "/players/search?altAccountOnly=true&limit=100&offset=0&perPage=100",
+            "/player-ext/private?page=1&perPage=24",
+            "/coplay/parties?page=1&perPage=24&kind=pairs",
+            "/coplay/parties?page=1&perPage=24&kind=stacks",
+            "/players/alt-account-relations?page=1&perPage=24",
+            "/players/automatic-afk?limit=32&offset=0",
+            "/players/wall-shooters?limit=32&offset=0",
+            "/players/master-feeding?limit=32&offset=0",
+            "/players/performance-diff/tank-diff?limit=32&offset=0",
+            "/players/performance-diff/support-diff?limit=32&offset=0",
+            "/players/performance-diff/dps-diff?limit=32&offset=0",
+            "/players/performance-diff/flank-diff?limit=32&offset=0",
+            "/players/performance-diff/the-noob?limit=32&offset=0",
+            "/players/performance-diff/hypercarry?limit=32&offset=0",
+        ] {
+            assert!(DEPLOYMENT_CRITICAL_API_WARM_URLS.contains(&expected));
+            assert!(main.iter().any(|url| url == expected));
         }
     }
 

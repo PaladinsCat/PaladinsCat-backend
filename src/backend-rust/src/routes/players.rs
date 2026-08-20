@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use axum::{
     Json, Router,
@@ -20,7 +20,8 @@ use crate::{
     error::ApiError,
     request::{EffectiveUri, RequestId},
     route_cache::{
-        RouteCache, cached_database_json, cached_database_value, canonical_route_cache_url,
+        MAJOR_DIRECTORY_FRESH_SECONDS, MAJOR_DIRECTORY_STALE_SECONDS, RouteCache,
+        cached_database_json, cached_database_value, canonical_route_cache_url,
     },
     workers::relay::WorkerRelayClient,
 };
@@ -36,12 +37,6 @@ const PLAYERS_OVERVIEW_FRESH_SECONDS: u64 = 300;
 const PLAYERS_OVERVIEW_STALE_SECONDS: u64 = 1_800;
 const PLAYER_MATCHES_FRESH_SECONDS: u64 = 300;
 const PLAYER_MATCHES_STALE_SECONDS: u64 = 1_800;
-const AUTOMATIC_AFK_FRESH_SECONDS: u64 = 300;
-const AUTOMATIC_AFK_STALE_SECONDS: u64 = 1_800;
-const WALL_SHOOTERS_FRESH_SECONDS: u64 = 300;
-const WALL_SHOOTERS_STALE_SECONDS: u64 = 1_800;
-const MASTER_FEEDING_FRESH_SECONDS: u64 = 300;
-const MASTER_FEEDING_STALE_SECONDS: u64 = 1_800;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -421,6 +416,7 @@ async fn load_players_overview(database: Database) -> Result<Value, DatabaseErro
 async fn search(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
     let name = query.name.as_deref().or(query.q.as_deref());
@@ -452,6 +448,42 @@ async fn search(
         ));
     }
 
+    let key = format!(
+        "route:players:search:v2:{}",
+        canonical_route_cache_url(&uri)
+    );
+    let (fresh_seconds, stale_seconds) = if name.is_some() {
+        (60, 300)
+    } else {
+        (MAJOR_DIRECTORY_FRESH_SECONDS, MAJOR_DIRECTORY_STALE_SECONDS)
+    };
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        fresh_seconds,
+        stale_seconds,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_player_search(database, query).await }
+        },
+    )
+    .await
+}
+
+async fn load_player_search(
+    database: Database,
+    query: PlayerQuery,
+) -> Result<Value, DatabaseError> {
+    let name = query.name.as_deref().or(query.q.as_deref());
+    let sus_only = bool_query(query.sus_only.as_ref());
+    let weirdo_only = bool_query(query.weirdo_only.as_ref());
+    let hall_only = bool_query(query.hall_of_fame_only.as_ref());
+    let dropper_only = bool_query(query.dropper_only.as_ref());
+    let afk_only = bool_query(query.afk_wintrade_only.as_ref());
+    let alt_only = bool_query(query.alt_account_only.as_ref());
     let mut params = Vec::<QueryParam>::new();
     let mut filters = Vec::<String>::new();
     if let Some(name) = name {
@@ -557,14 +589,14 @@ async fn search(
             .unwrap_or_default()
             .max(0),
     ));
-    let rows = state
-        .database
+    database
         .query_json_params(
             &format!(
                 "SELECT id,name,level,wins,losses,kbm_tier,kbm_points,region,platform, \
                  cheater,sus_count,weirdo_count,hall_of_fame_count,dropper,afk_wintrade,alt_account, \
                  (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=players.id AND vote.vote_type='dropper') AS dropper_vote_count, \
                  (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=players.id AND vote.vote_type='afk_wintrade') AS afk_wintrade_vote_count, \
+                 (SELECT COUNT(*)::INT FROM player_alt_account_votes vote WHERE vote.alt_player_id=players.id) AS alt_account_vote_count, \
                  EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=players.id) AS boosted, \
                  avg_dpm,avg_hpm,avg_egpm,avg_mpm,total_matches,{top_reasons} AS top_reasons, \
                  COUNT(*) OVER() AS total_count, \
@@ -577,10 +609,7 @@ async fn search(
             &params,
         )
         .await
-        .map_err(|error| map_database(error, &request_id))?;
-    let mut response = rows_response(rows);
-    cache(&mut response, "public, max-age=60");
-    Ok(response)
+        .map(Value::Array)
 }
 
 fn escape_like(value: &str) -> String {
@@ -954,13 +983,23 @@ async fn boosted(
     Extension(request_id): Extension<RequestId>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
-    let limit = limit(
-        query.limit.as_deref().or(query.per_page.as_deref()),
+    let database = state.database.clone();
+    cached_player_directory(
+        state.cache,
+        "route:players:boosted-directory:v2".to_owned(),
+        &request_id,
+        &query,
         20,
-        100,
-    );
-    let rows = state
-        .database
+        move || {
+            let database = database.clone();
+            async move { load_boosted_directory(database).await }
+        },
+    )
+    .await
+}
+
+async fn load_boosted_directory(database: Database) -> Result<Value, DatabaseError> {
+    database
         .query_json(
             "SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count, \
              p.weirdo_count,p.hall_of_fame_count,p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm, \
@@ -969,21 +1008,17 @@ async fn boosted(
              jsonb_agg(jsonb_build_object('id',cheater.id,'name',cheater.name,'match_count',association.match_count, \
                'first_seen',association.first_seen,'last_seen',association.last_seen) \
                ORDER BY association.match_count DESC,association.last_seen DESC,cheater.id) AS cheaters, \
-             COUNT(*) OVER()::INT AS total_count, \
-             ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
+              ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
                WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
              FROM player_boosted_associations association JOIN players p ON p.id=association.player_id \
              JOIN players cheater ON cheater.id=association.cheater_id \
              GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
                p.hall_of_fame_count,p.total_matches,p.total_wins,p.wins,p.losses,p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
-             ORDER BY party_match_count DESC,last_seen DESC,p.name ASC LIMIT $1",
-            &[&limit],
+              ORDER BY party_match_count DESC,last_seen DESC,p.name ASC",
+            &[],
         )
         .await
-        .map_err(|error| map_database(error, &request_id))?;
-    let mut response = rows_response(rows);
-    cache(&mut response, "public, max-age=60");
-    Ok(response)
+        .map(Value::Array)
 }
 
 async fn boosted_detail(
@@ -1107,67 +1142,124 @@ fn automatic_afk_filters(
 async fn automatic_afk(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
-    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
     let bounds = tier_bounds(&query)?;
-    let key = format!(
-        "route:players:automatic-afk:v1:{}",
-        canonical_route_cache_url(&uri)
-    );
+    let key = automatic_afk_cache_key(bounds);
     let database = state.database.clone();
-    cached_database_json(
-        state.cache,
-        key,
-        AUTOMATIC_AFK_FRESH_SECONDS,
-        AUTOMATIC_AFK_STALE_SECONDS,
-        &request_id,
-        move || {
-            let database = database.clone();
-            let query = query.clone();
-            async move { load_automatic_afk(database, &query, bounds).await }
-        },
-    )
+    cached_player_directory(state.cache, key, &request_id, &query, 20, move || {
+        let database = database.clone();
+        async move { load_automatic_afk_directory(database, bounds).await }
+    })
     .await
 }
 
-/// Purpose: load the auto-flagged AFK directory rows that back
-/// `/players/automatic-afk`. Input: database handle, the parsed query
-/// filters, and the resolved lobby-tier bounds. Output: the JSON row array
-/// (player aggregates with `automatic_match_count`, ecpm stats, and the
-/// paged `total_count`) ordered by activity. Relationship: `automatic_afk`
-/// is the only caller and wraps this loader in the shared stale-while-
-/// refreshing route cache, so the query text must stay byte-stable.
-async fn load_automatic_afk(
-    database: Database,
+async fn cached_player_directory<F, Fut>(
+    route_cache: RouteCache,
+    key: String,
+    request_id: &RequestId,
     query: &PlayerQuery,
-    bounds: (Option<i32>, Option<i32>),
-) -> Result<Value, DatabaseError> {
-    let (mut params, mut filters) = automatic_afk_filters(None, bounds);
-    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
-        if name
-            .trim()
-            .chars()
-            .all(|character| character.is_ascii_digit())
-        {
-            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
-            filters.push(format!("p.id=${}", params.len()));
-        } else if !name.trim().is_empty() {
-            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
-            filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
+    default_limit: i64,
+    loader: F,
+) -> Result<Response, ApiError>
+where
+    F: Fn() -> Fut + Clone + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, DatabaseError>> + Send + 'static,
+{
+    let cached_before_load = route_cache.get(&key).await;
+    let cache_status = match cached_before_load.as_ref() {
+        Some(cached) if cached.fresh_until <= crate::route_cache::now_millis() => "STALE",
+        Some(_) => "HIT",
+        None => "MISS",
+    };
+    let payload = cached_database_value(
+        route_cache.clone(),
+        key.clone(),
+        MAJOR_DIRECTORY_FRESH_SECONDS,
+        MAJOR_DIRECTORY_STALE_SECONDS,
+        loader,
+    )
+    .await
+    .map_err(|error| map_database(error, request_id))?;
+    let page = player_directory_page(payload, query, default_limit);
+    let fresh_until = route_cache
+        .get(&key)
+        .await
+        .map_or_else(crate::route_cache::now_millis, |cached| cached.fresh_until);
+    Ok(crate::route_cache::json_cache_response(
+        page,
+        cache_status,
+        fresh_until,
+    ))
+}
+
+fn automatic_afk_cache_key(bounds: (Option<i32>, Option<i32>)) -> String {
+    format!(
+        "route:players:automatic-afk-directory:v3:{}:{}",
+        bounds
+            .0
+            .map_or_else(|| "all".to_owned(), |value| value.to_string()),
+        bounds
+            .1
+            .map_or_else(|| "all".to_owned(), |value| value.to_string())
+    )
+}
+
+fn player_directory_page(payload: Value, query: &PlayerQuery, default_limit: i64) -> Value {
+    let Value::Array(mut rows) = payload else {
+        return Value::Array(Vec::new());
+    };
+    if let Some(search) = query.name.as_deref().or(query.q.as_deref()) {
+        let search = search.trim();
+        if !search.is_empty() {
+            if search.chars().all(|character| character.is_ascii_digit()) {
+                rows.retain(|row| {
+                    row.get("id").is_some_and(|id| {
+                        id.as_i64().is_some_and(|id| id.to_string() == search)
+                            || id.as_str().is_some_and(|id| id == search)
+                    })
+                });
+            } else {
+                let search = search.to_lowercase();
+                rows.retain(|row| {
+                    row.get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|name| name.to_lowercase().contains(&search))
+                });
+            }
         }
     }
-    let limit = limit(
-        query.limit.as_deref().or(query.per_page.as_deref()),
-        20,
-        100,
-    );
+    let total_count = rows.len();
     let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
         .unwrap_or_default()
-        .max(0);
-    params.push(QueryParam::Int64(limit));
-    let limit_parameter = params.len();
-    params.push(QueryParam::Int64(offset));
+        .max(0) as usize;
+    let limit = limit(
+        query.limit.as_deref().or(query.per_page.as_deref()),
+        default_limit,
+        100,
+    ) as usize;
+    Value::Array(
+        rows.into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|mut row| {
+                if let Some(row) = row.as_object_mut() {
+                    row.insert("total_count".to_owned(), json!(total_count));
+                }
+                row
+            })
+            .collect(),
+    )
+}
+
+/// Loads one shared auto-AFK directory aggregate. Pagination and name search
+/// are applied after this result is cached so every directory page reuses the
+/// same historical scan.
+async fn load_automatic_afk_directory(
+    database: Database,
+    bounds: (Option<i32>, Option<i32>),
+) -> Result<Value, DatabaseError> {
+    let (params, filters) = automatic_afk_filters(None, bounds);
     database
         .query_json_params(
             &format!(
@@ -1179,7 +1271,7 @@ async fn load_automatic_afk(
                  p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
                  COUNT(*)::INT AS automatic_match_count,MIN(mp.entry_datetime) AS first_seen,MAX(mp.entry_datetime) AS last_seen, \
                  ROUND(MIN(mp.egpm)::NUMERIC,2)::DOUBLE PRECISION AS lowest_ecpm, \
-                 ROUND(AVG(mp.egpm)::NUMERIC,2)::DOUBLE PRECISION AS average_ecpm,COUNT(*) OVER()::INT AS total_count, \
+                 ROUND(AVG(mp.egpm)::NUMERIC,2)::DOUBLE PRECISION AS average_ecpm, \
                  ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
                    WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
                  FROM match_players mp JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime \
@@ -1188,10 +1280,9 @@ async fn load_automatic_afk(
                  JOIN players p ON p.id=mp.player_id WHERE {} \
                  GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
                    p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
-                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm HAVING COUNT(*)>=10 \
-                 ORDER BY automatic_match_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
-                filters.join(" AND "),
-                params.len()
+                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                 ORDER BY automatic_match_count DESC,last_seen DESC,p.name ASC",
+                filters.join(" AND ")
             ),
             &params,
         )
@@ -1209,67 +1300,27 @@ fn wall_shooter_candidate_sql() -> String {
 async fn wall_shooters(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
-    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
-    let key = format!(
-        "route:players:wall-shooters:v2:{}",
-        canonical_route_cache_url(&uri)
-    );
     let database = state.database.clone();
-    cached_database_json(
+    cached_player_directory(
         state.cache,
-        key,
-        WALL_SHOOTERS_FRESH_SECONDS,
-        WALL_SHOOTERS_STALE_SECONDS,
+        "route:players:wall-shooters-directory:v3".to_owned(),
         &request_id,
+        &query,
+        32,
         move || {
             let database = database.clone();
-            let query = query.clone();
-            async move { load_wall_shooters(database, &query).await }
+            async move { load_wall_shooter_directory(database).await }
         },
     )
     .await
 }
 
-async fn load_wall_shooters(
-    database: Database,
-    query: &PlayerQuery,
-) -> Result<Value, DatabaseError> {
-    let mut params = Vec::<QueryParam>::new();
-    let mut player_filters = Vec::<String>::new();
-    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
-        if name
-            .trim()
-            .chars()
-            .all(|character| character.is_ascii_digit())
-        {
-            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
-            player_filters.push(format!("p.id=${}", params.len()));
-        } else if !name.trim().is_empty() {
-            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
-            player_filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
-        }
-    }
-    let player_where = if player_filters.is_empty() {
-        String::new()
-    } else {
-        format!(" WHERE {}", player_filters.join(" AND "))
-    };
-    let limit = limit(
-        query.limit.as_deref().or(query.per_page.as_deref()),
-        32,
-        100,
-    );
-    let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
-        .unwrap_or_default()
-        .max(0);
-    params.push(QueryParam::Int64(limit));
-    let limit_parameter = params.len();
-    params.push(QueryParam::Int64(offset));
+async fn load_wall_shooter_directory(database: Database) -> Result<Value, DatabaseError> {
     let wall_shooter_candidates = wall_shooter_candidate_sql();
     database
-        .query_json_params(
+        .query_json(
             &format!(
                 "WITH flagged_matches AS ({wall_shooter_candidates}) \
                  SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
@@ -1279,17 +1330,16 @@ async fn load_wall_shooters(
                    p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
                    p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
                    COUNT(*)::INT AS wall_shooter_count,MIN(flagged_matches.entry_datetime) AS first_seen, \
-                   MAX(flagged_matches.entry_datetime) AS last_seen,COUNT(*) OVER()::INT AS total_count, \
+                    MAX(flagged_matches.entry_datetime) AS last_seen, \
                    ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
                      WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
-                 FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id{player_where} \
+                  FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id \
                  GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
                    p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
-                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
-                 ORDER BY wall_shooter_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
-                params.len()
+                    p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                  ORDER BY wall_shooter_count DESC,last_seen DESC,p.name ASC"
             ),
-            &params,
+            &[],
         )
         .await
         .map(Value::Array)
@@ -1307,67 +1357,27 @@ fn master_feeding_candidate_sql() -> String {
 async fn master_feeding(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
-    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
-    let key = format!(
-        "route:players:master-feeding:v2:{}",
-        canonical_route_cache_url(&uri)
-    );
     let database = state.database.clone();
-    cached_database_json(
+    cached_player_directory(
         state.cache,
-        key,
-        MASTER_FEEDING_FRESH_SECONDS,
-        MASTER_FEEDING_STALE_SECONDS,
+        "route:players:master-feeding-directory:v3".to_owned(),
         &request_id,
+        &query,
+        32,
         move || {
             let database = database.clone();
-            let query = query.clone();
-            async move { load_master_feeding(database, &query).await }
+            async move { load_master_feeding_directory(database).await }
         },
     )
     .await
 }
 
-async fn load_master_feeding(
-    database: Database,
-    query: &PlayerQuery,
-) -> Result<Value, DatabaseError> {
-    let mut params = Vec::<QueryParam>::new();
-    let mut player_filters = Vec::<String>::new();
-    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
-        if name
-            .trim()
-            .chars()
-            .all(|character| character.is_ascii_digit())
-        {
-            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
-            player_filters.push(format!("p.id=${}", params.len()));
-        } else if !name.trim().is_empty() {
-            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
-            player_filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
-        }
-    }
-    let player_where = if player_filters.is_empty() {
-        String::new()
-    } else {
-        format!(" WHERE {}", player_filters.join(" AND "))
-    };
-    let limit = limit(
-        query.limit.as_deref().or(query.per_page.as_deref()),
-        32,
-        100,
-    );
-    let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
-        .unwrap_or_default()
-        .max(0);
-    params.push(QueryParam::Int64(limit));
-    let limit_parameter = params.len();
-    params.push(QueryParam::Int64(offset));
+async fn load_master_feeding_directory(database: Database) -> Result<Value, DatabaseError> {
     let master_feeding_candidates = master_feeding_candidate_sql();
     database
-        .query_json_params(
+        .query_json(
             &format!(
                 "WITH flagged_matches AS ({master_feeding_candidates}) \
                  SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
@@ -1377,17 +1387,16 @@ async fn load_master_feeding(
                    p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
                    p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
                    COUNT(*)::INT AS master_feeding_count,MIN(flagged_matches.entry_datetime) AS first_seen, \
-                   MAX(flagged_matches.entry_datetime) AS last_seen,COUNT(*) OVER()::INT AS total_count, \
+                    MAX(flagged_matches.entry_datetime) AS last_seen, \
                    ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
                      WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
-                 FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id{player_where} \
+                  FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id \
                  GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
                    p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
-                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
-                 ORDER BY master_feeding_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
-                params.len()
+                    p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                  ORDER BY master_feeding_count DESC,last_seen DESC,p.name ASC"
             ),
-            &params,
+            &[],
         )
         .await
         .map(Value::Array)
@@ -1543,72 +1552,30 @@ fn legacy_performance_diff_candidate_sql(metric: PerformanceDiffMetric) -> Strin
 async fn performance_diff(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
-    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Path(metric): Path<String>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
     let metric = PerformanceDiffMetric::parse(&metric)
         .ok_or_else(|| ApiError::validation("Invalid performance metric."))?;
     let key = format!(
-        "route:players:performance-diff:v2:{}:{}",
-        metric.cache_key(),
-        canonical_route_cache_url(&uri)
+        "route:players:performance-diff-directory:v3:{}",
+        metric.cache_key()
     );
     let database = state.database.clone();
-    cached_database_json(
-        state.cache,
-        key,
-        WALL_SHOOTERS_FRESH_SECONDS,
-        WALL_SHOOTERS_STALE_SECONDS,
-        &request_id,
-        move || {
-            let database = database.clone();
-            let query = query.clone();
-            async move { load_performance_diff(database, &query, metric).await }
-        },
-    )
+    cached_player_directory(state.cache, key, &request_id, &query, 32, move || {
+        let database = database.clone();
+        async move { load_performance_diff_directory(database, metric).await }
+    })
     .await
 }
 
-async fn load_performance_diff(
+async fn load_performance_diff_directory(
     database: Database,
-    query: &PlayerQuery,
     metric: PerformanceDiffMetric,
 ) -> Result<Value, DatabaseError> {
-    let mut params = Vec::<QueryParam>::new();
-    let mut player_filters = Vec::<String>::new();
-    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
-        if name
-            .trim()
-            .chars()
-            .all(|character| character.is_ascii_digit())
-        {
-            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
-            player_filters.push(format!("p.id=${}", params.len()));
-        } else if !name.trim().is_empty() {
-            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
-            player_filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
-        }
-    }
-    let player_where = if player_filters.is_empty() {
-        String::new()
-    } else {
-        format!(" WHERE {}", player_filters.join(" AND "))
-    };
-    let limit = limit(
-        query.limit.as_deref().or(query.per_page.as_deref()),
-        32,
-        100,
-    );
-    let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
-        .unwrap_or_default()
-        .max(0);
-    params.push(QueryParam::Int64(limit));
-    let limit_parameter = params.len();
-    params.push(QueryParam::Int64(offset));
     let candidates = performance_diff_candidate_sql(metric);
     database
-        .query_json_params(
+        .query_json(
             &format!(
                 "WITH flagged_matches AS ({candidates}) \
                  SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
@@ -1618,17 +1585,16 @@ async fn load_performance_diff(
                    p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
                    p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
                    COUNT(*)::INT AS metric_count,MIN(flagged_matches.entry_datetime) AS first_seen, \
-                   MAX(flagged_matches.entry_datetime) AS last_seen,COUNT(*) OVER()::INT AS total_count, \
+                    MAX(flagged_matches.entry_datetime) AS last_seen, \
                    ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
                      WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
-                 FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id{player_where} \
+                  FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id \
                  GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
                    p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
-                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
-                 ORDER BY metric_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
-                params.len()
+                    p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                  ORDER BY metric_count DESC,last_seen DESC,p.name ASC"
             ),
-            &params,
+            &[],
         )
         .await
         .map(Value::Array)
@@ -1705,8 +1671,8 @@ async fn automatic_afk_detail(
     let payload = cached_database_value(
         route_cache.clone(),
         key.clone(),
-        AUTOMATIC_AFK_FRESH_SECONDS,
-        AUTOMATIC_AFK_STALE_SECONDS,
+        MAJOR_DIRECTORY_FRESH_SECONDS,
+        MAJOR_DIRECTORY_STALE_SECONDS,
         move || {
             let database = database.clone();
             async move { load_automatic_afk_detail(database, player_id, bounds).await }
@@ -2218,11 +2184,63 @@ async fn bulk(
     let rows = state
         .database
         .query_json(
-            "SELECT p.id,p.name,p.level,p.region,p.platform,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count, \
-               p.dropper,p.afk_wintrade,p.alt_account, \
-               EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
+            "WITH vote_counts AS ( \
+               SELECT player_id, \
+                 (COUNT(*) FILTER(WHERE vote_type='dropper'))::INT AS dropper_vote_count, \
+                 (COUNT(*) FILTER(WHERE vote_type='afk_wintrade'))::INT AS afk_wintrade_vote_count \
+               FROM player_community_votes WHERE player_id=ANY($1::BIGINT[]) GROUP BY player_id \
+             ), boosted_counts AS ( \
+               SELECT player_id,COALESCE(SUM(match_count),0)::INT AS boosted_match_count \
+               FROM player_boosted_associations WHERE player_id=ANY($1::BIGINT[]) GROUP BY player_id \
+             ), alt_counts AS ( \
+               SELECT alt_player_id AS player_id,COUNT(*)::INT AS alt_account_vote_count \
+               FROM player_alt_account_votes WHERE alt_player_id=ANY($1::BIGINT[]) GROUP BY alt_player_id \
+             ), metric_counts AS ( \
+               SELECT player_id, \
+                 (COUNT(*) FILTER(WHERE metric='wall_shooter'))::INT AS wall_shooter_count, \
+                 (COUNT(*) FILTER(WHERE metric='master_feeding'))::INT AS master_feeding_count, \
+                 (COUNT(*) FILTER(WHERE metric='tank_diff'))::INT AS tank_diff_count, \
+                 (COUNT(*) FILTER(WHERE metric='support_diff'))::INT AS support_diff_count, \
+                 (COUNT(*) FILTER(WHERE metric='dps_diff'))::INT AS dps_diff_count, \
+                 (COUNT(*) FILTER(WHERE metric='flank_diff'))::INT AS flank_diff_count, \
+                 (COUNT(*) FILTER(WHERE metric='noob'))::INT AS noob_count, \
+                 (COUNT(*) FILTER(WHERE metric='hypercarry'))::INT AS hypercarry_count \
+               FROM automatic_player_metric_flags WHERE player_id=ANY($1::BIGINT[]) GROUP BY player_id \
+             ), automatic_afk_counts AS ( \
+               SELECT mp.player_id,COUNT(*)::INT AS automatic_afk_count \
+               FROM match_players mp \
+               JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime \
+               LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
+               WHERE mp.player_id=ANY($1::BIGINT[]) AND m.queue_id=486 AND mp.egpm>=0 AND mp.egpm<70 \
+                 AND COALESCE(mis.status,'complete')='complete' \
+                 AND COALESCE(mp.source,'direct') IN ('direct','recovered') AND mp.is_ranked=true \
+                 AND mp.player_id>0 AND mp.champion_id>0 AND mp.task_force IN (1,2) \
+                 AND LOWER(BTRIM(COALESCE(mp.win_status,''))) IN ('winner','loser','win','loss') \
+                 AND m.duration_seconds>120 GROUP BY mp.player_id \
+             ) \
+             SELECT p.id,p.name,p.level,p.region,p.platform,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count, \
+               p.dropper,COALESCE(vote_counts.dropper_vote_count,0) AS dropper_vote_count, \
+               p.afk_wintrade,COALESCE(vote_counts.afk_wintrade_vote_count,0) AS afk_wintrade_vote_count, \
+               p.alt_account,COALESCE(alt_counts.alt_account_vote_count,0) AS alt_account_vote_count, \
+               COALESCE(boosted_counts.boosted_match_count,0)>0 AS boosted, \
+               COALESCE(boosted_counts.boosted_match_count,0) AS boosted_match_count, \
+               COALESCE(automatic_afk_counts.automatic_afk_count,0) AS automatic_afk_count, \
+               COALESCE(metric_counts.wall_shooter_count,0) AS wall_shooter_count, \
+               COALESCE(metric_counts.master_feeding_count,0) AS master_feeding_count, \
+               COALESCE(metric_counts.tank_diff_count,0) AS tank_diff_count, \
+               COALESCE(metric_counts.support_diff_count,0) AS support_diff_count, \
+               COALESCE(metric_counts.dps_diff_count,0) AS dps_diff_count, \
+               COALESCE(metric_counts.flank_diff_count,0) AS flank_diff_count, \
+               COALESCE(metric_counts.noob_count,0) AS noob_count, \
+               COALESCE(metric_counts.hypercarry_count,0) AS hypercarry_count, \
                EXISTS(SELECT 1 FROM users u WHERE u.linked_player_id=p.id) AS verified \
-             FROM players p WHERE p.id=ANY($1::bigint[])",
+             FROM players p \
+             LEFT JOIN vote_counts ON vote_counts.player_id=p.id \
+             LEFT JOIN boosted_counts ON boosted_counts.player_id=p.id \
+             LEFT JOIN alt_counts ON alt_counts.player_id=p.id \
+             LEFT JOIN metric_counts ON metric_counts.player_id=p.id \
+             LEFT JOIN automatic_afk_counts ON automatic_afk_counts.player_id=p.id \
+             WHERE p.id=ANY($1::BIGINT[])",
             &[&ids],
         )
         .await
@@ -2246,6 +2264,45 @@ async fn bulk(
 #[cfg(test)]
 mod visibility_tests {
     #[test]
+    fn bulk_player_tags_expose_every_count_needed_for_the_inclusive_boundary() {
+        let source = include_str!("players.rs");
+        let bulk = source
+            .split_once("async fn bulk(")
+            .and_then(|(_, rest)| rest.split_once("#[cfg(test)]").map(|(route, _)| route))
+            .expect("players bulk route");
+        for field in [
+            "dropper_vote_count",
+            "afk_wintrade_vote_count",
+            "boosted_match_count",
+            "alt_account_vote_count",
+            "automatic_afk_count",
+            "wall_shooter_count",
+            "master_feeding_count",
+            "tank_diff_count",
+            "support_diff_count",
+            "dps_diff_count",
+            "flank_diff_count",
+            "noob_count",
+            "hypercarry_count",
+        ] {
+            assert!(bulk.contains(field), "missing {field}");
+        }
+    }
+
+    #[test]
+    fn automatic_afk_directory_lists_sub_threshold_counts() {
+        let source = include_str!("players.rs");
+        let loader = source
+            .split_once("async fn load_automatic_afk_directory(")
+            .and_then(|(_, rest)| {
+                rest.split_once("fn wall_shooter_candidate_sql")
+                    .map(|(route, _)| route)
+            })
+            .expect("automatic AFK directory loader");
+        assert!(!loader.contains("HAVING COUNT(*)"));
+    }
+
+    #[test]
     fn players_overview_uses_the_shared_stale_while_refreshing_cache() {
         let source = include_str!("players.rs");
         let overview = source
@@ -2258,6 +2315,27 @@ mod visibility_tests {
     }
 
     #[test]
+    fn moderation_search_and_boosted_directories_use_shared_stale_caches() {
+        let source = include_str!("players.rs");
+        let search = source
+            .split_once("async fn search(")
+            .and_then(|(_, rest)| rest.split_once("fn escape_like(").map(|(route, _)| route))
+            .expect("moderation search route");
+        assert!(search.contains("cached_database_json("));
+        assert!(search.contains("canonical_route_cache_url"));
+
+        let boosted = source
+            .split_once("async fn boosted(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn boosted_detail(")
+                    .map(|(route, _)| route)
+            })
+            .expect("boosted directory route");
+        assert!(boosted.contains("cached_player_directory("));
+        assert!(boosted.contains("boosted-directory"));
+    }
+
+    #[test]
     fn automatic_afk_uses_the_shared_stale_while_refreshing_cache() {
         let source = include_str!("players.rs");
         let route = source
@@ -2267,10 +2345,39 @@ mod visibility_tests {
                     .map(|(route, _)| route)
             })
             .expect("players automatic-afk route");
-        assert!(route.contains("cached_database_json("));
-        assert!(route.contains("canonical_route_cache_url"));
-        assert!(route.contains("AUTOMATIC_AFK_FRESH_SECONDS"));
-        assert!(route.contains("load_automatic_afk"));
+        assert!(route.contains("cached_player_directory("));
+        assert!(route.contains("automatic_afk_cache_key"));
+        assert!(route.contains("player_directory_page"));
+        assert!(route.contains("load_automatic_afk_directory"));
+    }
+
+    #[test]
+    fn automatic_afk_pages_share_one_tier_scoped_cache_entry() {
+        let first = super::automatic_afk_cache_key((None, None));
+        let second = super::automatic_afk_cache_key((None, None));
+        let bracket = super::automatic_afk_cache_key((Some(16), Some(26)));
+        assert_eq!(first, second);
+        assert_ne!(first, bracket);
+    }
+
+    #[test]
+    fn automatic_afk_cached_directory_is_searched_and_paginated_in_memory() {
+        let payload = serde_json::json!([
+            {"id": 1, "name": "Alpha"},
+            {"id": 2, "name": "Beta"},
+            {"id": 3, "name": "Gamma"}
+        ]);
+        let query = super::PlayerQuery {
+            name: Some("a".to_owned()),
+            limit: Some("1".to_owned()),
+            offset: Some("1".to_owned()),
+            ..Default::default()
+        };
+        let page = super::player_directory_page(payload, &query, 20);
+        let rows = page.as_array().expect("AFK page array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["id"], 2);
+        assert_eq!(rows[0]["total_count"], 3);
     }
 
     #[test]
@@ -2282,7 +2389,7 @@ mod visibility_tests {
             .expect("players automatic-afk detail route");
         assert!(route.contains("cached_database_value("));
         assert!(route.contains("canonical_route_cache_url"));
-        assert!(route.contains("AUTOMATIC_AFK_FRESH_SECONDS"));
+        assert!(route.contains("MAJOR_DIRECTORY_FRESH_SECONDS"));
         assert!(route.contains("load_automatic_afk_detail"));
         assert!(route.contains("DatabaseError::NotFound"));
     }
@@ -2300,14 +2407,13 @@ mod visibility_tests {
         let route = source
             .split_once("async fn wall_shooters(")
             .and_then(|(_, rest)| {
-                rest.split_once("async fn load_wall_shooters(")
+                rest.split_once("async fn load_wall_shooter_directory(")
                     .map(|(route, _)| route)
             })
             .expect("players wall-shooters route");
-        assert!(route.contains("cached_database_json("));
-        assert!(route.contains("canonical_route_cache_url"));
-        assert!(route.contains("WALL_SHOOTERS_FRESH_SECONDS"));
-        assert!(route.contains("load_wall_shooters"));
+        assert!(route.contains("cached_player_directory("));
+        assert!(route.contains("wall-shooters-directory"));
+        assert!(route.contains("load_wall_shooter_directory"));
     }
 
     #[test]
@@ -2323,14 +2429,13 @@ mod visibility_tests {
         let route = source
             .split_once("async fn master_feeding(")
             .and_then(|(_, rest)| {
-                rest.split_once("async fn load_master_feeding(")
+                rest.split_once("async fn load_master_feeding_directory(")
                     .map(|(route, _)| route)
             })
             .expect("players master-feeding route");
-        assert!(route.contains("cached_database_json("));
-        assert!(route.contains("canonical_route_cache_url"));
-        assert!(route.contains("MASTER_FEEDING_FRESH_SECONDS"));
-        assert!(route.contains("load_master_feeding"));
+        assert!(route.contains("cached_player_directory("));
+        assert!(route.contains("master-feeding-directory"));
+        assert!(route.contains("load_master_feeding_directory"));
     }
 
     #[test]
@@ -2351,14 +2456,14 @@ mod visibility_tests {
         let route = source
             .split_once("async fn performance_diff(")
             .and_then(|(_, rest)| {
-                rest.split_once("async fn load_performance_diff(")
+                rest.split_once("async fn load_performance_diff_directory(")
                     .map(|(route, _)| route)
             })
             .expect("players performance-diff route");
-        assert!(route.contains("cached_database_json("));
-        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("cached_player_directory("));
+        assert!(route.contains("performance-diff-directory"));
         assert!(route.contains("PerformanceDiffMetric::parse"));
-        assert!(route.contains("load_performance_diff"));
+        assert!(route.contains("load_performance_diff_directory"));
     }
 
     #[test]

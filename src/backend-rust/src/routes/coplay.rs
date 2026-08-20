@@ -3,19 +3,27 @@ use std::collections::HashMap;
 use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
+    response::Response,
     routing::get,
 };
 use paladinscat_core::{
-    database::{Database, QueryParam},
+    database::{Database, DatabaseError, QueryParam},
     web_compat::{paginate, parse_js_integer},
 };
 use serde_json::{Value, json};
 
-use crate::{error::ApiError, request::RequestId};
+use crate::{
+    error::ApiError,
+    request::{EffectiveUri, RequestId},
+    route_cache::{
+        MAJOR_DIRECTORY_FRESH_SECONDS, MAJOR_DIRECTORY_STALE_SECONDS, RouteCache,
+        cached_database_json, canonical_route_cache_url,
+    },
+};
 
 pub const ROUTE_COUNT: usize = 7;
 
-pub fn router(database: Database) -> Router {
+pub fn router(database: Database, route_cache: RouteCache) -> Router {
     Router::new()
         .route("/coplay/parties", get(parties))
         .route("/coplay/teammates/{player_id}", get(teammates))
@@ -25,13 +33,45 @@ pub fn router(database: Database) -> Router {
         .route("/coplay/stats/{player_id}", get(stats))
         .route("/coplay/top-pairs", get(top_pairs))
         .with_state(database)
+        .layer(Extension(route_cache))
 }
 
 async fn parties(
     State(database): State<Database>,
     Extension(request_id): Extension<RequestId>,
+    Extension(route_cache): Extension<RouteCache>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<HashMap<String, String>>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Response, ApiError> {
+    let kind = query
+        .get("kind")
+        .map_or("pairs".to_owned(), |value| value.to_lowercase());
+    if kind != "pairs" && kind != "stacks" {
+        return Err(ApiError::validation("kind must be pairs or stacks"));
+    }
+    let key = format!(
+        "route:coplay:parties:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    cached_database_json(
+        route_cache,
+        key,
+        MAJOR_DIRECTORY_FRESH_SECONDS,
+        MAJOR_DIRECTORY_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_parties(database, &query).await }
+        },
+    )
+    .await
+}
+
+async fn load_parties(
+    database: Database,
+    query: &HashMap<String, String>,
+) -> Result<Value, DatabaseError> {
     let page = paginate(
         query.get("page").map(String::as_str),
         query
@@ -43,10 +83,6 @@ async fn parties(
     let kind = query
         .get("kind")
         .map_or("pairs".to_owned(), |value| value.to_lowercase());
-    if kind != "pairs" && kind != "stacks" {
-        return Err(ApiError::validation("kind must be pairs or stacks"));
-    }
-
     if kind == "stacks" {
         let stack_size = query
             .get("size")
@@ -104,7 +140,10 @@ async fn parties(
                       pss.last_seen DESC, pss.group_key \
              LIMIT ${limit_index} OFFSET ${offset_index}"
         );
-        return rows(&database, &sql, &params, &request_id).await;
+        return database
+            .query_json_params(&sql, &params)
+            .await
+            .map(Value::Array);
     }
 
     let mut params = Vec::new();
@@ -139,7 +178,10 @@ async fn parties(
                   pps.player_low_id, pps.player_high_id \
          LIMIT ${limit_index} OFFSET ${offset_index}"
     );
-    rows(&database, &sql, &params, &request_id).await
+    database
+        .query_json_params(&sql, &params)
+        .await
+        .map(Value::Array)
 }
 
 async fn teammates(
@@ -401,6 +443,21 @@ fn legacy_limit(raw: Option<&str>, default: i64, maximum: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn party_directory_uses_the_shared_stale_cache() {
+        let source = include_str!("coplay.rs");
+        let route = source
+            .split_once("async fn parties(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn teammates(")
+                    .map(|(route, _)| route)
+            })
+            .expect("party directory route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("MAJOR_DIRECTORY_STALE_SECONDS"));
+    }
 
     #[test]
     fn legacy_limits_match_javascript_truthiness_and_upper_bounds() {

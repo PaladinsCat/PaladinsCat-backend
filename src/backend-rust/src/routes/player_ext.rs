@@ -8,16 +8,23 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use paladinscat_core::database::{Database, QueryParam};
+use paladinscat_core::database::{Database, DatabaseError, QueryParam};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{error::ApiError, request::RequestId};
+use crate::{
+    error::ApiError,
+    request::{EffectiveUri, RequestId},
+    route_cache::{
+        MAJOR_DIRECTORY_FRESH_SECONDS, MAJOR_DIRECTORY_STALE_SECONDS, RouteCache,
+        cached_database_json, canonical_route_cache_url,
+    },
+};
 
 pub const ROUTE_COUNT: usize = 9;
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerExtQuery {
     page: Option<String>,
@@ -46,7 +53,7 @@ struct UserSession {
     is_approved: bool,
 }
 
-pub fn router(database: Database) -> Router {
+pub fn router(database: Database, route_cache: RouteCache) -> Router {
     Router::new()
         .route("/player-ext/name-history/{player_id}", get(name_history))
         .route("/player-ext/merges/{player_id}", get(account_merges))
@@ -69,6 +76,7 @@ pub fn router(database: Database) -> Router {
         .route("/player-ext/bulk", get(players_bulk))
         .route("/player-ext/search", get(advanced_player_search))
         .with_state(database)
+        .layer(Extension(route_cache))
 }
 
 async fn name_history(
@@ -150,9 +158,34 @@ async fn player_achievements(
 async fn private_accounts(
     State(database): State<Database>,
     Extension(request_id): Extension<RequestId>,
+    Extension(route_cache): Extension<RouteCache>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerExtQuery>,
 ) -> Result<Response, ApiError> {
-    let (_, per_page, offset) = paginate(&query);
+    let key = format!(
+        "route:player-ext:private-directory:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    cached_database_json(
+        route_cache,
+        key,
+        MAJOR_DIRECTORY_FRESH_SECONDS,
+        MAJOR_DIRECTORY_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_private_accounts(database, &query).await }
+        },
+    )
+    .await
+}
+
+async fn load_private_accounts(
+    database: Database,
+    query: &PlayerExtQuery,
+) -> Result<Value, DatabaseError> {
+    let (_, per_page, offset) = paginate(query);
     let search = query.q.as_deref().unwrap_or_default().trim();
     let mut params = Vec::new();
     let mut where_clause = " WHERE is_active".to_owned();
@@ -197,11 +230,10 @@ async fn private_accounts(
     );
     params.push(QueryParam::Int64(per_page));
     params.push(QueryParam::Int64(offset));
-    let rows = database
+    database
         .query_json_params(&sql, &params)
         .await
-        .map_err(|error| ApiError::database(error, &request_id))?;
-    Ok(json_array(rows))
+        .map(Value::Array)
 }
 
 async fn private_accounts_bulk(
@@ -744,6 +776,21 @@ fn json_array(rows: Vec<Value>) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_account_directory_uses_the_shared_stale_cache() {
+        let source = include_str!("player_ext.rs");
+        let route = source
+            .split_once("async fn private_accounts(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn private_accounts_bulk(")
+                    .map(|(route, _)| route)
+            })
+            .expect("private account directory route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("MAJOR_DIRECTORY_STALE_SECONDS"));
+    }
 
     #[test]
     fn pagination_and_bulk_ids_match_javascript_prefix_integer_rules() {

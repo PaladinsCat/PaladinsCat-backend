@@ -5,14 +5,21 @@ use axum::{
     response::Response,
 };
 use paladinscat_core::{
-    database::QueryParam,
+    database::{Database, DatabaseError, QueryParam},
     web_compat::{paginate, parse_js_integer},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{error::ApiError, request::RequestId};
+use crate::{
+    error::ApiError,
+    request::{EffectiveUri, RequestId},
+    route_cache::{
+        MAJOR_DIRECTORY_FRESH_SECONDS, MAJOR_DIRECTORY_STALE_SECONDS, cached_database_json,
+        canonical_route_cache_url,
+    },
+};
 
 use super::{
     PlayerQuery, PlayersState, escape_like, json_response, map_database, player_id, rows_response,
@@ -84,10 +91,35 @@ async fn require_session(
 pub(super) async fn alt_account_relations(
     State(state): State<PlayersState>,
     Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
     Query(query): Query<PlayerQuery>,
 ) -> Result<Response, ApiError> {
+    let key = format!(
+        "route:players:alt-account-relations:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        MAJOR_DIRECTORY_FRESH_SECONDS,
+        MAJOR_DIRECTORY_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_alt_account_relations(database, &query).await }
+        },
+    )
+    .await
+}
+
+async fn load_alt_account_relations(
+    database: Database,
+    query: &PlayerQuery,
+) -> Result<Value, DatabaseError> {
     let pagination = paginate(query.page.as_deref(), query.per_page.as_deref());
-    let (page, per_page, offset) = (pagination.page, pagination.per_page, pagination.offset);
+    let (per_page, offset) = (pagination.per_page, pagination.offset);
     let search = query.q.as_deref().unwrap_or_default().trim();
     let mut params = Vec::<QueryParam>::new();
     let search_clause = if search.is_empty() {
@@ -107,8 +139,7 @@ pub(super) async fn alt_account_relations(
     params.push(QueryParam::Int64(per_page));
     let limit_parameter = params.len();
     params.push(QueryParam::Int64(offset));
-    let rows = state
-        .database
+    database
         .query_json_params(
             &format!(
                 "WITH pair_votes AS ( \
@@ -149,14 +180,7 @@ pub(super) async fn alt_account_relations(
             &params,
         )
         .await
-        .map_err(|error| map_database(error, &request_id))?;
-    let mut response = rows_response(rows);
-    response.headers_mut().insert(
-        CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=60"),
-    );
-    let _ = page;
-    Ok(response)
+        .map(Value::Array)
 }
 
 pub(super) async fn my_alt_account_relations(
@@ -614,4 +638,22 @@ pub(super) async fn clear_tag(
         "removed_reports":removed,
         "message":if was_tagged {format!("{label} tag cleared")} else {format!("{label} tag was already clear")}
     })))
+}
+
+#[cfg(test)]
+mod cache_tests {
+    #[test]
+    fn alt_account_directory_uses_the_shared_stale_cache() {
+        let source = include_str!("moderation.rs");
+        let route = source
+            .split_once("pub(super) async fn alt_account_relations(")
+            .and_then(|(_, rest)| {
+                rest.split_once("pub(super) async fn my_alt_account_relations(")
+                    .map(|(route, _)| route)
+            })
+            .expect("alt-account directory route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("MAJOR_DIRECTORY_STALE_SECONDS"));
+    }
 }

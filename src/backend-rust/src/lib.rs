@@ -129,7 +129,10 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             get(move || readiness(readiness_state.clone())),
         )
         .merge(routes::recovery::router(database.clone()))
-        .merge(routes::coplay::router(database.clone()))
+        .merge(routes::coplay::router(
+            database.clone(),
+            route_cache.clone(),
+        ))
         .merge(routes::meta::router(database.clone(), route_cache.clone()))
         .merge(routes::champions::router(
             database.clone(),
@@ -174,7 +177,10 @@ pub fn candidate_router(foundation: FoundationState) -> Router {
             foundation.redis.clone(),
             foundation.config.clone(),
         ))
-        .merge(routes::player_ext::router(database.clone()))
+        .merge(routes::player_ext::router(
+            database.clone(),
+            route_cache.clone(),
+        ))
         .merge(routes::esports::router(database.clone()))
         .merge(routes::ratings::router(database.clone()))
         .merge(routes::search::router(

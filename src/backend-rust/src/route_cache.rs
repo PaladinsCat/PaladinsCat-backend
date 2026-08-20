@@ -26,6 +26,8 @@ use crate::{error::ApiError, request::RequestId};
 const COLD_MISS_WAIT_MS: u64 = 1_500;
 const LEASE_TTL_MS: u64 = 30_000;
 const COMPRESSION_THRESHOLD_BYTES: usize = 64 * 1_024;
+pub const MAJOR_DIRECTORY_FRESH_SECONDS: u64 = 900;
+pub const MAJOR_DIRECTORY_STALE_SECONDS: u64 = 21_600;
 const IGNORED_QUERY_PARAMS: &[&str] = &[
     "utm_source",
     "utm_medium",
