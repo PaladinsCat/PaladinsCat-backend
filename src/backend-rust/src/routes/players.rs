@@ -28,9 +28,11 @@ use crate::{
 mod moderation;
 mod provider;
 
-pub const ROUTE_COUNT: usize = 29;
+pub const ROUTE_COUNT: usize = 31;
 
 const RANKED_QUEUE_ID: i32 = 486;
+const FULL_AFK_ECPM: i32 = 70;
+const METRIC_MIN_DURATION_SECONDS: i32 = 480;
 const PLAYERS_OVERVIEW_CACHE_KEY: &str = "route:players:v1:/players/overview";
 const PLAYERS_OVERVIEW_FRESH_SECONDS: u64 = 300;
 const PLAYERS_OVERVIEW_STALE_SECONDS: u64 = 1_800;
@@ -40,6 +42,8 @@ const AUTOMATIC_AFK_FRESH_SECONDS: u64 = 300;
 const AUTOMATIC_AFK_STALE_SECONDS: u64 = 1_800;
 const WALL_SHOOTERS_FRESH_SECONDS: u64 = 300;
 const WALL_SHOOTERS_STALE_SECONDS: u64 = 1_800;
+const MASTER_FEEDING_FRESH_SECONDS: u64 = 300;
+const MASTER_FEEDING_STALE_SECONDS: u64 = 1_800;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -98,6 +102,8 @@ pub fn router(
         .route("/players/automatic-afk", get(automatic_afk))
         .route("/players/automatic-afk/{id}", get(automatic_afk_detail))
         .route("/players/wall-shooters", get(wall_shooters))
+        .route("/players/master-feeding", get(master_feeding))
+        .route("/players/performance-diff/{metric}", get(performance_diff))
         .route(
             "/players/alt-account-relations",
             get(moderation::alt_account_relations),
@@ -181,6 +187,41 @@ struct PlayerQuery {
 struct Role {
     name: &'static str,
     id: i32,
+}
+
+#[derive(Clone, Copy)]
+enum PerformanceDiffMetric {
+    Tank,
+    Support,
+    Damage,
+    Flank,
+    Noob,
+    Hypercarry,
+}
+
+impl PerformanceDiffMetric {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "tank-diff" => Some(Self::Tank),
+            "support-diff" => Some(Self::Support),
+            "dps-diff" => Some(Self::Damage),
+            "flank-diff" => Some(Self::Flank),
+            "the-noob" => Some(Self::Noob),
+            "hypercarry" => Some(Self::Hypercarry),
+            _ => None,
+        }
+    }
+
+    fn cache_key(self) -> &'static str {
+        match self {
+            Self::Tank => "tank-diff",
+            Self::Support => "support-diff",
+            Self::Damage => "dps-diff",
+            Self::Flank => "flank-diff",
+            Self::Noob => "the-noob",
+            Self::Hypercarry => "hypercarry",
+        }
+    }
 }
 
 fn role(value: Option<&str>) -> Option<Role> {
@@ -304,6 +345,13 @@ async fn overview(
 /// one loader and never duplicate the aggregate query.
 async fn load_players_overview(database: Database) -> Result<Value, DatabaseError> {
     let wall_shooter_candidates = wall_shooter_candidate_sql();
+    let master_feeding_candidates = master_feeding_candidate_sql();
+    let tank_diff_candidates = performance_diff_candidate_sql(PerformanceDiffMetric::Tank);
+    let support_diff_candidates = performance_diff_candidate_sql(PerformanceDiffMetric::Support);
+    let dps_diff_candidates = performance_diff_candidate_sql(PerformanceDiffMetric::Damage);
+    let flank_diff_candidates = performance_diff_candidate_sql(PerformanceDiffMetric::Flank);
+    let noob_candidates = performance_diff_candidate_sql(PerformanceDiffMetric::Noob);
+    let hypercarry_candidates = performance_diff_candidate_sql(PerformanceDiffMetric::Hypercarry);
     let counts = database
         .one_json(
             &format!(
@@ -318,7 +366,14 @@ async fn load_players_overview(database: Database) -> Result<Value, DatabaseErro
                (SELECT COUNT(DISTINCT player_id)::BIGINT FROM player_boosted_associations) AS boosted, \
                (SELECT COUNT(*)::BIGINT FROM players_private WHERE is_active) AS private_accounts, \
                (SELECT COUNT(*)::BIGINT FROM party_pair_stats) AS parties, \
-               (SELECT COUNT(DISTINCT damage_player.player_id)::BIGINT {wall_shooter_candidates}) AS wall_shooters \
+               (SELECT COUNT(DISTINCT damage_player.player_id)::BIGINT {wall_shooter_candidates}) AS wall_shooters, \
+               (SELECT COUNT(DISTINCT feed_player.player_id)::BIGINT {master_feeding_candidates}) AS master_feeding, \
+               (SELECT COUNT(DISTINCT metric_player.player_id)::BIGINT {tank_diff_candidates}) AS tank_diff, \
+               (SELECT COUNT(DISTINCT metric_player.player_id)::BIGINT {support_diff_candidates}) AS support_diff, \
+               (SELECT COUNT(DISTINCT metric_player.player_id)::BIGINT {dps_diff_candidates}) AS dps_diff, \
+               (SELECT COUNT(DISTINCT metric_player.player_id)::BIGINT {flank_diff_candidates}) AS flank_diff, \
+               (SELECT COUNT(DISTINCT metric_player.player_id)::BIGINT {noob_candidates}) AS noob, \
+               (SELECT COUNT(DISTINCT metric_player.player_id)::BIGINT {hypercarry_candidates}) AS hypercarry \
              FROM players"
             ),
             &[],
@@ -353,7 +408,14 @@ async fn load_players_overview(database: Database) -> Result<Value, DatabaseErro
         "directory_counts":{
           "private_accounts":value_i64(counts.get("private_accounts")),
           "parties":value_i64(counts.get("parties")),
-          "wall_shooters":value_i64(counts.get("wall_shooters"))
+          "wall_shooters":value_i64(counts.get("wall_shooters")),
+          "master_feeding":value_i64(counts.get("master_feeding")),
+          "tank_diff":value_i64(counts.get("tank_diff")),
+          "support_diff":value_i64(counts.get("support_diff")),
+          "dps_diff":value_i64(counts.get("dps_diff")),
+          "flank_diff":value_i64(counts.get("flank_diff")),
+          "noob":value_i64(counts.get("noob")),
+          "hypercarry":value_i64(counts.get("hypercarry"))
         }
     }))
 }
@@ -1139,35 +1201,131 @@ async fn load_automatic_afk(
         .map(Value::Array)
 }
 
+/// Shared strict lobby quality requirements for automatic player metrics.
+/// A full-AFK player is the existing eCPM pipeline definition: `0 <= eCPM < 70`.
+fn metric_lobby_quality_sql(match_alias: &str, player_alias: &str) -> String {
+    format!(
+        "AND {match_alias}.duration_seconds>={METRIC_MIN_DURATION_SECONDS} \
+         AND NOT COALESCE({match_alias}.surrendered,false) \
+         AND (SELECT COUNT(*) FROM match_players lobby_player \
+           WHERE lobby_player.match_id={match_alias}.match_id \
+             AND lobby_player.entry_datetime={player_alias}.entry_datetime \
+             AND COALESCE(lobby_player.source,'direct') IN ('direct','recovered') \
+             AND lobby_player.is_ranked=true \
+             AND lobby_player.player_id>0 AND lobby_player.champion_id>0 \
+             AND lobby_player.task_force IN (1,2) \
+             AND LOWER(BTRIM(COALESCE(lobby_player.win_status,''))) IN ('winner','loser','win','loss'))=10 \
+         AND NOT EXISTS(SELECT 1 FROM match_players lobby_player \
+           WHERE lobby_player.match_id={match_alias}.match_id \
+             AND lobby_player.entry_datetime={player_alias}.entry_datetime \
+             AND COALESCE(lobby_player.source,'direct') IN ('direct','recovered') \
+             AND lobby_player.is_ranked=true \
+             AND lobby_player.player_id>0 AND lobby_player.champion_id>0 \
+             AND lobby_player.task_force IN (1,2) \
+             AND LOWER(BTRIM(COALESCE(lobby_player.win_status,''))) IN ('winner','loser','win','loss') \
+             AND lobby_player.egpm>=0 AND lobby_player.egpm<{FULL_AFK_ECPM})"
+    )
+}
+
+fn candidate_peer_max_sql(column: &str, role_filter: &str, opposing_team: bool) -> String {
+    let role = champion_role_sql("peer_champion");
+    let team_filter = if opposing_team {
+        "peer.task_force<>candidate.task_force"
+    } else {
+        "peer.task_force=candidate.task_force"
+    };
+    format!(
+        "(SELECT MAX(COALESCE(peer.{column},0)) FROM match_players peer \
+          JOIN champions peer_champion ON peer_champion.id=peer.champion_id \
+          WHERE peer.match_id=candidate.match_id AND peer.entry_datetime=candidate.entry_datetime \
+            AND {team_filter} AND peer.player_id>0 AND peer.player_id<>candidate.player_id \
+            AND COALESCE(peer.source,'direct') IN ('direct','recovered') \
+            AND ({role}) {role_filter})"
+    )
+}
+
+fn candidate_other_max_sql(column: &str) -> String {
+    format!(
+        "(SELECT MAX(COALESCE(peer.{column},0)) FROM match_players peer \
+          WHERE peer.match_id=candidate.match_id AND peer.entry_datetime=candidate.entry_datetime \
+            AND peer.player_id>0 AND peer.player_id<>candidate.player_id \
+            AND COALESCE(peer.source,'direct') IN ('direct','recovered'))"
+    )
+}
+
+fn candidate_enemy_leads_sql() -> String {
+    "EXISTS(SELECT 1 FROM match_players opponent \
+       WHERE opponent.match_id=candidate.match_id AND opponent.entry_datetime=candidate.entry_datetime \
+         AND opponent.task_force<>candidate.task_force AND opponent.player_id>0 \
+         AND COALESCE(opponent.source,'direct') IN ('direct','recovered') \
+         AND (COALESCE(opponent.damage_done_physical,0)=candidate.match_max_damage \
+           OR COALESCE(opponent.kills,0)=candidate.match_max_kills))"
+        .to_owned()
+}
+
+fn candidate_is_lowest_damage_role_sql() -> String {
+    let role = champion_role_sql("teammate_champion");
+    format!(
+        "NOT EXISTS(SELECT 1 FROM match_players teammate \
+          JOIN champions teammate_champion ON teammate_champion.id=teammate.champion_id \
+          WHERE teammate.match_id=candidate.match_id AND teammate.entry_datetime=candidate.entry_datetime \
+            AND teammate.task_force=candidate.task_force AND teammate.player_id>0 \
+            AND COALESCE(teammate.source,'direct') IN ('direct','recovered') \
+            AND ({role}) IN ('Damage','Flank') \
+            AND (COALESCE(teammate.damage_done_physical,0)<candidate.damage_done_physical \
+              OR (COALESCE(teammate.damage_done_physical,0)=candidate.damage_done_physical \
+                AND teammate.player_id<candidate.player_id)))"
+    )
+}
+
 /// Match-level predicate shared by the Wall Shooter directory and its card
-/// count. A Damage player contributes once per ranked match when any teammate
-/// dealt strictly more damage; `EXISTS` prevents multiple teammates from
-/// multiplying one match into several flags.
+/// count. A losing Damage or Flank player contributes once when they are the
+/// lowest-damage Damage/Flank on their team and trail the next-lowest by 40%.
 fn wall_shooter_candidate_sql() -> String {
     let damage_role = champion_role_sql("damage_champion");
+    let teammate_role = champion_role_sql("teammate_champion");
+    let lobby_quality = metric_lobby_quality_sql("m", "damage_player");
     format!(
         "FROM match_players damage_player \
          JOIN matches m ON m.match_id=damage_player.match_id AND m.entry_datetime=damage_player.entry_datetime \
          JOIN champions damage_champion ON damage_champion.id=damage_player.champion_id \
          LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
          WHERE m.queue_id={RANKED_QUEUE_ID} \
-           AND ({damage_role})='Damage' \
+           AND ({damage_role}) IN ('Damage','Flank') \
            AND (NOT COALESCE(m.broken,false) OR COALESCE(m.recovered,false)) \
            AND COALESCE(mis.status,'complete')='complete' \
            AND COALESCE(damage_player.source,'direct') IN ('direct','recovered') \
+           AND damage_player.is_ranked=true \
            AND damage_player.player_id>0 \
            AND damage_player.champion_id>0 \
            AND damage_player.task_force IN (1,2) \
-           AND LOWER(BTRIM(COALESCE(damage_player.win_status,''))) IN ('winner','loser','win','loss') \
-           AND m.duration_seconds>120 \
-           AND EXISTS(SELECT 1 FROM match_players teammate \
+           AND LOWER(BTRIM(COALESCE(damage_player.win_status,''))) IN ('loser','loss') \
+           {lobby_quality} \
+           AND NOT EXISTS(SELECT 1 FROM match_players teammate \
+             JOIN champions teammate_champion ON teammate_champion.id=teammate.champion_id \
              WHERE teammate.match_id=damage_player.match_id \
                AND teammate.entry_datetime=damage_player.entry_datetime \
                AND teammate.task_force=damage_player.task_force \
                AND teammate.player_id>0 \
-               AND teammate.player_id<>damage_player.player_id \
                AND COALESCE(teammate.source,'direct') IN ('direct','recovered') \
-               AND COALESCE(teammate.damage_done_physical,0)>COALESCE(damage_player.damage_done_physical,0))"
+               AND ({teammate_role}) IN ('Damage','Flank') \
+               AND (COALESCE(teammate.damage_done_physical,0)<COALESCE(damage_player.damage_done_physical,0) \
+                 OR (COALESCE(teammate.damage_done_physical,0)=COALESCE(damage_player.damage_done_physical,0) \
+                   AND teammate.player_id<damage_player.player_id))) \
+           AND EXISTS(SELECT 1 FROM match_players teammate \
+             JOIN champions teammate_champion ON teammate_champion.id=teammate.champion_id \
+             WHERE teammate.match_id=damage_player.match_id \
+               AND teammate.entry_datetime=damage_player.entry_datetime \
+               AND teammate.task_force=damage_player.task_force \
+               AND teammate.player_id<>damage_player.player_id AND teammate.player_id>0 \
+               AND COALESCE(teammate.source,'direct') IN ('direct','recovered') \
+               AND ({teammate_role}) IN ('Damage','Flank') \
+               AND COALESCE(teammate.damage_done_physical,0)>=COALESCE(damage_player.damage_done_physical,0)*1.6666667) \
+           AND EXISTS(SELECT 1 FROM match_players opponent \
+             WHERE opponent.match_id=damage_player.match_id \
+               AND opponent.entry_datetime=damage_player.entry_datetime \
+               AND opponent.task_force<>damage_player.task_force AND opponent.player_id>0 \
+               AND COALESCE(opponent.damage_done_physical,0)>COALESCE(damage_player.damage_done_physical,0))"
     )
 }
 
@@ -1254,6 +1412,381 @@ async fn load_wall_shooters(
                    p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
                    p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
                  ORDER BY wall_shooter_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
+                params.len()
+            ),
+            &params,
+        )
+        .await
+        .map(Value::Array)
+}
+
+/// Match-level predicate shared by the Master Feeding directory and its card
+/// count. A player contributes once per ranked match when they bought Master
+/// Riding, lose with a uniquely extreme death count, and have a KDA at or below one.
+fn master_feeding_candidate_sql() -> String {
+    let lobby_quality = metric_lobby_quality_sql("m", "feed_player");
+    format!(
+        "FROM ( \
+           SELECT candidate.*,ROW_NUMBER() OVER( \
+             PARTITION BY candidate.match_id,candidate.entry_datetime \
+             ORDER BY candidate.player_id ASC \
+           ) AS criterion_rank \
+           FROM ( \
+             SELECT feed_player.player_id,feed_player.match_id,feed_player.entry_datetime \
+             FROM match_players feed_player \
+             JOIN match_player_items purchased_item ON purchased_item.match_id=feed_player.match_id AND purchased_item.player_id=feed_player.player_id \
+             JOIN items item ON item.item_id=purchased_item.item_id AND LOWER(BTRIM(COALESCE(item.item_name,'')))='master riding' \
+             JOIN matches m ON m.match_id=feed_player.match_id AND m.entry_datetime=feed_player.entry_datetime \
+             LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
+             WHERE m.queue_id={RANKED_QUEUE_ID} \
+               AND (NOT COALESCE(m.broken,false) OR COALESCE(m.recovered,false)) \
+               AND COALESCE(mis.status,'complete')='complete' \
+               AND COALESCE(feed_player.source,'direct') IN ('direct','recovered') \
+               AND feed_player.is_ranked=true \
+               AND feed_player.player_id>0 \
+               AND LOWER(BTRIM(COALESCE(feed_player.win_status,''))) IN ('loser','loss') \
+               {lobby_quality} \
+               AND COALESCE(feed_player.deaths,0)>=8 \
+               AND (COALESCE(feed_player.kills,0)+COALESCE(feed_player.assists,0))::NUMERIC \
+                 /NULLIF(COALESCE(feed_player.deaths,0),0)<=1.0 \
+               AND NOT EXISTS(SELECT 1 FROM match_players other_player \
+                 WHERE other_player.match_id=feed_player.match_id \
+                   AND other_player.entry_datetime=feed_player.entry_datetime \
+                   AND other_player.player_id>0 \
+                   AND other_player.player_id<>feed_player.player_id \
+                   AND COALESCE(other_player.source,'direct') IN ('direct','recovered') \
+                   AND COALESCE(other_player.deaths,0)>COALESCE(feed_player.deaths,0)) \
+               AND COALESCE(feed_player.deaths,0)>=1.25*COALESCE((SELECT MAX(COALESCE(other_player.deaths,0)) \
+                 FROM match_players other_player WHERE other_player.match_id=feed_player.match_id \
+                   AND other_player.entry_datetime=feed_player.entry_datetime \
+                   AND other_player.player_id>0 AND other_player.player_id<>feed_player.player_id \
+                   AND COALESCE(other_player.source,'direct') IN ('direct','recovered')),0) \
+           ) candidate \
+         ) feed_player WHERE feed_player.criterion_rank=1"
+    )
+}
+
+async fn master_feeding(
+    State(state): State<PlayersState>,
+    Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+    Query(query): Query<PlayerQuery>,
+) -> Result<Response, ApiError> {
+    let key = format!(
+        "route:players:master-feeding:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        MASTER_FEEDING_FRESH_SECONDS,
+        MASTER_FEEDING_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_master_feeding(database, &query).await }
+        },
+    )
+    .await
+}
+
+async fn load_master_feeding(
+    database: Database,
+    query: &PlayerQuery,
+) -> Result<Value, DatabaseError> {
+    let mut params = Vec::<QueryParam>::new();
+    let mut player_filters = Vec::<String>::new();
+    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
+        if name
+            .trim()
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        {
+            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
+            player_filters.push(format!("p.id=${}", params.len()));
+        } else if !name.trim().is_empty() {
+            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
+            player_filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
+        }
+    }
+    let player_where = if player_filters.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", player_filters.join(" AND "))
+    };
+    let limit = limit(
+        query.limit.as_deref().or(query.per_page.as_deref()),
+        32,
+        100,
+    );
+    let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
+        .unwrap_or_default()
+        .max(0);
+    params.push(QueryParam::Int64(limit));
+    let limit_parameter = params.len();
+    params.push(QueryParam::Int64(offset));
+    let master_feeding_candidates = master_feeding_candidate_sql();
+    database
+        .query_json_params(
+            &format!(
+                "WITH flagged_matches AS ( \
+                   SELECT DISTINCT feed_player.player_id,feed_player.match_id,feed_player.entry_datetime {master_feeding_candidates} \
+                 ) \
+                 SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
+                   p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account, \
+                   (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='dropper') AS dropper_vote_count, \
+                   (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='afk_wintrade') AS afk_wintrade_vote_count, \
+                   p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
+                   p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
+                   COUNT(*)::INT AS master_feeding_count,MIN(flagged_matches.entry_datetime) AS first_seen, \
+                   MAX(flagged_matches.entry_datetime) AS last_seen,COUNT(*) OVER()::INT AS total_count, \
+                   ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
+                     WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
+                 FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id{player_where} \
+                 GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
+                   p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
+                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                 ORDER BY master_feeding_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
+                params.len()
+            ),
+            &params,
+        )
+        .await
+        .map(Value::Array)
+}
+
+/// Builds one ranked, match-level automatic performance winner. The inner
+/// window functions compare every valid player in both teams; the outer row
+/// number gives a tied criterion a deterministic single recipient.
+fn performance_diff_candidate_sql(metric: PerformanceDiffMetric) -> String {
+    let champion_role = champion_role_sql("champion");
+    let enemy_leads = candidate_enemy_leads_sql();
+    let lowest_damage_role = candidate_is_lowest_damage_role_sql();
+    let lobby_quality = metric_lobby_quality_sql("m", "match_player");
+    let (role_filter, criterion_filter, order_by) = match metric {
+        PerformanceDiffMetric::Tank => {
+            let enemy_damage = candidate_peer_max_sql("damage_done_physical", "='Frontline'", true);
+            let enemy_kills = candidate_peer_max_sql("kills", "='Frontline'", true);
+            (
+                "='Frontline'".to_owned(),
+                format!(
+                    "(candidate.damage_done_physical=candidate.match_max_damage \
+                       AND candidate.damage_done_physical>=1.25*{enemy_damage}) \
+                     OR (candidate.kills=candidate.match_max_kills AND candidate.kills>=1.25*{enemy_kills})"
+                ),
+                "candidate.damage_done_physical DESC,candidate.kills DESC,candidate.player_id ASC"
+                    .to_owned(),
+            )
+        }
+        PerformanceDiffMetric::Support => {
+            let enemy_healing = candidate_peer_max_sql("healing", "='Support'", true);
+            (
+                "='Support'".to_owned(),
+                format!(
+                    "candidate.healing=candidate.match_max_healing \
+                     AND candidate.healing>=1.25*{enemy_healing} AND {enemy_leads}"
+                ),
+                "candidate.healing DESC,candidate.player_id ASC".to_owned(),
+            )
+        }
+        PerformanceDiffMetric::Damage => {
+            let enemy_damage = candidate_peer_max_sql("damage_done_physical", "='Damage'", true);
+            let enemy_kills = candidate_peer_max_sql("kills", "='Damage'", true);
+            (
+                "='Damage'".to_owned(),
+                format!(
+                    "((candidate.damage_done_physical=candidate.match_max_damage \
+                        AND candidate.damage_done_physical>=1.25*{enemy_damage}) \
+                      OR (candidate.kills=candidate.match_max_kills AND candidate.kills>=1.25*{enemy_kills})) \
+                     AND {enemy_leads}"
+                ),
+                "candidate.damage_done_physical DESC,candidate.kills DESC,candidate.player_id ASC"
+                    .to_owned(),
+            )
+        }
+        PerformanceDiffMetric::Flank => {
+            let enemy_damage = candidate_peer_max_sql("damage_done_physical", "='Flank'", true);
+            let enemy_kills = candidate_peer_max_sql("kills", "='Flank'", true);
+            (
+                "='Flank'".to_owned(),
+                format!(
+                    "((candidate.damage_done_physical=candidate.match_max_damage \
+                        AND candidate.damage_done_physical>=1.25*{enemy_damage}) \
+                      OR (candidate.kills=candidate.match_max_kills AND candidate.kills>=1.25*{enemy_kills})) \
+                     AND {enemy_leads}"
+                ),
+                "candidate.damage_done_physical DESC,candidate.kills DESC,candidate.player_id ASC"
+                    .to_owned(),
+            )
+        }
+        PerformanceDiffMetric::Noob => (
+            "IN ('Damage','Flank')".to_owned(),
+            format!(
+                "{lowest_damage_role} AND candidate.damage_done_physical<=candidate.team_max_damage*.5 \
+                 AND candidate.kills<=candidate.team_max_kills*.5"
+            ),
+            "candidate.damage_done_physical ASC,candidate.kills ASC,candidate.player_id ASC"
+                .to_owned(),
+        ),
+        PerformanceDiffMetric::Hypercarry => {
+            let runner_up_damage = candidate_other_max_sql("damage_done_physical");
+            let runner_up_kills = candidate_other_max_sql("kills");
+            (
+                "IS NOT NULL".to_owned(),
+                format!(
+                    "candidate.damage_done_physical=candidate.match_max_damage \
+                     AND candidate.kills=candidate.match_max_kills \
+                     AND candidate.damage_done_physical>=1.2*{runner_up_damage} \
+                     AND candidate.kills>=1.2*{runner_up_kills}"
+                ),
+                "candidate.damage_done_physical DESC,candidate.kills DESC,candidate.player_id ASC"
+                    .to_owned(),
+            )
+        }
+    };
+    format!(
+        "FROM ( \
+           SELECT candidate.*,ROW_NUMBER() OVER( \
+             PARTITION BY candidate.match_id,candidate.entry_datetime \
+             ORDER BY {order_by} \
+           ) AS criterion_rank \
+           FROM ( \
+             SELECT match_player.player_id,match_player.match_id,match_player.entry_datetime,match_player.champion_id,match_player.task_force, \
+               match_player.win_status,COALESCE(match_player.damage_done_physical,0) AS damage_done_physical, \
+               COALESCE(match_player.kills,0) AS kills,COALESCE(match_player.healing,0) AS healing, \
+               MAX(COALESCE(match_player.damage_done_physical,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime \
+               ) AS match_max_damage, \
+               MAX(COALESCE(match_player.kills,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime \
+               ) AS match_max_kills, \
+               MAX(COALESCE(match_player.healing,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime \
+               ) AS match_max_healing, \
+               MIN(COALESCE(match_player.damage_done_physical,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime,match_player.task_force \
+               ) AS team_min_damage, \
+               MIN(COALESCE(match_player.kills,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime,match_player.task_force \
+               ) AS team_min_kills, \
+               MAX(COALESCE(match_player.damage_done_physical,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime,match_player.task_force \
+               ) AS team_max_damage, \
+               MAX(COALESCE(match_player.kills,0)) OVER( \
+                 PARTITION BY match_player.match_id,match_player.entry_datetime,match_player.task_force \
+               ) AS team_max_kills \
+             FROM match_players match_player \
+             JOIN matches m ON m.match_id=match_player.match_id AND m.entry_datetime=match_player.entry_datetime \
+             LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
+             WHERE m.queue_id={RANKED_QUEUE_ID} \
+               AND (NOT COALESCE(m.broken,false) OR COALESCE(m.recovered,false)) \
+               AND COALESCE(mis.status,'complete')='complete' \
+               AND COALESCE(match_player.source,'direct') IN ('direct','recovered') \
+               AND match_player.is_ranked=true \
+               AND match_player.player_id>0 \
+               AND match_player.champion_id>0 \
+               AND match_player.task_force IN (1,2) \
+               AND LOWER(BTRIM(COALESCE(match_player.win_status,''))) IN ('winner','loser','win','loss') \
+               {lobby_quality} \
+           ) candidate \
+           JOIN champions champion ON champion.id=candidate.champion_id \
+           WHERE LOWER(BTRIM(COALESCE(candidate.win_status,''))) IN ('winner','win') \
+             AND ({champion_role}) {role_filter} \
+             AND ({criterion_filter}) \
+         ) metric_player WHERE metric_player.criterion_rank=1"
+    )
+}
+
+async fn performance_diff(
+    State(state): State<PlayersState>,
+    Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+    Path(metric): Path<String>,
+    Query(query): Query<PlayerQuery>,
+) -> Result<Response, ApiError> {
+    let metric = PerformanceDiffMetric::parse(&metric)
+        .ok_or_else(|| ApiError::validation("Invalid performance metric."))?;
+    let key = format!(
+        "route:players:performance-diff:v1:{}:{}",
+        metric.cache_key(),
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        WALL_SHOOTERS_FRESH_SECONDS,
+        WALL_SHOOTERS_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_performance_diff(database, &query, metric).await }
+        },
+    )
+    .await
+}
+
+async fn load_performance_diff(
+    database: Database,
+    query: &PlayerQuery,
+    metric: PerformanceDiffMetric,
+) -> Result<Value, DatabaseError> {
+    let mut params = Vec::<QueryParam>::new();
+    let mut player_filters = Vec::<String>::new();
+    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
+        if name
+            .trim()
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        {
+            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
+            player_filters.push(format!("p.id=${}", params.len()));
+        } else if !name.trim().is_empty() {
+            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
+            player_filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
+        }
+    }
+    let player_where = if player_filters.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", player_filters.join(" AND "))
+    };
+    let limit = limit(
+        query.limit.as_deref().or(query.per_page.as_deref()),
+        32,
+        100,
+    );
+    let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
+        .unwrap_or_default()
+        .max(0);
+    params.push(QueryParam::Int64(limit));
+    let limit_parameter = params.len();
+    params.push(QueryParam::Int64(offset));
+    let candidates = performance_diff_candidate_sql(metric);
+    database
+        .query_json_params(
+            &format!(
+                "WITH flagged_matches AS ( \
+                   SELECT metric_player.player_id,metric_player.match_id,metric_player.entry_datetime {candidates} \
+                 ) \
+                 SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
+                   p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account, \
+                   (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='dropper') AS dropper_vote_count, \
+                   (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='afk_wintrade') AS afk_wintrade_vote_count, \
+                   p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
+                   p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
+                   COUNT(*)::INT AS metric_count,MIN(flagged_matches.entry_datetime) AS first_seen, \
+                   MAX(flagged_matches.entry_datetime) AS last_seen,COUNT(*) OVER()::INT AS total_count, \
+                   ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
+                     WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
+                 FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id{player_where} \
+                 GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
+                   p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
+                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                 ORDER BY metric_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
                 params.len()
             ),
             &params,
@@ -1916,12 +2449,16 @@ mod visibility_tests {
     }
 
     #[test]
-    fn wall_shooter_candidates_are_ranked_damage_players_checked_against_teammates() {
+    fn wall_shooter_candidates_require_a_losing_damage_or_flank_outlier_in_a_clean_lobby() {
         let sql = super::wall_shooter_candidate_sql();
         assert!(sql.contains("m.queue_id=486"));
-        assert!(sql.contains("='Damage'"));
+        assert!(sql.contains("IN ('Damage','Flank')"));
+        assert!(sql.contains("IN ('loser','loss')"));
+        assert!(sql.contains("damage_player.is_ranked=true"));
         assert!(sql.contains("teammate.task_force=damage_player.task_force"));
-        assert!(sql.contains("COALESCE(teammate.damage_done_physical,0)>COALESCE(damage_player.damage_done_physical,0)"));
+        assert!(sql.contains("COALESCE(teammate.damage_done_physical,0)>=COALESCE(damage_player.damage_done_physical,0)*1.6666667"));
+        assert!(sql.contains("lobby_player.egpm>=0 AND lobby_player.egpm<70"));
+        assert!(sql.contains("NOT COALESCE(m.surrendered,false)"));
         assert!(sql.contains("EXISTS(SELECT 1 FROM match_players teammate"));
     }
 
@@ -1939,6 +2476,73 @@ mod visibility_tests {
         assert!(route.contains("canonical_route_cache_url"));
         assert!(route.contains("WALL_SHOOTERS_FRESH_SECONDS"));
         assert!(route.contains("load_wall_shooters"));
+    }
+
+    #[test]
+    fn master_feeding_candidates_require_master_riding_and_match_high_deaths() {
+        let sql = super::master_feeding_candidate_sql();
+        assert!(sql.contains("m.queue_id=486"));
+        assert!(sql.contains("'master riding'"));
+        assert!(sql.contains("NOT EXISTS(SELECT 1 FROM match_players other_player"));
+        assert!(sql.contains("COALESCE(other_player.deaths,0)>COALESCE(feed_player.deaths,0)"));
+        assert!(sql.contains("COALESCE(feed_player.deaths,0)>=8"));
+        assert!(sql.contains("COALESCE(feed_player.kills,0)+COALESCE(feed_player.assists,0)"));
+        assert!(sql.contains("feed_player.is_ranked=true"));
+        assert!(sql.contains("lobby_player.egpm>=0 AND lobby_player.egpm<70"));
+        assert!(sql.contains("feed_player.criterion_rank=1"));
+    }
+
+    #[test]
+    fn master_feeding_directory_uses_the_shared_stale_while_refreshing_cache() {
+        let source = include_str!("players.rs");
+        let route = source
+            .split_once("async fn master_feeding(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn load_master_feeding(")
+                    .map(|(route, _)| route)
+            })
+            .expect("players master-feeding route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("MASTER_FEEDING_FRESH_SECONDS"));
+        assert!(route.contains("load_master_feeding"));
+    }
+
+    #[test]
+    fn performance_diff_candidates_compare_both_teams_and_pick_one_player() {
+        let tank = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Tank);
+        let support = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Support);
+        let noob = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Noob);
+        let carry = super::performance_diff_candidate_sql(super::PerformanceDiffMetric::Hypercarry);
+        assert!(tank.contains("MAX(COALESCE(match_player.damage_done_physical,0)) OVER"));
+        assert!(tank.contains("PARTITION BY match_player.match_id,match_player.entry_datetime"));
+        assert!(tank.contains("metric_player.criterion_rank=1"));
+        assert!(tank.contains("candidate.damage_done_physical>=1.25*"));
+        assert!(tank.contains("peer.task_force<>candidate.task_force"));
+        assert!(support.contains("candidate.healing=candidate.match_max_healing"));
+        assert!(support.contains("candidate.healing>=1.25*"));
+        assert!(noob.contains("candidate.damage_done_physical<=candidate.team_max_damage*.5"));
+        assert!(noob.contains("candidate.kills<=candidate.team_max_kills*.5"));
+        assert!(carry.contains("candidate.damage_done_physical=candidate.match_max_damage AND candidate.kills=candidate.match_max_kills"));
+        assert!(carry.contains("candidate.damage_done_physical>=1.2*"));
+        assert!(carry.contains("match_player.is_ranked=true"));
+        assert!(carry.contains("lobby_player.egpm>=0 AND lobby_player.egpm<70"));
+    }
+
+    #[test]
+    fn performance_diff_directory_uses_the_shared_stale_while_refreshing_cache() {
+        let source = include_str!("players.rs");
+        let route = source
+            .split_once("async fn performance_diff(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn load_performance_diff(")
+                    .map(|(route, _)| route)
+            })
+            .expect("players performance-diff route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("PerformanceDiffMetric::parse"));
+        assert!(route.contains("load_performance_diff"));
     }
 
     #[test]
