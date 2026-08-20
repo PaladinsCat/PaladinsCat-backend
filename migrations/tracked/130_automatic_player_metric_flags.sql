@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS automatic_player_metric_flags (
   metric TEXT NOT NULL CHECK (metric IN ('wall_shooter','master_feeding','tank_diff','support_diff','dps_diff','flank_diff','noob','hypercarry')),
   match_id BIGINT NOT NULL,
   entry_datetime TIMESTAMPTZ NOT NULL,
-  player_id BIGINT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  player_id BIGINT NOT NULL,
   flagged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (metric, match_id, entry_datetime)
 );
