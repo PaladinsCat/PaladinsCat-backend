@@ -122,6 +122,7 @@ async fn main() {
                 match warmer.warm_main_site().await {
                     Ok((api, pages)) => tracing::info!(
                         api_warmed = api.warmed,
+                        api_deferred = api.deferred,
                         api_failed = api.failed,
                         pages_warmed = pages.warmed,
                         pages_failed = pages.failed,

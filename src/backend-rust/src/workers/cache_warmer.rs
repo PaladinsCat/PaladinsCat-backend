@@ -1,4 +1,8 @@
-use std::{collections::BTreeSet, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, Mutex},
+    time::{Duration, SystemTime},
+};
 
 use futures::{StreamExt, stream};
 use paladinscat_core::{
@@ -86,6 +90,7 @@ pub struct CacheWarmer {
     api_origin: String,
     frontend_origin: String,
     service_token: Option<String>,
+    failure_tracker: Arc<Mutex<HashMap<String, (u32, SystemTime)>>>,
 }
 
 impl CacheWarmer {
@@ -106,12 +111,13 @@ impl CacheWarmer {
                 .trim_end_matches('/')
                 .to_owned(),
             service_token: config.service_token.clone(),
+            failure_tracker: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
     pub async fn warm_deployment_critical(&self) -> Result<WarmResult, CacheWarmError> {
         let result = self
-            .warm_api_urls(DEPLOYMENT_CRITICAL_API_WARM_URLS.iter().copied())
+            .warm_api_urls(DEPLOYMENT_CRITICAL_API_WARM_URLS.iter().copied(), false)
             .await;
         if result.failed > 0 {
             return Err(CacheWarmError::Critical {
@@ -123,7 +129,9 @@ impl CacheWarmer {
 
     pub async fn warm_main_site(&self) -> Result<(WarmResult, WarmResult), CacheWarmError> {
         let urls = main_api_warm_urls();
-        let api = self.warm_api_urls(urls.iter().map(String::as_str)).await;
+        let api = self
+            .warm_api_urls(urls.iter().map(String::as_str), true)
+            .await;
         let sitemap = self
             .client
             .get(format!("{}/sitemap.xml", self.frontend_origin))
@@ -198,20 +206,52 @@ impl CacheWarmer {
             })
             .collect::<Vec<_>>();
         let urls = champion_page_warm_urls(&pairs);
-        Ok(self.warm_api_urls(urls.iter().map(String::as_str)).await)
+        Ok(self
+            .warm_api_urls(urls.iter().map(String::as_str), true)
+            .await)
     }
 
     /// Purpose: populate public API caches without allowing one slow route to
-    /// serialize every other major-page warm. Input: canonical API paths.
-    /// Output: one aggregate success/failure result; no response body is kept.
-    async fn warm_api_urls<'a>(&self, urls: impl IntoIterator<Item = &'a str>) -> WarmResult {
-        let urls = urls.into_iter().map(str::to_owned).collect::<Vec<_>>();
-        let discovered = urls.len();
+    /// serialize every other major-page warm. Input: canonical API paths and a
+    /// flag for whether per-route failure back-off applies. Output: one aggregate
+    /// success/failure result; no response body is kept. Routes that keep failing
+    /// (e.g. statement timeouts) are deferred for an exponentially growing window
+    /// so the warmer stops re-firing them every cycle; real user traffic is
+    /// unaffected because back-off only governs pre-population.
+    async fn warm_api_urls<'a>(
+        &self,
+        urls: impl IntoIterator<Item = &'a str>,
+        backoff: bool,
+    ) -> WarmResult {
+        let all_urls: Vec<String> = urls.into_iter().map(str::to_owned).collect();
+        let discovered = all_urls.len();
+
+        // Decide which routes are currently in back-off and skip them this cycle.
+        let mut to_warm: Vec<String> = Vec::new();
+        let mut deferred = 0usize;
+        if backoff {
+            let now = SystemTime::now();
+            let tracker = self
+                .failure_tracker
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            for url in all_urls {
+                let in_backoff = tracker.get(&url).is_some_and(|(_, until)| now < *until);
+                if in_backoff {
+                    deferred += 1;
+                } else {
+                    to_warm.push(url);
+                }
+            }
+        } else {
+            to_warm = all_urls;
+        }
+
         let concurrency = env_usize("SITE_CACHE_WARM_API_CONCURRENCY", 2).max(1);
         let client = self.client.clone();
         let origin = self.api_origin.trim_end_matches('/').to_owned();
         let service_token = self.service_token.clone();
-        let outcomes = stream::iter(urls)
+        let outcomes = stream::iter(to_warm)
             .map(move |path| {
                 let client = client.clone();
                 let origin = origin.clone();
@@ -224,23 +264,57 @@ impl CacheWarmer {
                     if let Some(token) = service_token.as_deref() {
                         request = request.bearer_auth(token);
                     }
-                    match request.send().await {
+                    let failure = match request.send().await {
                         Ok(response) if response.status().is_success() => None,
                         Ok(response) => Some(format!("{path}: {}", response.status())),
                         Err(error) => Some(format!("{path}: {error}")),
-                    }
+                    };
+                    (path, failure)
                 }
             })
             .buffer_unordered(concurrency)
             .collect::<Vec<_>>()
             .await;
+
+        // Record outcomes: clear the back-off on success, extend it on failure.
+        if backoff {
+            let now = SystemTime::now();
+            let mut tracker = self
+                .failure_tracker
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            for (path, failure) in &outcomes {
+                match failure {
+                    None => {
+                        tracker.remove(path);
+                    }
+                    Some(_) => {
+                        let count = tracker.get(path).map_or(0, |entry| entry.0) + 1;
+                        let until = now + Duration::from_secs(warm_backoff_seconds(count));
+                        tracker.insert(path.clone(), (count, until));
+                    }
+                }
+            }
+        }
+
         let mut result = WarmResult {
             discovered,
-            warmed: outcomes.iter().filter(|failure| failure.is_none()).count(),
-            failed: outcomes.iter().filter(|failure| failure.is_some()).count(),
+            warmed: outcomes
+                .iter()
+                .filter(|(_, failure)| failure.is_none())
+                .count(),
+            failed: outcomes
+                .iter()
+                .filter(|(_, failure)| failure.is_some())
+                .count(),
+            deferred,
             ..WarmResult::default()
         };
-        for failure in outcomes.into_iter().flatten().take(10) {
+        for failure in outcomes
+            .into_iter()
+            .filter_map(|(_, failure)| failure)
+            .take(10)
+        {
             result.failures.push(failure);
         }
         result
@@ -381,6 +455,18 @@ fn env_f64(name: &str, fallback: f64) -> f64 {
         .unwrap_or(fallback)
 }
 
+/// Purpose: size the cache-warmer back-off window for a route that has failed
+/// `consecutive_failures` times in a row. Input: failure count. Output: seconds
+/// to defer the route — a 5-minute base that doubles per consecutive failure and
+/// caps at 6 hours, so a persistently timing-out route is retried at most hourly
+/// rather than on every 10-minute warm cycle.
+fn warm_backoff_seconds(consecutive_failures: u32) -> u64 {
+    const BASE_SECONDS: u64 = 300;
+    const MAX_SECONDS: u64 = 6 * 3600;
+    let shift = consecutive_failures.saturating_sub(1).min(20);
+    BASE_SECONDS.saturating_mul(1u64 << shift).min(MAX_SECONDS)
+}
+
 #[allow(dead_code)]
 fn _status_is_success(status: StatusCode) -> bool {
     status.is_success()
@@ -388,7 +474,7 @@ fn _status_is_success(status: StatusCode) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::main_api_warm_urls;
+    use super::{main_api_warm_urls, warm_backoff_seconds};
 
     #[test]
     fn activity_default_requests_are_all_warmed() {
@@ -400,5 +486,15 @@ mod tests {
         ] {
             assert!(urls.iter().any(|url| url == expected), "missing {expected}");
         }
+    }
+
+    #[test]
+    fn warm_backoff_grows_then_caps() {
+        assert_eq!(warm_backoff_seconds(1), 300);
+        assert_eq!(warm_backoff_seconds(2), 600);
+        assert_eq!(warm_backoff_seconds(3), 1200);
+        assert_eq!(warm_backoff_seconds(4), 2400);
+        // Doubles until it hits the 6-hour cap and stays there.
+        assert_eq!(warm_backoff_seconds(100), 6 * 3600);
     }
 }
