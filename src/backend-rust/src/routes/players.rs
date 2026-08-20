@@ -1180,9 +1180,10 @@ async fn automatic_afk_detail(
         canonical_route_cache_url(&uri)
     );
     let database = state.database.clone();
+    let route_cache = state.cache.clone();
     let payload = cached_database_value(
-        state.cache,
-        key,
+        route_cache.clone(),
+        key.clone(),
         AUTOMATIC_AFK_FRESH_SECONDS,
         AUTOMATIC_AFK_STALE_SECONDS,
         move || {
@@ -1197,8 +1198,20 @@ async fn automatic_afk_detail(
         }
         other => map_database(other, &request_id),
     })?;
-    let mut response = json_response(payload);
-    cache(&mut response, "public, max-age=60");
+    // Purpose: mirror the `matches` route so the detail page reports its cache
+    // status. Input: the cache key just written by `cached_database_value`.
+    // Output: `x-cache: HIT` plus a freshness-derived `cache-control` when the
+    // entry is present (every success path stores before returning); fall back
+    // to the plain short-lived response otherwise.
+    let fresh_until = route_cache.get(&key).await.map(|cached| cached.fresh_until);
+    let response = match fresh_until {
+        Some(fresh_until) => crate::route_cache::json_cache_response(payload, "HIT", fresh_until),
+        None => {
+            let mut response = json_response(payload);
+            cache(&mut response, "public, max-age=60");
+            response
+        }
+    };
     Ok(response)
 }
 
