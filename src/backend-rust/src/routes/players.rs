@@ -28,7 +28,7 @@ use crate::{
 mod moderation;
 mod provider;
 
-pub const ROUTE_COUNT: usize = 28;
+pub const ROUTE_COUNT: usize = 29;
 
 const RANKED_QUEUE_ID: i32 = 486;
 const PLAYERS_OVERVIEW_CACHE_KEY: &str = "route:players:v1:/players/overview";
@@ -38,6 +38,8 @@ const PLAYER_MATCHES_FRESH_SECONDS: u64 = 300;
 const PLAYER_MATCHES_STALE_SECONDS: u64 = 1_800;
 const AUTOMATIC_AFK_FRESH_SECONDS: u64 = 300;
 const AUTOMATIC_AFK_STALE_SECONDS: u64 = 1_800;
+const WALL_SHOOTERS_FRESH_SECONDS: u64 = 300;
+const WALL_SHOOTERS_STALE_SECONDS: u64 = 1_800;
 const DISPLAY_NAME_SQL: &str = r#"COALESCE(
   CASE
     WHEN NULLIF(p.hz_player_name, '') IS NOT NULL
@@ -95,6 +97,7 @@ pub fn router(
         .route("/players/boosted/{id}", get(boosted_detail))
         .route("/players/automatic-afk", get(automatic_afk))
         .route("/players/automatic-afk/{id}", get(automatic_afk_detail))
+        .route("/players/wall-shooters", get(wall_shooters))
         .route(
             "/players/alt-account-relations",
             get(moderation::alt_account_relations),
@@ -300,9 +303,11 @@ async fn overview(
 /// `overview`; relationship: cache misses, refreshes, and the warmer reuse this
 /// one loader and never duplicate the aggregate query.
 async fn load_players_overview(database: Database) -> Result<Value, DatabaseError> {
+    let wall_shooter_candidates = wall_shooter_candidate_sql();
     let counts = database
         .one_json(
-            "SELECT \
+            &format!(
+                "SELECT \
                COUNT(*) FILTER(WHERE cheater)::BIGINT AS cheaters, \
                COUNT(*) FILTER(WHERE NOT cheater AND sus_count>0)::BIGINT AS suspicious, \
                COUNT(*) FILTER(WHERE weirdo_count>0)::BIGINT AS weirdos, \
@@ -312,8 +317,10 @@ async fn load_players_overview(database: Database) -> Result<Value, DatabaseErro
                COUNT(*) FILTER(WHERE alt_account)::BIGINT AS alt_accounts, \
                (SELECT COUNT(DISTINCT player_id)::BIGINT FROM player_boosted_associations) AS boosted, \
                (SELECT COUNT(*)::BIGINT FROM players_private WHERE is_active) AS private_accounts, \
-               (SELECT COUNT(*)::BIGINT FROM party_pair_stats) AS parties \
-             FROM players",
+               (SELECT COUNT(*)::BIGINT FROM party_pair_stats) AS parties, \
+               (SELECT COUNT(DISTINCT damage_player.player_id)::BIGINT {wall_shooter_candidates}) AS wall_shooters \
+             FROM players"
+            ),
             &[],
         )
         .await?
@@ -345,7 +352,8 @@ async fn load_players_overview(database: Database) -> Result<Value, DatabaseErro
         },
         "directory_counts":{
           "private_accounts":value_i64(counts.get("private_accounts")),
-          "parties":value_i64(counts.get("parties"))
+          "parties":value_i64(counts.get("parties")),
+          "wall_shooters":value_i64(counts.get("wall_shooters"))
         }
     }))
 }
@@ -495,6 +503,8 @@ async fn search(
             &format!(
                 "SELECT id,name,level,wins,losses,kbm_tier,kbm_points,region,platform, \
                  cheater,sus_count,weirdo_count,hall_of_fame_count,dropper,afk_wintrade,alt_account, \
+                 (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=players.id AND vote.vote_type='dropper') AS dropper_vote_count, \
+                 (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=players.id AND vote.vote_type='afk_wintrade') AS afk_wintrade_vote_count, \
                  EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=players.id) AS boosted, \
                  avg_dpm,avg_hpm,avg_egpm,avg_mpm,total_matches,{top_reasons} AS top_reasons, \
                  COUNT(*) OVER() AS total_count, \
@@ -1073,7 +1083,20 @@ async fn load_automatic_afk(
     query: &PlayerQuery,
     bounds: (Option<i32>, Option<i32>),
 ) -> Result<Value, DatabaseError> {
-    let (mut params, filters) = automatic_afk_filters(None, bounds);
+    let (mut params, mut filters) = automatic_afk_filters(None, bounds);
+    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
+        if name
+            .trim()
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        {
+            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
+            filters.push(format!("p.id=${}", params.len()));
+        } else if !name.trim().is_empty() {
+            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
+            filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
+        }
+    }
     let limit = limit(
         query.limit.as_deref().or(query.per_page.as_deref()),
         20,
@@ -1089,7 +1112,10 @@ async fn load_automatic_afk(
         .query_json_params(
             &format!(
                 "SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
-                 p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
+                 p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account, \
+                 (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='dropper') AS dropper_vote_count, \
+                 (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='afk_wintrade') AS afk_wintrade_vote_count, \
+                 p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
                  p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
                  COUNT(*)::INT AS automatic_match_count,MIN(mp.entry_datetime) AS first_seen,MAX(mp.entry_datetime) AS last_seen, \
                  ROUND(MIN(mp.egpm)::NUMERIC,2)::DOUBLE PRECISION AS lowest_ecpm, \
@@ -1105,6 +1131,129 @@ async fn load_automatic_afk(
                    p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm HAVING COUNT(*)>=10 \
                  ORDER BY automatic_match_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
                 filters.join(" AND "),
+                params.len()
+            ),
+            &params,
+        )
+        .await
+        .map(Value::Array)
+}
+
+/// Match-level predicate shared by the Wall Shooter directory and its card
+/// count. A Damage player contributes once per ranked match when any teammate
+/// dealt strictly more damage; `EXISTS` prevents multiple teammates from
+/// multiplying one match into several flags.
+fn wall_shooter_candidate_sql() -> String {
+    let damage_role = champion_role_sql("damage_champion");
+    format!(
+        "FROM match_players damage_player \
+         JOIN matches m ON m.match_id=damage_player.match_id AND m.entry_datetime=damage_player.entry_datetime \
+         JOIN champions damage_champion ON damage_champion.id=damage_player.champion_id \
+         LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
+         WHERE m.queue_id={RANKED_QUEUE_ID} \
+           AND ({damage_role})='Damage' \
+           AND (NOT COALESCE(m.broken,false) OR COALESCE(m.recovered,false)) \
+           AND COALESCE(mis.status,'complete')='complete' \
+           AND COALESCE(damage_player.source,'direct') IN ('direct','recovered') \
+           AND damage_player.player_id>0 \
+           AND damage_player.champion_id>0 \
+           AND damage_player.task_force IN (1,2) \
+           AND LOWER(BTRIM(COALESCE(damage_player.win_status,''))) IN ('winner','loser','win','loss') \
+           AND m.duration_seconds>120 \
+           AND EXISTS(SELECT 1 FROM match_players teammate \
+             WHERE teammate.match_id=damage_player.match_id \
+               AND teammate.entry_datetime=damage_player.entry_datetime \
+               AND teammate.task_force=damage_player.task_force \
+               AND teammate.player_id>0 \
+               AND teammate.player_id<>damage_player.player_id \
+               AND COALESCE(teammate.source,'direct') IN ('direct','recovered') \
+               AND COALESCE(teammate.damage_done_physical,0)>COALESCE(damage_player.damage_done_physical,0))"
+    )
+}
+
+async fn wall_shooters(
+    State(state): State<PlayersState>,
+    Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+    Query(query): Query<PlayerQuery>,
+) -> Result<Response, ApiError> {
+    let key = format!(
+        "route:players:wall-shooters:v1:{}",
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    cached_database_json(
+        state.cache,
+        key,
+        WALL_SHOOTERS_FRESH_SECONDS,
+        WALL_SHOOTERS_STALE_SECONDS,
+        &request_id,
+        move || {
+            let database = database.clone();
+            let query = query.clone();
+            async move { load_wall_shooters(database, &query).await }
+        },
+    )
+    .await
+}
+
+async fn load_wall_shooters(
+    database: Database,
+    query: &PlayerQuery,
+) -> Result<Value, DatabaseError> {
+    let mut params = Vec::<QueryParam>::new();
+    let mut player_filters = Vec::<String>::new();
+    if let Some(name) = query.name.as_deref().or(query.q.as_deref()) {
+        if name
+            .trim()
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        {
+            params.push(QueryParam::Int64(name.trim().parse().unwrap_or_default()));
+            player_filters.push(format!("p.id=${}", params.len()));
+        } else if !name.trim().is_empty() {
+            params.push(QueryParam::Text(format!("%{}%", escape_like(name))));
+            player_filters.push(format!("p.name ILIKE ${} ESCAPE '\\'", params.len()));
+        }
+    }
+    let player_where = if player_filters.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", player_filters.join(" AND "))
+    };
+    let limit = limit(
+        query.limit.as_deref().or(query.per_page.as_deref()),
+        32,
+        100,
+    );
+    let offset = parse_js_integer(query.offset.as_deref().unwrap_or("0"))
+        .unwrap_or_default()
+        .max(0);
+    params.push(QueryParam::Int64(limit));
+    let limit_parameter = params.len();
+    params.push(QueryParam::Int64(offset));
+    let wall_shooter_candidates = wall_shooter_candidate_sql();
+    database
+        .query_json_params(
+            &format!(
+                "WITH flagged_matches AS ( \
+                   SELECT damage_player.player_id,damage_player.match_id,damage_player.entry_datetime {wall_shooter_candidates} \
+                 ) \
+                 SELECT p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
+                   p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account, \
+                   (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='dropper') AS dropper_vote_count, \
+                   (SELECT COUNT(*)::INT FROM player_community_votes vote WHERE vote.player_id=p.id AND vote.vote_type='afk_wintrade') AS afk_wintrade_vote_count, \
+                   p.total_matches,p.total_wins,p.avg_dpm,p.avg_hpm, \
+                   p.avg_egpm,p.avg_mpm,EXISTS(SELECT 1 FROM player_boosted_associations association WHERE association.player_id=p.id) AS boosted, \
+                   COUNT(*)::INT AS wall_shooter_count,MIN(flagged_matches.entry_datetime) AS first_seen, \
+                   MAX(flagged_matches.entry_datetime) AS last_seen,COUNT(*) OVER()::INT AS total_count, \
+                   ROUND(CASE WHEN p.total_matches>0 THEN p.total_wins::NUMERIC*100/p.total_matches \
+                     WHEN (p.wins+p.losses)>0 THEN p.wins::NUMERIC*100/(p.wins+p.losses) ELSE NULL END,2) AS win_rate \
+                 FROM flagged_matches JOIN players p ON p.id=flagged_matches.player_id{player_where} \
+                 GROUP BY p.id,p.name,p.platform,p.region,p.kbm_tier,p.kbm_points,p.cheater,p.sus_count,p.weirdo_count, \
+                   p.hall_of_fame_count,p.dropper,p.afk_wintrade,p.alt_account,p.total_matches,p.total_wins,p.wins,p.losses, \
+                   p.avg_dpm,p.avg_hpm,p.avg_egpm,p.avg_mpm \
+                 ORDER BY wall_shooter_count DESC,last_seen DESC,p.name ASC LIMIT ${limit_parameter} OFFSET ${}",
                 params.len()
             ),
             &params,
@@ -1764,6 +1913,32 @@ mod visibility_tests {
         assert!(route.contains("AUTOMATIC_AFK_FRESH_SECONDS"));
         assert!(route.contains("load_automatic_afk_detail"));
         assert!(route.contains("DatabaseError::NotFound"));
+    }
+
+    #[test]
+    fn wall_shooter_candidates_are_ranked_damage_players_checked_against_teammates() {
+        let sql = super::wall_shooter_candidate_sql();
+        assert!(sql.contains("m.queue_id=486"));
+        assert!(sql.contains("='Damage'"));
+        assert!(sql.contains("teammate.task_force=damage_player.task_force"));
+        assert!(sql.contains("COALESCE(teammate.damage_done_physical,0)>COALESCE(damage_player.damage_done_physical,0)"));
+        assert!(sql.contains("EXISTS(SELECT 1 FROM match_players teammate"));
+    }
+
+    #[test]
+    fn wall_shooter_directory_uses_the_shared_stale_while_refreshing_cache() {
+        let source = include_str!("players.rs");
+        let route = source
+            .split_once("async fn wall_shooters(")
+            .and_then(|(_, rest)| {
+                rest.split_once("async fn load_wall_shooters(")
+                    .map(|(route, _)| route)
+            })
+            .expect("players wall-shooters route");
+        assert!(route.contains("cached_database_json("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("WALL_SHOOTERS_FRESH_SECONDS"));
+        assert!(route.contains("load_wall_shooters"));
     }
 
     #[test]
