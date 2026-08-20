@@ -41,6 +41,8 @@ pub enum DatabaseError {
     Query(#[from] tokio_postgres::Error),
     #[error("unsupported PostgreSQL response type {type_name} for column {column}")]
     UnsupportedType { column: String, type_name: String },
+    #[error("requested row not found: {0}")]
+    NotFound(String),
 }
 
 impl Database {

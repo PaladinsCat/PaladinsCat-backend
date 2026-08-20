@@ -19,7 +19,9 @@ use serde_json::{Map, Value, json};
 use crate::{
     error::ApiError,
     request::{EffectiveUri, RequestId},
-    route_cache::{RouteCache, cached_database_json, canonical_route_cache_url},
+    route_cache::{
+        RouteCache, cached_database_json, cached_database_value, canonical_route_cache_url,
+    },
     workers::relay::WorkerRelayClient,
 };
 
@@ -1111,21 +1113,23 @@ async fn load_automatic_afk(
         .map(Value::Array)
 }
 
-async fn automatic_afk_detail(
-    State(state): State<PlayersState>,
-    Extension(request_id): Extension<RequestId>,
-    Path(id): Path<String>,
-    Query(query): Query<PlayerQuery>,
-) -> Result<Response, ApiError> {
-    let player_id = player_id(&id)?;
-    let bounds = tier_bounds(&query)?;
+/// Purpose: load the player summary and per-match rows that back
+/// `/players/automatic-afk/{id}`. Input: database handle, player ID, and
+/// the resolved lobby-tier bounds. Output: the `{"player":...,"matches":[...]}`
+/// payload. Relationship: `automatic_afk_detail` is the only caller and wraps
+/// this loader in the shared stale-while-refreshing route cache, so the query
+/// text must stay byte-stable.
+async fn load_automatic_afk_detail(
+    database: Database,
+    player_id: i64,
+    bounds: (Option<i32>, Option<i32>),
+) -> Result<Value, DatabaseError> {
     let (params, filters) = automatic_afk_filters(Some(player_id), bounds);
     let joins = "FROM match_players mp \
       JOIN matches m ON m.match_id=mp.match_id AND m.entry_datetime=mp.entry_datetime \
       LEFT JOIN match_ingest_status mis ON mis.match_id=m.match_id \
       LEFT JOIN match_lobby_tiers mlt ON mlt.match_id=m.match_id AND mlt.entry_datetime=m.entry_datetime";
-    let player = state
-        .database
+    let player = database
         .one_json_params(
             &format!(
                 "SELECT p.id,p.name,p.platform,p.region,p.afk_wintrade,COUNT(*)::INT AS automatic_match_count, \
@@ -1138,16 +1142,13 @@ async fn automatic_afk_detail(
             ),
             &params,
         )
-        .await
-        .map_err(|error| map_database(error, &request_id))?
+        .await?
         .ok_or_else(|| {
-            ApiError::not_found(
-                "Automatically flagged player not found",
-                json!({"playerId":player_id}),
+            DatabaseError::NotFound(
+                "Automatically flagged player not found".to_owned(),
             )
         })?;
-    let matches = state
-        .database
+    let matches = database
         .query_json_params(
             &format!(
                 "SELECT mp.match_id,mp.entry_datetime,m.map,m.queue_id,COALESCE(m.region,mp.region) AS region,m.duration_seconds, \
@@ -1160,9 +1161,43 @@ async fn automatic_afk_detail(
             ),
             &params,
         )
-        .await
-        .map_err(|error| map_database(error, &request_id))?;
-    let mut response = json_response(json!({"player":player,"matches":matches}));
+        .await?;
+    Ok(json!({"player":player,"matches":matches}))
+}
+
+async fn automatic_afk_detail(
+    State(state): State<PlayersState>,
+    Extension(request_id): Extension<RequestId>,
+    Extension(EffectiveUri(uri)): Extension<EffectiveUri>,
+    Path(id): Path<String>,
+    Query(query): Query<PlayerQuery>,
+) -> Result<Response, ApiError> {
+    let player_id = player_id(&id)?;
+    let bounds = tier_bounds(&query)?;
+    let key = format!(
+        "route:players:automatic-afk-detail:v1:{}:{}",
+        player_id,
+        canonical_route_cache_url(&uri)
+    );
+    let database = state.database.clone();
+    let payload = cached_database_value(
+        state.cache,
+        key,
+        AUTOMATIC_AFK_FRESH_SECONDS,
+        AUTOMATIC_AFK_STALE_SECONDS,
+        move || {
+            let database = database.clone();
+            async move { load_automatic_afk_detail(database, player_id, bounds).await }
+        },
+    )
+    .await
+    .map_err(|error| match error {
+        DatabaseError::NotFound(message) => {
+            ApiError::not_found(message, json!({"playerId":player_id}))
+        }
+        other => map_database(other, &request_id),
+    })?;
+    let mut response = json_response(payload);
     cache(&mut response, "public, max-age=60");
     Ok(response)
 }
@@ -1702,6 +1737,20 @@ mod visibility_tests {
         assert!(route.contains("canonical_route_cache_url"));
         assert!(route.contains("AUTOMATIC_AFK_FRESH_SECONDS"));
         assert!(route.contains("load_automatic_afk"));
+    }
+
+    #[test]
+    fn automatic_afk_detail_uses_the_shared_stale_while_refreshing_cache() {
+        let source = include_str!("players.rs");
+        let route = source
+            .split_once("async fn automatic_afk_detail(")
+            .and_then(|(_, rest)| rest.split_once("async fn profile(").map(|(route, _)| route))
+            .expect("players automatic-afk detail route");
+        assert!(route.contains("cached_database_value("));
+        assert!(route.contains("canonical_route_cache_url"));
+        assert!(route.contains("AUTOMATIC_AFK_FRESH_SECONDS"));
+        assert!(route.contains("load_automatic_afk_detail"));
+        assert!(route.contains("DatabaseError::NotFound"));
     }
 
     #[test]
