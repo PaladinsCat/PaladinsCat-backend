@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use futures::{StreamExt, future::join_all, stream};
+use futures::{StreamExt, stream};
 use paladinscat_core::queue::has_variable_human_roster;
 use serde_json::Value;
 
@@ -23,9 +23,10 @@ pub async fn get_match_details_batch<P: CompletedMatchProvider>(
     let ids: Vec<_> = requests.iter().map(|request| request.match_id).collect();
     let direct_matches = match provider.get_match_details_batch(&ids).await {
         Ok(matches) => matches,
-        Err(error) if requests.len() == 1 && is_recoverable_match_detail_error(&error) => {
-            Vec::new()
-        }
+        // A malformed shared response has no trustworthy per-ID boundary.
+        // Resolve each request once, in order, rather than returning an error
+        // that makes the worker bisect and replay the same batch tree.
+        Err(error) if is_recoverable_match_detail_error(&error) => Vec::new(),
         Err(error) => return Err(error),
     };
     let mut direct_by_id: HashMap<_, _> = direct_matches
@@ -36,15 +37,15 @@ pub async fn get_match_details_batch<P: CompletedMatchProvider>(
     let mut work = Vec::new();
     for request in requests {
         let direct = direct_by_id.remove(&request.match_id);
-        // Multi-match omissions are deliberately absent from the relay
-        // response. The worker isolates the first missing ordered ID through
-        // this same operation and refills its continuous batch.
-        if direct.is_some() || requests.len() == 1 {
-            work.push((request.clone(), direct));
-        }
+        work.push((request.clone(), direct));
     }
 
-    let outcomes = join_all(work.into_iter().map(|(mut request, direct)| async move {
+    // One shared detail batch can identify up to ten malformed matches.  Their
+    // recovery paths may each fan out to roster/history calls, so resolving
+    // them concurrently turns one bounded batch into a burst of vendor work.
+    // Keep discovery batched, but resolve one malformed outcome at a time.
+    let mut outcomes = Vec::with_capacity(work.len());
+    for (mut request, direct) in work {
         // Discovery's queue hint controls recovery scope. A malformed partial
         // row must not promote known casual/PvE work into ranked history/demo
         // fan-out. Exact-ID requests have no hint and may inherit the row.
@@ -57,23 +58,24 @@ pub async fn get_match_details_batch<P: CompletedMatchProvider>(
         if let Some(r#match) = direct.as_ref()
             && !needs_recovery(r#match)
         {
-            return Ok(terminalize(
+            outcomes.push(Ok(terminalize(
                 &request,
                 r#match.clone(),
                 CompletedMatchResolutionStatus::CompleteDirect,
                 None,
-            ));
+            )));
+            continue;
         }
-        if request
+        let outcome = if request
             .queue_id
             .is_none_or(|queue_id| queue_id == RANKED_QUEUE_ID)
         {
             recover_ranked(provider, &request, direct).await
         } else {
             recover_presence(provider, &request, direct).await
-        }
-    }))
-    .await;
+        };
+        outcomes.push(outcome);
+    }
 
     outcomes.into_iter().collect()
 }
@@ -916,7 +918,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn omitted_blocker_is_returned_to_worker_for_continuous_batching() {
+    async fn omitted_match_is_resolved_in_the_original_bounded_batch() {
         let provider = DummyProvider::default();
         let requests = (1..=10)
             .map(|id| request(910_000_000 + id, 486))
@@ -925,16 +927,12 @@ mod tests {
             .set_scenario(requests[4].match_id, DummyScenario::OmitFromMulti)
             .await;
         let outcomes = get_match_details_batch(&provider, &requests).await.unwrap();
-        assert_eq!(outcomes.len(), 9);
+        assert_eq!(outcomes.len(), 10);
         assert!(
-            !outcomes
+            outcomes
                 .iter()
                 .any(|outcome| outcome.match_id == requests[4].match_id)
         );
-        assert!(outcomes.iter().all(|outcome| matches!(
-            outcome.status,
-            CompletedMatchResolutionStatus::CompleteDirect
-        )));
         assert_eq!(call_count(&provider.counts(), "getmatchdetailsbatch"), 1);
     }
 
@@ -1090,17 +1088,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hard_multi_match_error_remains_worker_owned() {
+    async fn hard_multi_match_error_is_recovered_once_without_worker_bisection() {
         let provider = DummyProvider::default();
         let requests = vec![request(946_000_001, 486), request(946_000_002, 486)];
         provider
             .set_scenario(requests[0].match_id, DummyScenario::HardBrokenSkin)
             .await;
-        let error = get_match_details_batch(&provider, &requests)
-            .await
-            .unwrap_err();
-        assert!(matches!(error, RelayError::Upstream(_)));
-        assert_eq!(call_count(&provider.counts(), "getplayerbatchfrommatch"), 0);
+        let outcomes = get_match_details_batch(&provider, &requests).await.unwrap();
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(call_count(&provider.counts(), "getmatchdetailsbatch"), 1);
+        assert!(call_count(&provider.counts(), "getplayerbatchfrommatch") <= 2);
     }
 
     #[tokio::test]

@@ -64,11 +64,6 @@ impl<C: ApiCaller> OperationService<C> {
         hour: f64,
         consumer: &str,
     ) -> Result<Vec<MatchIdObservation>, RelayError> {
-        let options = if consumer == "presence_discovery" {
-            single_attempt()
-        } else {
-            ApiRequestOptions::default()
-        };
         let data = self
             .api
             .call(
@@ -78,7 +73,7 @@ impl<C: ApiCaller> OperationService<C> {
                     date.to_owned(),
                     js_number_string(hour),
                 ],
-                options,
+                single_attempt(),
                 consumer,
             )
             .await?;
@@ -105,6 +100,27 @@ impl<C: ApiCaller> OperationService<C> {
         match_ids: &[f64],
         consumer: &str,
     ) -> Result<Vec<Value>, RelayError> {
+        self.get_match_details_batch(match_ids, consumer, ApiRequestOptions::default())
+            .await
+    }
+
+    /// Canonical ingestion owns its retry budget at the queue-hour boundary.
+    /// One vendor batch must therefore translate to one physical API attempt.
+    pub async fn get_match_details_batch_once(
+        &self,
+        match_ids: &[f64],
+        consumer: &str,
+    ) -> Result<Vec<Value>, RelayError> {
+        self.get_match_details_batch(match_ids, consumer, single_attempt())
+            .await
+    }
+
+    async fn get_match_details_batch(
+        &self,
+        match_ids: &[f64],
+        consumer: &str,
+        options: ApiRequestOptions,
+    ) -> Result<Vec<Value>, RelayError> {
         let mut results = Vec::new();
         for chunk in match_ids.chunks(MATCH_BATCH_SIZE) {
             let params = vec![
@@ -116,12 +132,7 @@ impl<C: ApiCaller> OperationService<C> {
             ];
             let data = self
                 .api
-                .call(
-                    "getmatchdetailsbatch",
-                    &params,
-                    ApiRequestOptions::default(),
-                    consumer,
-                )
+                .call("getmatchdetailsbatch", &params, options.clone(), consumer)
                 .await?;
             if let Value::Array(values) = data {
                 results.extend(values);
@@ -169,12 +180,31 @@ impl<C: ApiCaller> OperationService<C> {
         match_id: f64,
         consumer: &str,
     ) -> Result<Value, RelayError> {
+        self.get_demo_details_with_options(match_id, consumer, ApiRequestOptions::default())
+            .await
+    }
+
+    pub async fn get_demo_details_once(
+        &self,
+        match_id: f64,
+        consumer: &str,
+    ) -> Result<Value, RelayError> {
+        self.get_demo_details_with_options(match_id, consumer, single_attempt())
+            .await
+    }
+
+    async fn get_demo_details_with_options(
+        &self,
+        match_id: f64,
+        consumer: &str,
+        options: ApiRequestOptions,
+    ) -> Result<Value, RelayError> {
         let data = self
             .api
             .call(
                 "getdemodetails",
                 &[js_number_string(match_id)],
-                ApiRequestOptions::default(),
+                options,
                 consumer,
             )
             .await?;
@@ -681,7 +711,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn queue_details_preserve_metadata_and_presence_single_attempt() {
+    async fn queue_details_are_single_attempt_for_every_canonical_consumer() {
         let caller = Arc::new(FakeCaller::with_responses(vec![serde_json::json!([
             {
                 "Match": "100",
@@ -695,7 +725,7 @@ mod tests {
         let service = OperationService::new(caller.clone());
         assert_eq!(
             service
-                .get_match_ids_by_queue_details(486.0, "20260728", 12.0, "presence_discovery")
+                .get_match_ids_by_queue_details(486.0, "20260728", 12.0, "hourly_match_discovery")
                 .await
                 .expect("queue"),
             vec![
@@ -717,7 +747,7 @@ mod tests {
         assert_eq!(calls[0].method, "getmatchidsbyqueue");
         assert_eq!(calls[0].params, ["486", "20260728", "12"]);
         assert_eq!(calls[0].max_retries, Some(0));
-        assert_eq!(calls[0].consumer, "presence_discovery");
+        assert_eq!(calls[0].consumer, "hourly_match_discovery");
     }
 
     #[tokio::test]
@@ -755,6 +785,18 @@ mod tests {
         assert_eq!(calls.len(), 2);
         assert_eq!(calls[0].params, ["1,2,3,4,5,6,7,8,9,10"]);
         assert_eq!(calls[1].params, ["11"]);
+    }
+
+    #[tokio::test]
+    async fn canonical_raw_batch_is_single_attempt() {
+        let caller = Arc::new(FakeCaller::with_responses(vec![
+            serde_json::json!([{"Match": 1}]),
+        ]));
+        OperationService::new(caller.clone())
+            .get_match_details_batch_once(&[1.0], "match_ingestion")
+            .await
+            .expect("batch");
+        assert_eq!(caller.calls()[0].max_retries, Some(0));
     }
 
     #[tokio::test]

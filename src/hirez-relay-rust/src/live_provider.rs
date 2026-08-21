@@ -132,7 +132,10 @@ impl LiveMatchProvider {
             .call(
                 "getmatchhistory",
                 &[player_id.to_string()],
-                ApiRequestOptions::default(),
+                ApiRequestOptions {
+                    max_retries: Some(0),
+                    ..ApiRequestOptions::default()
+                },
                 self.consumer("match_recovery"),
             )
             .await?;
@@ -202,7 +205,7 @@ impl CompletedMatchProvider for LiveMatchProvider {
         let match_ids: Vec<_> = match_ids.iter().map(|match_id| *match_id as f64).collect();
         let raw = self
             .operations
-            .get_match_details_batch_raw(&match_ids, self.consumer("match_ingestion"))
+            .get_match_details_batch_once(&match_ids, self.consumer("match_ingestion"))
             .await?;
         Ok(normalize_flat_match_detail_rows(&raw))
     }
@@ -236,7 +239,7 @@ impl CompletedMatchProvider for LiveMatchProvider {
 
     async fn get_demo_details(&self, match_id: u64) -> Result<Value, RelayError> {
         self.operations
-            .get_demo_details(match_id as f64, self.consumer("match_recovery"))
+            .get_demo_details_once(match_id as f64, self.consumer("match_recovery"))
             .await
     }
 

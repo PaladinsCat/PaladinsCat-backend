@@ -432,16 +432,13 @@ impl CanonicalIngestPipeline {
         let mut emitted = BTreeSet::new();
         let mut completed = 0;
         let mut failures = Vec::new();
-        let mut batch_windows = VecDeque::<Vec<i64>>::new();
         while !remaining.is_empty() {
             refresh_hourly_ingest_lease(&self.database, date, hour, queue_id).await?;
-            let batch = batch_windows.pop_front().unwrap_or_else(|| {
-                remaining
-                    .iter()
-                    .take(MATCH_DETAIL_PROTOCOL_BATCH_SIZE)
-                    .copied()
-                    .collect::<Vec<_>>()
-            });
+            let batch = remaining
+                .iter()
+                .take(MATCH_DETAIL_PROTOCOL_BATCH_SIZE)
+                .copied()
+                .collect::<Vec<_>>();
             let response = match self
                 .relay
                 .call_value(
@@ -458,13 +455,6 @@ impl CanonicalIngestPipeline {
             {
                 Ok(response) => response,
                 Err(error) => {
-                    if let Some((left, right)) =
-                        recoverable_batch_bisection(&batch, &error.to_string())
-                    {
-                        batch_windows.push_front(right);
-                        batch_windows.push_front(left);
-                        continue;
-                    }
                     self.record_match_detail_outage(&error).await?;
                     return Err(error.into());
                 }
@@ -559,26 +549,9 @@ impl CanonicalIngestPipeline {
                 }
             }
             if !resolved {
-                match self
-                    .recover_discovered_match(blocker, queue_id, source)
-                    .await
-                {
-                    Ok(()) => {
-                        progress.checkpointed_ids.insert(blocker);
-                        completed += 1;
-                    }
-                    Err(error) => {
-                        let message = error.to_string();
-                        if self
-                            .record_terminal_outcome(error, queue_id, source, progress)
-                            .await?
-                        {
-                            completed += 1;
-                        } else {
-                            failures.push(format!("match {blocker}: {message}"));
-                        }
-                    }
-                }
+                failures.push(format!(
+                    "match {blocker}: canonical relay omitted outcome after the bounded singleton pass"
+                ));
             }
             if let Some(position) = remaining.iter().position(|candidate| *candidate == blocker) {
                 remaining.remove(position);
@@ -666,9 +639,9 @@ impl CanonicalIngestPipeline {
                         "canonical relay outcome has no match ID: {error}"
                     )));
                 }
-                return self
-                    .recover_discovered_match(match_id, queue_id, source)
-                    .await;
+                return Err(PipelineError::Facts(format!(
+                    "match {match_id} returned non-authoritative canonical evidence: {error}"
+                )));
             }
         };
         if canonical.queue_id != queue_id {
@@ -679,10 +652,8 @@ impl CanonicalIngestPipeline {
         }
         let finalized = match self.facts.finalize(&canonical, source.as_database()).await {
             Ok(finalized) => finalized,
-            Err(MatchFactError::InvalidPayload(_)) => {
-                return self
-                    .recover_discovered_match(canonical.match_id, queue_id, source)
-                    .await;
+            Err(MatchFactError::InvalidPayload(error)) => {
+                return Err(PipelineError::Facts(error.to_string()));
             }
             Err(error) => return Err(PipelineError::Facts(error.to_string())),
         };
@@ -795,33 +766,6 @@ fn pipeline_state_error_message(error: &PipelineError) -> Cow<'_, str> {
         PipelineError::Relay(WorkerRelayError::Operation { message, .. }) => Cow::Borrowed(message),
         _ => Cow::Owned(error.to_string()),
     }
-}
-
-/// Purpose: decide whether a batch payload error can be isolated by bisection.
-/// Input: error text. Output: boolean; quota and transport failures stay fatal.
-fn is_recoverable_completed_batch_error(error: &str) -> bool {
-    let error = error.to_ascii_lowercase();
-    [
-        "hirez_unknown_return",
-        "int16",
-        "skin_id",
-        "skin id",
-        "skinid",
-        "too large",
-        "too small",
-    ]
-    .iter()
-    .any(|needle| error.contains(needle))
-}
-
-/// Purpose: split only a multi-ID payload-failure batch. Input: IDs and error.
-/// Output: ordered left/right typed ID windows or `None` for a fatal error.
-fn recoverable_batch_bisection(batch: &[i64], error: &str) -> Option<(Vec<i64>, Vec<i64>)> {
-    if batch.len() <= 1 || !is_recoverable_completed_batch_error(error) {
-        return None;
-    }
-    let midpoint = batch.len().div_ceil(2);
-    Some((batch[..midpoint].to_vec(), batch[midpoint..].to_vec()))
 }
 
 /// Purpose: recognize a complete authoritative relay wrapper. Input: outcome
@@ -973,33 +917,6 @@ mod tests {
             TERMINAL_NO_COMPLETED_MATCH_REASON,
             "invalid canonical match payload"
         );
-    }
-
-    #[test]
-    fn batch_bisection_is_limited_to_recoverable_payload_errors() {
-        assert!(is_recoverable_completed_batch_error(
-            "Int16 skin_id too large"
-        ));
-        assert!(is_recoverable_completed_batch_error("HIREZ_UNKNOWN_RETURN"));
-        assert!(!is_recoverable_completed_batch_error("quota exhausted"));
-        assert!(!is_recoverable_completed_batch_error("transport timeout"));
-    }
-
-    #[test]
-    fn recoverable_batch_bisection_preserves_typescript_left_then_right_sequence() {
-        let (left, right) = recoverable_batch_bisection(
-            &(1..=10).collect::<Vec<_>>(),
-            "HIREZ_UNKNOWN_RETURN Int16 skin_id",
-        )
-        .expect("recoverable ten-ID window");
-        assert_eq!(left, vec![1, 2, 3, 4, 5]);
-        assert_eq!(right, vec![6, 7, 8, 9, 10]);
-        let (left_left, left_right) =
-            recoverable_batch_bisection(&left, "too large").expect("recursive left split");
-        assert_eq!(left_left, vec![1, 2, 3]);
-        assert_eq!(left_right, vec![4, 5]);
-        assert!(recoverable_batch_bisection(&[1], "Int16").is_none());
-        assert!(recoverable_batch_bisection(&[1, 2], "quota exhausted").is_none());
     }
 
     #[test]

@@ -9,7 +9,6 @@ use std::{
     time::Duration,
 };
 
-use futures::future::join_all;
 use paladinscat_core::{
     cache::RedisCache,
     config::BackendConfig,
@@ -831,15 +830,19 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
             queue_hour_claim_versions(&services.database, &date, hour, &hour_queue_ids)
                 .await
                 .map_err(|error| error.to_string())?;
-        let outcomes = join_all(hour_candidates.iter().map(|candidate| {
-            pipeline.discover_hour(
-                candidate.queue_id,
-                &candidate.date,
-                candidate.hour,
-                "gap-checker",
-            )
-        }))
-        .await;
+        let mut outcomes = Vec::with_capacity(hour_candidates.len());
+        for candidate in &hour_candidates {
+            outcomes.push(
+                pipeline
+                    .discover_hour(
+                        candidate.queue_id,
+                        &candidate.date,
+                        candidate.hour,
+                        "gap-checker",
+                    )
+                    .await,
+            );
+        }
         completed += outcomes.iter().filter(|result| result.is_ok()).count();
         // Purpose: distinguish a recorded pipeline failure from infrastructure
         // contention before the queue-hour claim. Input: this hour's candidates
@@ -1426,7 +1429,8 @@ mod tests {
             .0;
         assert!(recovery.contains("candidates_by_hour"));
         assert!(recovery.contains(".take(1)"));
-        assert!(recovery.contains("join_all"));
+        assert!(recovery.contains("for candidate in &hour_candidates"));
+        assert!(!recovery.contains("join_all"));
         assert!(recovery.contains("queue_hour_claim_versions"));
         assert!(recovery.contains("queue-hour claim failed twice"));
         assert!(!recovery.contains("expected_elapsed_discovery_hours"));
