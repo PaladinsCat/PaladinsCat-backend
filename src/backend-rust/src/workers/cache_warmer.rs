@@ -162,9 +162,7 @@ impl CacheWarmer {
             .chain(ACTIVITY_API_WARM_URLS.iter())
             .copied()
             .collect::<BTreeSet<_>>();
-        let result = self
-            .warm_api_urls(urls.iter().copied(), false)
-            .await;
+        let result = self.warm_api_urls(urls.iter().copied(), false).await;
         if result.failed > 0 {
             return Err(CacheWarmError::Critical {
                 failed: result.failed,
