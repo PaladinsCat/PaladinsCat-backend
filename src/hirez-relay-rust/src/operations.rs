@@ -132,7 +132,7 @@ impl<C: ApiCaller> OperationService<C> {
             ];
             let data = self
                 .api
-                .call("getmatchdetailsbatch", &params, options.clone(), consumer)
+                .call("getmatchdetailsbatch", &params, options, consumer)
                 .await?;
             if let Value::Array(values) = data {
                 results.extend(values);
