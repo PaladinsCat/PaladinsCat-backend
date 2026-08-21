@@ -157,8 +157,13 @@ impl CacheWarmer {
     }
 
     pub async fn warm_deployment_critical(&self) -> Result<WarmResult, CacheWarmError> {
+        let urls = DEPLOYMENT_CRITICAL_API_WARM_URLS
+            .iter()
+            .chain(ACTIVITY_API_WARM_URLS.iter())
+            .copied()
+            .collect::<BTreeSet<_>>();
         let result = self
-            .warm_api_urls(DEPLOYMENT_CRITICAL_API_WARM_URLS.iter().copied(), false)
+            .warm_api_urls(urls.iter().copied(), false)
             .await;
         if result.failed > 0 {
             return Err(CacheWarmError::Critical {
