@@ -11,9 +11,9 @@ use sha2::{Digest, Sha256};
 use tokio_postgres::NoTls;
 
 use crate::workers::{
-    maintenance::process_buffer_batch, policy::MATCH_COUNT_QUEUE_DEFINITIONS,
-    private_identity::backfill_private_account_identities, rating::RatingRepository,
-    relay::WorkerRelayClient,
+    maintenance::process_buffer_batch, pipeline::CanonicalIngestPipeline,
+    policy::MATCH_COUNT_QUEUE_DEFINITIONS, private_identity::backfill_private_account_identities,
+    rating::RatingRepository, relay::WorkerRelayClient,
 };
 
 const NONRANKED_RAW_JSON_GUARD_SQL: &str = r#"
@@ -76,6 +76,7 @@ const RAW_JSON_TABLES: [(&str, &str, &str); 4] = [
 
 #[derive(Clone)]
 pub struct OperatorServices {
+    pub config: BackendConfig,
     pub database: Database,
     pub relay: WorkerRelayClient,
 }
@@ -86,6 +87,7 @@ impl OperatorServices {
         Ok(Self {
             database: Database::new(&config, "paladinscat-admin")?,
             relay: WorkerRelayClient::new(&config)?,
+            config,
         })
     }
 }
@@ -218,7 +220,7 @@ pub async fn pipeline_populate(
         .get("from")
         .map(String::as_str)
         .unwrap_or("2026-05-01T00:00:00Z");
-    let date = from.split('T').next().unwrap_or(from).replace('-', "");
+    let date = from.split('T').next().unwrap_or(from);
     let hour = from
         .split('T')
         .nth(1)
@@ -233,42 +235,17 @@ pub async fn pipeline_populate(
             .map(|queue| queue.queue_id)
             .collect()
     };
-    let mut discovered = 0usize;
-    let mut inserted = 0u64;
+    let pipeline = CanonicalIngestPipeline::new(services.database.clone(), &services.config)
+        .context("construct canonical pipeline")?;
+    let mut results = Vec::with_capacity(queues.len());
     for queue_id in queues {
-        let response = services
-            .relay
-            .call_value(
-                "getMatchIdsByQueueDetails",
-                vec![json!(queue_id), json!(date), json!(hour)],
-                "rust_operator_populate",
-            )
-            .await?;
-        let ids = response
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|row| integer(row, &["Match", "match_id", "matchId", "id"]))
-            .filter(|id| *id > 0)
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        discovered += ids.len();
-        if !ids.is_empty() {
-            inserted += services
-                .database
-                .connection()
-                .await?
-                .execute(
-                    "INSERT INTO match_pull_list(match_id,queue_id,entry_datetime,status) \
-                 SELECT id,$2,now(),'pending' FROM unnest($1::BIGINT[])id \
-                 ON CONFLICT(match_id) DO NOTHING",
-                    &[&ids, &queue_id],
-                )
-                .await?;
-        }
+        results.push(
+            pipeline
+                .discover_hour(queue_id, date, hour, "rust_operator_populate")
+                .await?,
+        );
     }
-    Ok(json!({"discovered":discovered,"inserted":inserted}))
+    Ok(json!({"results":results}))
 }
 
 pub async fn pipeline_ingest(
@@ -861,5 +838,20 @@ mod storage_mitigation_tests {
                 ("special_match_players", "raw_player"),
             ]
         );
+    }
+
+    #[test]
+    fn populate_routes_through_the_one_search_canonical_pipeline() {
+        let source = include_str!("operators.rs");
+        let populate = source
+            .split("pub async fn pipeline_populate")
+            .nth(1)
+            .expect("operator populate")
+            .split("pub async fn pipeline_ingest")
+            .next()
+            .expect("operator populate body");
+        assert!(populate.contains("CanonicalIngestPipeline::new"));
+        assert!(populate.contains(".discover_hour("));
+        assert!(!populate.contains("getMatchIdsByQueueDetails"));
     }
 }

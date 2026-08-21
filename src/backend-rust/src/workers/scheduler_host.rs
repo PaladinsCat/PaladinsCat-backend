@@ -16,7 +16,7 @@ use paladinscat_core::{
     database::{Database, DatabaseError},
 };
 use serde_json::{Value, json};
-use time::{Month, OffsetDateTime, Weekday, format_description::well_known::Rfc3339};
+use time::{OffsetDateTime, Weekday, format_description::well_known::Rfc3339};
 use url::{Host, Url};
 
 use super::{
@@ -783,9 +783,8 @@ async fn drain_view_counts(database: &Database, config: &BackendConfig) -> Resul
     Ok(json!({ "postsIncremented": posts, "buildsIncremented": builds }))
 }
 
-/// Purpose: discover every missing hour and drain every locally known ID.
-/// Input: shared scheduler services. Output: JSON counts for all attempted
-/// queue-hours; ranked/casual candidates share one newest-first ordering.
+/// Purpose: drain one newest durable unfinished hour without rediscovery.
+/// Input: shared scheduler services. Output: JSON counts for one stored hour.
 async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     let now = OffsetDateTime::now_utc();
     let min_date = configured_gap_min_date();
@@ -809,9 +808,9 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
     if candidates.is_empty() {
         return Ok(json!({"candidates":0,"attempted":0,"completed":0}));
     }
-    // Drain newest hour first, with every configured queue in that hour
-    // executing together. The hour boundary is the recovery priority; there
-    // is no arbitrary concurrency cap or population-specific lane.
+    // Drain one newest stored hour at a time. Every ID in the selected hour
+    // still drains continuously; the hour bound protects the fresh-discovery
+    // window and provider reserve from historical recovery.
     let mut candidates_by_hour = BTreeMap::<(String, i32), Vec<GapCandidate>>::new();
     for candidate in candidates.iter().cloned() {
         candidates_by_hour
@@ -823,7 +822,7 @@ async fn run_gap_check(services: &SchedulerServices) -> Result<Value, String> {
         .map_err(|error| error.to_string())?;
     let mut completed = 0;
     let mut infrastructure_retried = 0;
-    for ((date, hour), hour_candidates) in candidates_by_hour.into_iter().rev() {
+    for ((date, hour), hour_candidates) in candidates_by_hour.into_iter().rev().take(1) {
         let hour_queue_ids = hour_candidates
             .iter()
             .map(|candidate| candidate.queue_id)
@@ -949,17 +948,23 @@ async fn queue_hour_claim_versions(
 fn queue_hour_states_sql() -> String {
     let reopenable = reopenable_hour_predicate("$4");
     format!(
-        "SELECT state.date::TEXT,state.hour,state.queue_id,state.status, \
-         state.lease_until<=now() lease_due, \
-         CASE WHEN state.status='complete' THEN {reopenable} ELSE FALSE END reopenable \
-         FROM hourly_ingest_state state WHERE state.queue_id=ANY($1::INT[]) \
-         AND state.date>=$2::TEXT::DATE AND state.date<=$3::TEXT::DATE"
+        "WITH eligible AS MATERIALIZED (\
+           SELECT state.date::TEXT date,state.hour,state.queue_id,state.status,state.fetched,state.fetch_succeeded, \
+                  state.lease_until<=now() lease_due, \
+                  CASE WHEN state.status='complete' THEN {reopenable} ELSE FALSE END reopenable \
+           FROM hourly_ingest_state state \
+           WHERE state.queue_id=ANY($1::INT[]) AND state.fetched=TRUE AND state.fetch_succeeded=TRUE \
+             AND state.date>=$2::TEXT::DATE AND (state.date,state.hour)<=($3::TEXT::DATE,$5) \
+             AND ((state.status='complete' AND {reopenable}) \
+                  OR (state.status='fetching' AND (state.lease_until IS NULL OR state.lease_until<=now())))\
+         ), newest AS (SELECT date,hour FROM eligible ORDER BY date DESC,hour DESC LIMIT 1) \
+         SELECT eligible.* FROM eligible JOIN newest USING(date,hour) ORDER BY eligible.queue_id"
     )
 }
 
-/// Purpose: calculate all missing/unfinished queue-hours through one DB query
-/// and one state predicate. Input: database, UTC clock, governed lower date,
-/// configured queue IDs. Output: candidates with no population-specific lane.
+/// Purpose: select one newest durable unfinished hour through one DB query.
+/// Input: database, UTC clock, governed lower date, configured queue IDs.
+/// Output: candidates for that one hour with no population-specific lane.
 /// Relationship: every result is consumed by `CanonicalIngestPipeline::discover_hour`.
 async fn queue_hour_gap_candidates(
     database: &Database,
@@ -967,12 +972,7 @@ async fn queue_hour_gap_candidates(
     min_date: &str,
     queue_ids: &[i32],
 ) -> Result<Vec<GapCandidate>, DatabaseError> {
-    let Some((max_date, _)) = expected_elapsed_discovery_hours(now, min_date)
-        .last()
-        .cloned()
-    else {
-        return Ok(Vec::new());
-    };
+    let (max_date, max_hour) = completed_discovery_window(now);
     let states_sql = queue_hour_states_sql();
     let rows = database
         .query_json(
@@ -982,6 +982,7 @@ async fn queue_hour_gap_candidates(
                 &min_date,
                 &max_date,
                 &TERMINAL_NO_COMPLETED_MATCH_REASON,
+                &max_hour,
             ],
         )
         .await?;
@@ -1000,14 +1001,6 @@ async fn queue_hour_gap_candidates(
         states.insert((queue_id, date, hour), row);
     }
     let mut candidates = BTreeMap::new();
-    for queue_id in queue_ids {
-        for (date, hour) in expected_elapsed_discovery_hours(now, min_date) {
-            let key = (*queue_id, date.clone(), hour);
-            if states.get(&key).is_none_or(queue_hour_needs_recovery) {
-                candidates.insert(key, GapCandidate::new(*queue_id, date, hour));
-            }
-        }
-    }
     for ((queue_id, date, hour), row) in &states {
         if queue_hour_needs_recovery(row) {
             candidates.insert(
@@ -1032,7 +1025,8 @@ fn queue_hour_needs_recovery(row: &Value) -> bool {
             .get("lease_due")
             .and_then(Value::as_bool)
             .unwrap_or(true),
-        _ => true,
+        Some("failed") => false,
+        _ => false,
     }
 }
 
@@ -1080,47 +1074,6 @@ fn profile_enrichment_result_json(result: ProfileEnrichmentResult) -> Value {
         "skippedRecent":result.skipped_recent,
         "failed":result.failed
     })
-}
-
-fn expected_elapsed_discovery_hours(now: OffsetDateTime, min_date: &str) -> Vec<(String, i32)> {
-    let latest_fetch_tick_hour = if now.minute() >= 30 {
-        i32::from(now.hour())
-    } else {
-        i32::from(now.hour()) - 1
-    };
-    if latest_fetch_tick_hour < 0 {
-        return Vec::new();
-    }
-    let today = now.date();
-    let earliest = parse_date_boundary(min_date).unwrap_or(today);
-    let mut out = Vec::new();
-    let mut date = earliest;
-    while date <= today {
-        let max_hour = if date == today {
-            (latest_fetch_tick_hour - 1).max(0)
-        } else {
-            23
-        };
-        for hour in 0..=max_hour {
-            out.push((date.to_string(), hour));
-        }
-        let Some(next) = date.next_day() else {
-            break;
-        };
-        date = next;
-        if date > today {
-            break;
-        }
-    }
-    out
-}
-
-fn parse_date_boundary(value: &str) -> Option<time::Date> {
-    let mut parts = value.split('-');
-    let year = parts.next()?.parse::<i32>().ok()?;
-    let month = parts.next()?.parse::<u8>().ok()?;
-    let day = parts.next()?.parse::<u8>().ok()?;
-    time::Date::from_calendar_date(year, Month::try_from(month).ok()?, day).ok()
 }
 
 fn completed_discovery_window(now: OffsetDateTime) -> (String, i32) {
@@ -1391,6 +1344,10 @@ mod tests {
     fn gap_candidate_queries_preserve_sql_token_boundaries() {
         let sql = queue_hour_states_sql();
         assert!(sql.contains("hourly_ingest_state"));
+        assert!(sql.contains("state.fetched=TRUE"));
+        assert!(sql.contains("state.fetch_succeeded=TRUE"));
+        assert!(sql.contains("WITH eligible"));
+        assert!(sql.contains("LIMIT 1"));
         assert!(!sql.contains("hourly_ingest_match_debt"));
         assert!(sql.contains("reopenable"));
         assert!(sql.contains("ingest.match_id IS NULL"));
@@ -1398,15 +1355,18 @@ mod tests {
     }
 
     #[test]
-    fn every_failed_queue_hour_requires_immediate_recovery() {
-        let failed = json!({
+    fn failed_queue_hours_require_explicit_operator_recovery() {
+        let failed_with_ids = json!({
             "date":"2026-08-02",
             "hour":2,
             "status":"failed",
             "raw_match_count":10,
+            "fetch_succeeded":true,
             "lease_due":true
         });
-        assert!(queue_hour_needs_recovery(&failed));
+        assert!(!queue_hour_needs_recovery(&failed_with_ids));
+        let failed_without_ids = json!({"status":"failed","fetch_succeeded":false});
+        assert!(!queue_hour_needs_recovery(&failed_without_ids));
     }
 
     #[test]
@@ -1455,7 +1415,7 @@ mod tests {
     }
 
     #[test]
-    fn gap_recovery_groups_all_queues_by_hour_without_a_work_cap() {
+    fn gap_recovery_drains_one_stored_hour_without_replaying_discovery() {
         let source = include_str!("scheduler_host.rs");
         let recovery = source
             .split_once("async fn run_gap_check")
@@ -1465,67 +1425,12 @@ mod tests {
             .expect("candidate model")
             .0;
         assert!(recovery.contains("candidates_by_hour"));
+        assert!(recovery.contains(".take(1)"));
         assert!(recovery.contains("join_all"));
         assert!(recovery.contains("queue_hour_claim_versions"));
         assert!(recovery.contains("queue-hour claim failed twice"));
-        assert!(!recovery.contains("take("));
+        assert!(!recovery.contains("expected_elapsed_discovery_hours"));
         assert!(!recovery.contains("truncate("));
-    }
-
-    #[test]
-    fn expected_hours_enumerate_prior_days_back_to_min_date() {
-        let now = Date::from_calendar_date(2026, Month::August, 2)
-            .expect("date")
-            .with_time(Time::from_hms(5, 15, 0).expect("time"))
-            .assume_offset(UtcOffset::UTC);
-        // min_date 08-01 => enumerate prior day fully (0..=23) + today up to
-        // latest elapsed tick (hour < 4, since minute 15 < 30 => tick 4, so
-        // today hours 0..=3 are elapsed).
-        assert_eq!(
-            expected_elapsed_discovery_hours(now, "2026-08-01"),
-            vec![
-                ("2026-08-01".to_owned(), 0),
-                ("2026-08-01".to_owned(), 1),
-                ("2026-08-01".to_owned(), 2),
-                ("2026-08-01".to_owned(), 3),
-                ("2026-08-01".to_owned(), 4),
-                ("2026-08-01".to_owned(), 5),
-                ("2026-08-01".to_owned(), 6),
-                ("2026-08-01".to_owned(), 7),
-                ("2026-08-01".to_owned(), 8),
-                ("2026-08-01".to_owned(), 9),
-                ("2026-08-01".to_owned(), 10),
-                ("2026-08-01".to_owned(), 11),
-                ("2026-08-01".to_owned(), 12),
-                ("2026-08-01".to_owned(), 13),
-                ("2026-08-01".to_owned(), 14),
-                ("2026-08-01".to_owned(), 15),
-                ("2026-08-01".to_owned(), 16),
-                ("2026-08-01".to_owned(), 17),
-                ("2026-08-01".to_owned(), 18),
-                ("2026-08-01".to_owned(), 19),
-                ("2026-08-01".to_owned(), 20),
-                ("2026-08-01".to_owned(), 21),
-                ("2026-08-01".to_owned(), 22),
-                ("2026-08-01".to_owned(), 23),
-                ("2026-08-02".to_owned(), 0),
-                ("2026-08-02".to_owned(), 1),
-                ("2026-08-02".to_owned(), 2),
-                ("2026-08-02".to_owned(), 3),
-            ]
-        );
-        // min_date == today => only today's elapsed hours are enumerated.
-        assert_eq!(
-            expected_elapsed_discovery_hours(now, "2026-08-02"),
-            vec![
-                ("2026-08-02".to_owned(), 0),
-                ("2026-08-02".to_owned(), 1),
-                ("2026-08-02".to_owned(), 2),
-                ("2026-08-02".to_owned(), 3),
-            ]
-        );
-        // invalid min_date falls back gracefully (only today), never panics.
-        assert!(!expected_elapsed_discovery_hours(now, "not-a-date").is_empty());
     }
 
     #[test]

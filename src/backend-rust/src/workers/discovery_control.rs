@@ -63,7 +63,7 @@ pub async fn ensure_hourly_ingest_tables(database: &Database) -> Result<(), Data
 
 /// Purpose: acquire exclusive execution for one queue-hour. Input: database,
 /// UTC date/hour, queue ID, audit source. Output: `true` only for the owner that
-/// must execute now; failed hours have no cooldown and completed hours stay final.
+/// must execute now; a reclaimed hour preserves its durable discovery marker.
 pub async fn claim_hourly_ingest_hour(
     database: &Database,
     date: &str,
@@ -77,9 +77,9 @@ pub async fn claim_hourly_ingest_hour(
         "INSERT INTO hourly_ingest_state AS state(date,hour,queue_id,status,attempts,fetched,fetch_succeeded,source,error_message,last_attempt_at,next_retry_at,lease_until,updated_at)\
          VALUES($1::TEXT::DATE,$2,$3,'fetching',1,FALSE,FALSE,$4,NULL,now(),NULL,now()+($5::INT*INTERVAL '1 minute'),now())\
          ON CONFLICT(date,hour,queue_id) DO UPDATE SET status='fetching',attempts=state.attempts+1,\
-         fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
+         source=EXCLUDED.source,error_message=NULL,last_attempt_at=now(),next_retry_at=NULL,\
          lease_until=now()+($5::INT*INTERVAL '1 minute'),updated_at=now() WHERE \
-         state.status='failed' OR (state.status='complete' AND {reopenable}) OR \
+         (state.status='failed' AND (state.fetched=FALSE OR state.fetch_succeeded=TRUE)) OR (state.status='complete' AND {reopenable}) OR \
          (state.status='fetching' AND (state.lease_until IS NULL OR state.lease_until<=now())) RETURNING date"
     );
     let rows = database
@@ -93,6 +93,26 @@ pub async fn claim_hourly_ingest_hour(
                 &FETCH_LEASE_MINUTES,
                 &TERMINAL_NO_COMPLETED_MATCH_REASON,
             ],
+        )
+        .await?;
+    Ok(!rows.is_empty())
+}
+
+/// Purpose: atomically mark the single allowed provider discovery attempt.
+/// Input: an exclusively claimed queue-hour. Output: `true` only for the first
+/// search; later drains must use durable `match_count_discoveries` rows.
+pub async fn claim_hourly_ingest_search(
+    database: &Database,
+    date: &str,
+    hour: i32,
+    queue_id: i32,
+) -> Result<bool, DatabaseError> {
+    let rows = database
+        .query_json(
+            "UPDATE hourly_ingest_state SET fetched=TRUE,fetch_succeeded=FALSE,updated_at=now() \
+             WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 AND status='fetching' AND fetched=FALSE \
+             RETURNING date",
+            &[&date, &hour, &queue_id],
         )
         .await?;
     Ok(!rows.is_empty())
@@ -161,7 +181,7 @@ pub async fn mark_hourly_ingest_complete(
 
 /// Purpose: expose an immediate pipeline failure for the same hour to reclaim.
 /// Input: queue-hour key, message, optional observed/durable counts. Output:
-/// failed state with no cooldown timestamp or separate match-ID ledger.
+/// failed state while preserving the immutable provider-search marker.
 pub async fn mark_hourly_ingest_failed(
     database: &Database,
     date: &str,
@@ -173,7 +193,7 @@ pub async fn mark_hourly_ingest_failed(
 ) -> Result<(), DatabaseError> {
     database.query_json(
         "UPDATE hourly_ingest_state SET status='failed',raw_match_count=GREATEST(raw_match_count,COALESCE($5,raw_match_count)),\
-         staged_match_count=GREATEST(staged_match_count,COALESCE($6,staged_match_count)),fetched=TRUE,fetch_succeeded=FALSE,\
+         staged_match_count=GREATEST(staged_match_count,COALESCE($6,staged_match_count)),\
          error_message=$4,lease_until=NULL,next_retry_at=NULL,updated_at=now()\
          WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3",
         &[&date, &hour, &queue_id, &message, &raw_count, &staged_count],
@@ -248,13 +268,17 @@ mod tests {
     use super::reopenable_hour_predicate;
 
     #[test]
-    fn failed_hours_have_no_cooldown_or_match_debt_gate() {
+    fn reclaimed_hours_preserve_the_single_discovery_marker() {
         let source = include_str!("discovery_control.rs")
             .split_once("#[cfg(test)]")
             .expect("worker source has tests")
             .0;
         let reopenable = reopenable_hour_predicate("$6");
         assert!(source.contains("state.status='failed'"));
+        assert!(source.contains("state.fetched=FALSE OR state.fetch_succeeded=TRUE"));
+        assert!(source.contains("AND fetched=FALSE"));
+        assert!(source.contains("claim_hourly_ingest_search"));
+        assert!(!source.contains("fetched=FALSE,fetch_succeeded=FALSE,source=EXCLUDED.source"));
         assert!(source.contains("state.status='complete' AND {reopenable}"));
         assert!(reopenable.contains("ingest.match_id IS NULL"));
         assert!(reopenable.contains("ingest.status NOT IN('complete','limited')"));

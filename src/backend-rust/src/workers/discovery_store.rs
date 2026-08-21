@@ -84,6 +84,13 @@ pub async fn record_match_count_discovery_result(
          FROM jsonb_to_recordset($1::JSONB) AS observation(region TEXT) GROUP BY observation.region",
         &[&observations, &date, &hour, &queue_id],
     ).await?;
+    transaction
+        .execute(
+            "UPDATE hourly_ingest_state SET fetched=TRUE,fetch_succeeded=TRUE,updated_at=now() \
+         WHERE date=$1::TEXT::DATE AND hour=$2 AND queue_id=$3 AND status='fetching'",
+            &[&date, &hour, &queue_id],
+        )
+        .await?;
     transaction.commit().await?;
     Ok(count)
 }
@@ -107,5 +114,25 @@ fn normalize_region(value: Option<&str>) -> &'static str {
         "OCE" | "OCEANIA" => "OCE",
         "SA" | "SOUTH AMERICA" => "SA",
         _ => "Unknown",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn search_success_marker_commits_with_discovery_evidence() {
+        let source = include_str!("discovery_store.rs");
+        let record = source
+            .split("pub async fn record_match_count_discovery_result")
+            .nth(1)
+            .expect("discovery persistence")
+            .split("fn normalize_region")
+            .next()
+            .expect("discovery persistence body");
+        let marker = record.find("fetch_succeeded=TRUE").expect("success marker");
+        let commit = record
+            .find("transaction.commit()")
+            .expect("transaction commit");
+        assert!(marker < commit);
     }
 }

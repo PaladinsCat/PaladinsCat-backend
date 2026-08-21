@@ -15,8 +15,8 @@ use serde_json::{Value, json};
 use super::{
     casual_mechanics::CasualMechanicsRepository,
     discovery_control::{
-        claim_hourly_ingest_hour, mark_hourly_ingest_complete, mark_hourly_ingest_empty,
-        mark_hourly_ingest_failed, refresh_hourly_ingest_lease,
+        claim_hourly_ingest_hour, claim_hourly_ingest_search, mark_hourly_ingest_complete,
+        mark_hourly_ingest_empty, mark_hourly_ingest_failed, refresh_hourly_ingest_lease,
     },
     discovery_store::{MatchIdObservation, record_match_count_discovery_result},
     match_facts::{CanonicalMatchPayload, MatchFactError, MatchFactRepository},
@@ -188,7 +188,9 @@ impl CanonicalIngestPipeline {
             return Ok(result);
         }
         let known_ids = self.discovered_match_ids(date, hour, queue_id).await?;
-        let ids = if known_ids.is_empty() {
+        let ids = if known_ids.is_empty()
+            && claim_hourly_ingest_search(&self.database, date, hour, queue_id).await?
+        {
             let discovery = self
                 .relay
                 .call_value(
@@ -211,9 +213,13 @@ impl CanonicalIngestPipeline {
                 .into_iter()
                 .map(|observation| observation.match_id)
                 .collect::<Vec<_>>()
-        } else {
+        } else if !known_ids.is_empty() {
             result.discovered = known_ids.len();
             known_ids
+        } else {
+            return Err(PipelineError::Facts(
+                "queue-hour discovery was already attempted without durable IDs".to_owned(),
+            ));
         };
         result.empty = ids.is_empty();
         if result.empty {
@@ -1022,6 +1028,25 @@ mod tests {
         assert!(drain.contains("while !remaining.is_empty()"));
         assert!(drain.contains(".take(MATCH_DETAIL_PROTOCOL_BATCH_SIZE)"));
         assert!(!drain.contains("LIMIT"));
+    }
+
+    #[test]
+    fn provider_search_is_claimed_once_before_the_queue_hour_relay_call() {
+        let source = include_str!("pipeline.rs");
+        let discovery = source
+            .split("async fn discover_hour_inner")
+            .nth(1)
+            .expect("queue-neutral discovery")
+            .split("async fn discovered_match_ids")
+            .next()
+            .expect("queue-neutral discovery body");
+        let claim = discovery
+            .find("claim_hourly_ingest_search")
+            .expect("durable provider-search claim");
+        let relay = discovery
+            .find("getMatchIdsByQueueDetails")
+            .expect("provider discovery call");
+        assert!(claim < relay);
     }
 
     #[test]

@@ -2176,6 +2176,8 @@ CREATE TABLE IF NOT EXISTS hourly_ingest_state (
 );
 CREATE INDEX IF NOT EXISTS idx_his_status_retry ON hourly_ingest_state (status, next_retry_at, lease_until);
 CREATE INDEX IF NOT EXISTS idx_his_queue_window ON hourly_ingest_state (queue_id, date, hour);
+CREATE INDEX IF NOT EXISTS idx_his_durable_recovery_newest ON hourly_ingest_state (date DESC, hour DESC, queue_id)
+WHERE fetched = TRUE AND fetch_succeeded = TRUE;
 COMMENT ON TABLE hourly_ingest_state IS 'Immediate queue-hour execution ledger. Unfinished hours are fetching or failed; no pending, staged, retry, debt, or cooldown state is permitted.';
 
 -- Legacy bootstrap compatibility for tracked migration 048. Tracked migration
