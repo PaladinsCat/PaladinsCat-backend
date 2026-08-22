@@ -5,6 +5,7 @@ pub mod baseline_tracker;
 pub mod baseline_tracker_scheduler;
 pub mod cache_warmer;
 pub mod casual_mechanics;
+pub mod casual_performance;
 pub mod champion_page_cache_urls;
 pub mod coordination;
 pub mod derived_projection_scheduler;

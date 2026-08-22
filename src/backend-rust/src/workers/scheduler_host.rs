@@ -673,9 +673,29 @@ async fn dispatch(
                 super::projections::refresh_performance_metric_stats(&services.database)
                     .await
                     .map_err(|error| error.to_string())?;
+            // Casual performance stats rebuild (queue-486 rule: physically
+            // isolated casual_population). Independent of the ranked refresh:
+            // a casual failure is logged but must not block the ranked rebuild
+            // or fail the whole job.
+            let casual_performance_metric_stats =
+                match super::casual_performance::refresh_casual_performance_metric_stats(
+                    &services.database,
+                )
+                .await
+                {
+                    Ok(count) => count,
+                    Err(error) => {
+                        tracing::warn!(
+                            error = %error,
+                            "casual performance metric stats refresh failed"
+                        );
+                        0
+                    }
+                };
             Ok(json!({
                 "refreshed":true,
                 "performanceMetricStats":performance_metric_stats,
+                "casualPerformanceMetricStats":casual_performance_metric_stats,
             }))
         }
         "auto-ingester:drop-detection" => {

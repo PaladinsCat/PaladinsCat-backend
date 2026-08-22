@@ -237,48 +237,24 @@ async fn metric_summary(
             .unwrap_or_else(empty_summary));
     }
 
-    let mut params = Vec::new();
-    let mut clauses = vec![
-        "cm.stats_eligible = true".to_owned(),
-        "cm.quality = 'complete'".to_owned(),
-        "cmp.stats_eligible = true".to_owned(),
-        "cmp.participant_kind = 'human'".to_owned(),
-        "cmp.player_id > 0".to_owned(),
-        "cmp.task_force IN (1, 2)".to_owned(),
-        "lower(COALESCE(cmp.win_status, '')) IN ('winner', 'win', 'loser', 'loss')".to_owned(),
-        "cm.duration_seconds > 0".to_owned(),
-    ];
-    if let Some(role) = role {
-        params.push(QueryParam::Text(role.to_owned()));
-        clauses.push(format!("{ROLE_SQL} = ${}", params.len()));
-    }
-    let expression = selected
-        .casual_expression
-        .expect("casual metric validated by handler");
-    let sql = format!(
-        "WITH metric_values AS ( \
-           SELECT ({expression})::DOUBLE PRECISION AS value \
-           FROM casual_match_players cmp \
-           JOIN casual_matches cm ON cm.match_id = cmp.match_id \
-           LEFT JOIN champions c ON c.id = cmp.champion_id \
-           WHERE {} \
-         ) \
-         SELECT \
-           COALESCE(ROUND(MIN(value)::NUMERIC, 2), 0)::DOUBLE PRECISION AS min, \
-           COALESCE(ROUND(MAX(value)::NUMERIC, 2), 0)::DOUBLE PRECISION AS max, \
-           COALESCE(ROUND(AVG(value)::NUMERIC, 2), 0)::DOUBLE PRECISION AS mean, \
-           COALESCE(ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value))::NUMERIC, 2), 0)::DOUBLE PRECISION AS median, \
-           COALESCE(ROUND((MODE() WITHIN GROUP (ORDER BY ROUND(value::NUMERIC, 0)))::NUMERIC, 2), 0)::DOUBLE PRECISION AS mode, \
-           COALESCE(ROUND((PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY value))::NUMERIC, 2), 0)::DOUBLE PRECISION AS p10, \
-           COALESCE(ROUND((PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY value))::NUMERIC, 2), 0)::DOUBLE PRECISION AS p25, \
-           COALESCE(ROUND((PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY value))::NUMERIC, 2), 0)::DOUBLE PRECISION AS p75, \
-           COALESCE(ROUND((PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY value))::NUMERIC, 2), 0)::DOUBLE PRECISION AS p90, \
-           COUNT(*)::INT AS sample_size \
-         FROM metric_values WHERE value > 0",
-        clauses.join(" AND ")
-    );
+    // Casual: durable precomputed read model (migration 134). The live
+    // PERCENTILE_CONT scan over the whole eligible casual population exceeded
+    // the 30s statement_timeout on every request and warmer cycle; the
+    // histogram + hourly stats rebuild (workers/casual_performance.rs) keeps
+    // this a point-read.
     Ok(database
-        .one_json_params(&sql, &params)
+        .one_json_params(
+            "SELECT min_value AS min, max_value AS max, mean_value AS mean, \
+                    median_value AS median, mode_value AS mode, p10_value AS p10, \
+                    p25_value AS p25, p75_value AS p75, p90_value AS p90, \
+                    sample_size::DOUBLE PRECISION AS sample_size, updated_at \
+                 FROM casual_performance_metric_stats \
+                 WHERE role_name = $1 AND metric = $2",
+            &[
+                QueryParam::Text(role.unwrap_or("Global").to_owned()),
+                QueryParam::Text(selected.key.to_owned()),
+            ],
+        )
         .await?
         .unwrap_or_else(empty_summary))
 }

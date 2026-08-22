@@ -185,6 +185,11 @@ impl CasualMechanicsRepository {
         match_id: i64,
     ) -> Result<CasualMechanicsProjectionResult, CasualItemProjectionError> {
         let items = self.upsert_item_projection_for_match(match_id).await?;
+        // Durable casual performance histogram (queue-486 rule: only Casual
+        // Siege 424 + Casual Onslaught 452). Self-guarding - the claim SQL JOINs
+        // casual_matches and filters queue_id IN (424,452), so Special matches
+        // (special_matches scope) are a no-op and never enter the casual projection.
+        self.project_performance_for_match(match_id).await?;
         let talents = self
             .project_fact_family(
                 match_id,
@@ -270,6 +275,22 @@ impl CasualMechanicsRepository {
             talents,
             cards,
         })
+    }
+
+    /// Project one complete casual match into the durable performance
+    /// histogram. Guarded to the casual population: the claim SQL only matches
+    /// rows in `casual_matches` with `queue_id IN (424,452)`, so Special
+    /// matches never enter the casual projection (queue-486 rule).
+    async fn project_performance_for_match(
+        &self,
+        match_id: i64,
+    ) -> Result<(), CasualItemProjectionError> {
+        let mut client = self.database.connection().await?;
+        let transaction = client.transaction().await?;
+        super::casual_performance::project_casual_performance_many(&transaction, &[match_id])
+            .await?;
+        transaction.commit().await?;
+        Ok(())
     }
 
     async fn project_fact_family(
