@@ -62,11 +62,6 @@ async fn main() {
         });
     foundation.initialize().await;
     eprintln!("[init] foundation.initialize done");
-    if let Err(error) = cache_warmer.warm_deployment_critical().await {
-        eprintln!("deployment-critical cache warm-up failed: {error}");
-        std::process::exit(78);
-    }
-    eprintln!("[init] deployment-critical cache warm-up done");
     let address: SocketAddr = format!("{}:{}", config.api_host, config.api_port)
         .parse()
         .unwrap_or_else(|error| {
@@ -113,11 +108,9 @@ async fn main() {
     let main_warmer = env_enabled("SITE_CACHE_WARMER_ENABLED", true).then(|| {
         let warmer = cache_warmer.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(env_u64(
-                "SITE_CACHE_WARM_STARTUP_DELAY_MS",
-                5_000,
-            )))
-            .await;
+            if let Err(error) = warmer.warm_deployment_critical().await {
+                tracing::warn!(error = %error, "deployment-critical cache warm failed");
+            }
             let mut interval = tokio::time::interval(Duration::from_millis(env_u64(
                 "SITE_CACHE_WARM_INTERVAL_MS",
                 600_000,
